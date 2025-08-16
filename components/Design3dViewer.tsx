@@ -1,30 +1,26 @@
-import { Canvas, useFrame } from "@react-three/fiber";
-import { useRef } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import Room3d from "./3dView/Room3d";
+import RotatingBox from "./3dView/RotatingBox";
 
-function RotatingBox() {
-  const meshRef = useRef();
+function CameraController() {
+  const { camera } = useThree();
 
   useFrame(() => {
-    if (meshRef.current) {
-      meshRef.current.rotation.x += 0.01;
-      meshRef.current.rotation.y += 0.01;
-    }
+    camera.lookAt(0, 0, -2.5);
+    camera.updateProjectionMatrix();
   });
 
-  return (
-    <mesh ref={meshRef}>
-      <boxGeometry args={[1, 1, 1]} />
-      <meshStandardMaterial color="white" />
-    </mesh>
-  );
+  return null;
 }
 
 export default function Design3dView() {
   return (
-    <Canvas gl={{ alpha: false }} style={{ background: "lightblue" }}>
-      <RotatingBox />
-      <ambientLight />
-      <pointLight position={[2, 5, 5]} intensity={50} />
+    <Canvas shadows style={{ background: "lightblue" }} camera={{ position: [0, 3, 5] }}>
+        <CameraController />
+        <ambientLight intensity={.5}/>
+        <pointLight castShadow position={[0, 5, 2]} intensity={75} />
+        <RotatingBox /*position={[0, 2, -1]} */ />
+        <Room3d />
     </Canvas>
   );
 }
