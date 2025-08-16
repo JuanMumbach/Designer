@@ -5,9 +5,10 @@ import { Mesh } from "three";
 
 type RotatingBoxProps = {
   position?: [number, number, number];
+  onClick?: () => void;
 };
 
-export default function RotatingBox({ position }: RotatingBoxProps) {
+export default function RotatingBox({ position, onClick}: RotatingBoxProps) {
   const meshRef = useRef<Mesh>(null!);
 
   
@@ -35,7 +36,7 @@ export default function RotatingBox({ position }: RotatingBoxProps) {
 
   return (
     <>
-    <mesh castShadow ref={meshRef} position={position}>
+    <mesh castShadow ref={meshRef} position={position} onClick={() => onClick && onClick()}>
       <boxGeometry args={[1, 1, 1]} />
       <meshStandardMaterial color="white" />
     </mesh>

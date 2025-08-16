@@ -13,13 +13,17 @@ function CameraController() {
   return null;
 }
 
+const handleBoxClick = () => {
+    console.log("Box clicked!");
+  }
+
 export default function Design3dView() {
   return (
     <Canvas shadows style={{ background: "lightblue" }} camera={{ position: [0, 3, 5] }}>
         <CameraController />
         <ambientLight intensity={.5}/>
         <pointLight castShadow position={[0, 5, 2]} intensity={75} />
-        <RotatingBox /*position={[0, 2, -1]} */ />
+        <RotatingBox onClick={handleBoxClick} />
         <Room3d />
     </Canvas>
   );

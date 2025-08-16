@@ -1,5 +1,5 @@
 import { StyleSheet, View } from "react-native";
-import Button from "./Button";
+import Button from "../Button";
 
 export default function View3dOverlay() {
   return (
@@ -19,7 +19,8 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
     justifyContent: 'flex-end', 
-    alignItems: 'center',      
+    alignItems: 'center',
+    pointerEvents: "box-none",      
     paddingBottom: 30,
   }
 });
