@@ -1,7 +1,7 @@
 function Floor() {
     return (
         <mesh receiveShadow position={[0, -.5, 0]}>
-            <boxGeometry args={[50, 1, 10]} />
+            <boxGeometry args={[100, 1, 10]} />
             <meshStandardMaterial color="white" />
         </mesh>
     );
@@ -10,7 +10,7 @@ function Floor() {
 function Wall() {
     return (
         <mesh receiveShadow position={[0, 5, -5]} rotation={[0, 0, 0]}>
-            <planeGeometry args={[50, 10]} />
+            <planeGeometry args={[100, 10]} />
             <meshStandardMaterial color="white"/>
         </mesh>
     );
