@@ -19,8 +19,8 @@ const cameraControlsProps = {
     enableDamping: false,
     minAzimuthAngle: -Math.PI / 4,
     maxAzimuthAngle: Math.PI / 4,
-    minPolarAngle: Math.PI / 4,
-    maxPolarAngle: Math.PI / 4,
+    minPolarAngle: Math.PI / 4+.1,
+    maxPolarAngle: Math.PI / 4+.1,
     rotateSpeed: 0.25,
   };
 
@@ -28,7 +28,7 @@ function CameraController() {
   const { camera } = useThree();
 
   useFrame(() => {
-    camera.lookAt(0, 0, -2.5);
+    camera.lookAt(0, 0, 0);
     camera.updateProjectionMatrix();
   });
 
@@ -41,12 +41,6 @@ const handleBoxClick = () => {
 
 // The list of objects is now stored here, in the parent component.
 const myDesignObjects: DesignObjectProps[] = [
-  {
-    id: "wall",
-    type: "wall",
-    position: [.1, 1.35, 2.5],
-    dimensions: [.2, 2.7, 5],
-  },
   {
     id: "cabinet1",
     type: "cabinetWithDoors80",
@@ -75,12 +69,18 @@ const myDesignObjects: DesignObjectProps[] = [
 
 export default function Design3dView() {
   return (
-    <Canvas shadows style={{ background: "darkgray" }} camera={{ position: [0, 3, 5] }}>
+    <Canvas shadows style={{ background: "darkgray" }} camera={{ position: [0, 3, 3] }}>
         <CameraController/>
         <ambientLight intensity={.5}/>
         <pointLight castShadow position={[0, 5, 2]} intensity={75} />
         <RotatingBox onClick={handleBoxClick} />
-        <Room3d />
+        <Room3d 
+            width={5} 
+            height={3} 
+            leftWall={true} 
+            rightWall={true} 
+            depth={5}
+        />
         <DesignObjects objects={myDesignObjects} />
         <OrbitControls {...cameraControlsProps} />
         <fog attach="fog" args={["darkgray", 5, 20]} />
