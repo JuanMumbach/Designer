@@ -1,8 +1,8 @@
 import { OrbitControls } from '@react-three/drei/native';
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from 'three';
-import DesignObjects, { DesignObjectProps } from "./3dView/DesignObjects";
-import Room3d from "./3dView/Room3d";
+import DesignObjects, { DesignObjectInstanceProps, NewInstance, objectTypes } from "./3dView/DesignObjects";
+import Room3d, { RoomOrigin } from "./3dView/Room3d";
 import RotatingBox from "./3dView/RotatingBox";
 
 const cameraControlsProps = {
@@ -40,48 +40,33 @@ const handleBoxClick = () => {
   }
 
 // The list of objects is now stored here, in the parent component.
-const myDesignObjects: DesignObjectProps[] = [
-  {
-    id: "cabinet1",
-    type: "cabinetWithDoors80",
-    position: [.6, .45, .3],
-    dimensions: [.8, .9, .6],
-  },
-  {
-    id: "drawers1",
-    type: "drawers60_3",
-    position: [1.4, .45, .3],
-    dimensions: [.8, .9, .6],
-  },
-  {
-    id: "cabinet2",
-    type: "cabinet60",
-    position: [2.2, .45, .3],
-    dimensions: [.8, .9, .6],
-  },
-  {
-    id: "drawers2",
-    type: "drawers60_2",
-    position: [3, .45, .3],
-    dimensions: [.8, .9, .6],
-  },
+const myDesignObjects: DesignObjectInstanceProps[] = [
+  
 ];
 
+
+
 export default function Design3dView() {
+
+  myDesignObjects.push(NewInstance(objectTypes[0], .6));
+  myDesignObjects.push(NewInstance(objectTypes[1]));
+  myDesignObjects.push(NewInstance(objectTypes[2]));
+  myDesignObjects.push(NewInstance(objectTypes[0]));
+
+
+  console.log("Design3dView render, myDesignObjects:", myDesignObjects);
   return (
     <Canvas shadows style={{ background: "darkgray" }} camera={{ position: [0, 3, 3] }}>
         <CameraController/>
-        <ambientLight intensity={.5}/>
-        <pointLight castShadow position={[0, 5, 2]} intensity={75} />
+        <ambientLight intensity={2}/>
+        <pointLight castShadow position={[0, 3, 3.5]} intensity={35} />
         <RotatingBox onClick={handleBoxClick} />
-        <Room3d 
-            width={5} 
-            height={3} 
-            leftWall={true} 
-            rightWall={true} 
-            depth={5}
-        />
-        <DesignObjects objects={myDesignObjects} />
+        <Room3d/>
+        <DesignObjects objects={myDesignObjects} origin={RoomOrigin()} />
+        <mesh position={RoomOrigin()}>
+        <sphereGeometry args={[.1, 16, 16]} />
+          <meshStandardMaterial color="lightblue" />
+        </mesh>
         <OrbitControls {...cameraControlsProps} />
         <fog attach="fog" args={["darkgray", 5, 20]} />
     </Canvas>

@@ -1,48 +1,83 @@
 import { Box } from '@react-three/drei/native';
 import React from 'react';
-import { ColorRepresentation } from 'three';
+import { generateUUID } from 'three/src/math/MathUtils.js';
 
-// Define the interface for your furniture data.
-export interface DesignObjectProps {
+
+export interface DesignObjectInstanceProps {
   id: string;
-  type: string;
-  position: [number, number, number];
+  type: DesignObjectTypeProps;
+  name: string;
+  xdistance: number;
   dimensions: [number, number, number];
+  color: string;
+}
+
+export interface DesignObjectTypeProps {
+  id: string;
+  name: string;
+  width: number;
+  height: number;
+  depth: number;
+}
+
+export function NewInstance(type: DesignObjectTypeProps, xDistance? : number): DesignObjectInstanceProps {
+  return {
+    id: generateUUID(),
+    type: type,
+    name: type.name,
+    xdistance: xDistance ? xDistance : 0,
+    dimensions: [type.width, type.height, type.depth],
+    color: getRandomColor(),
+  };
+}
+
+
+export var objectTypes : DesignObjectTypeProps[] = [
+  { id: generateUUID(), name: "Cube Small", width: .4, height: .88, depth: .6 },
+  { id: generateUUID(), name: "Cube Medium", width: .6, height: .88, depth: .6 },
+  { id: generateUUID(), name: "Cube Large", width: .8, height: .88, depth: .6 }, ];
+
+function getRandomColor() {
+  let rand : number = Math.random();
+  if (rand as number < 0.3) return "#ffc6c6";
+  if (rand as number < 0.6) return "#ccffcc";
+  if (rand as number < 0.8) return "#cbcbff";
+  return "#ffffff";
 }
 
 // The component now receives the list of objects as a prop.
-export default function DesignObjects({ objects }: { objects: DesignObjectProps[] }) {
+export default function DesignObjects({ objects, origin }: { objects: DesignObjectInstanceProps[], origin: [number, number, number] }) {
+
+  
+  let positions : number[] = [];
+
+  let previousXPosition = 0;
+  for (let i = 0; i < objects.length; i++) {
+    let posx = previousXPosition + objects[i].xdistance;
+    previousXPosition += objects[i].dimensions[0] + objects[i].xdistance;
+    positions.push(posx);
+  }
+
+  var count = 0;
   return (
     <>
-      {objects.map((obj) => {
-        let color: ColorRepresentation = "white";
-        let args = obj.dimensions;
-
-        switch (obj.type) {
-          case "wall":
-            color = "#8b4513";
-            break;
-          case "cabinetWithDoors80":
-            color = "#c0c0c0";
-            break;
-          case "drawers60_3":
-            color = "#a9a9a9";
-            break;
-          case "cabinet60":
-            color = "#d3d3d3";
-            break;
-          case "drawers60_2":
-            color = "#a9a9a9";
-            break;
-          default:
-            color = "#ffffff";
-            break;
-        }
-
-        return (
-          <Box key={obj.id} position={obj.position} args={args}>
-            <meshStandardMaterial attach="material" color={color} />
-          </Box>
+      {
+  
+        objects.map((obj) => {
+          count++;
+          console.log("Rendering object:", obj.name, "at position:", positions[count-1]);
+          return (
+            <Box key={obj.id} 
+              position={[
+                origin[0]+positions[count-1]+obj.dimensions[0]/2,
+                origin[1]+obj.dimensions[1]/2,
+                origin[2]+obj.dimensions[2]/2
+              ]}
+              
+              args={[obj.dimensions[0], obj.dimensions[1], obj.dimensions[2]]}
+              >
+              <meshStandardMaterial attach="material" color={obj.color}/>
+            </Box>
         );
       })}
     </>
