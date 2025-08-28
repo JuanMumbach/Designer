@@ -22,7 +22,7 @@ const floorThickness = 0.2;
 function VoidSpaceFloor() {
     return (
         <mesh position={[0, -3, 0]}>
-            <boxGeometry args={[100, 1, 30]} />
+            <boxGeometry args={[100, 1, 100]} />
             <meshStandardMaterial color="white" />
         </mesh>
     );

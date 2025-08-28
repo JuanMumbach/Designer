@@ -3,7 +3,6 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from 'three';
 import DesignObjects, { DesignObjectInstanceProps, NewInstance, objectTypes } from "./3dView/DesignObjects";
 import Room3d, { RoomOrigin } from "./3dView/Room3d";
-import RotatingBox from "./3dView/RotatingBox";
 
 const cameraControlsProps = {
     mouseButtons: {
@@ -19,8 +18,8 @@ const cameraControlsProps = {
     enableDamping: false,
     minAzimuthAngle: -Math.PI / 4,
     maxAzimuthAngle: Math.PI / 4,
-    minPolarAngle: Math.PI / 4+.1,
-    maxPolarAngle: Math.PI / 4+.1,
+    minPolarAngle: Math.PI / 4+.2,
+    maxPolarAngle: Math.PI / 4+.2,
     rotateSpeed: 0.25,
   };
 
@@ -28,7 +27,7 @@ function CameraController() {
   const { camera } = useThree();
 
   useFrame(() => {
-    camera.lookAt(0, 0, 0);
+    camera.lookAt(0, 1, 0);
     camera.updateProjectionMatrix();
   });
 
@@ -60,7 +59,6 @@ export default function Design3dView() {
         <CameraController/>
         <ambientLight intensity={2}/>
         <pointLight castShadow position={[0, 3, 3.5]} intensity={35} />
-        <RotatingBox onClick={handleBoxClick} />
         <Room3d/>
         <DesignObjects objects={myDesignObjects} origin={RoomOrigin()} />
         <mesh position={RoomOrigin()}>
