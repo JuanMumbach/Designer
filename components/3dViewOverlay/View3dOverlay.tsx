@@ -1,13 +1,38 @@
-import { Dimensions, StyleSheet, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Dimensions, ScaledSize, StyleSheet, View } from "react-native";
+import { DesignObjectInstanceProps } from "../3dView/DesignObjects";
 import Button from "../Button";
+import ObjectsManager from "./ObjectsManager";
 
 const debugColors = false;
 
-export default function View3dOverlay() {
+
+function useWindowDimensions() {
+    const [windowDimensions, setWindowDimensions] = useState(Dimensions.get('window'));
+
+    useEffect(() => {
+        const onChange = ({ window }: { window: ScaledSize }) => {
+            setWindowDimensions(window);
+        };
+
+        const subscription = Dimensions.addEventListener('change', onChange);
+        
+        return () => {
+            subscription.remove();
+        };
+    }, []);
+
+    return windowDimensions;
+}
+
+export default function View3dOverlay({designObjects}: {designObjects : DesignObjectInstanceProps[]}) {
+  const { width } = useWindowDimensions();
+  const [isObjectsManagerVisible, setIsObjectsManagerVisible] = useState(false);
+  
   return (
     <View style={styles.overlay}>
         
-        {(Dimensions.get('window').width > 768) && 
+        {(width > 768) && 
         (
           <View style={[styles.column, {backgroundColor: debugColors ? 'rgba(255, 0, 0, 0.25)' : 'transparent'}]}>
             <Button label="Left Button 1" onPress={() => console.log("Left Button 1 Pressed")} />
@@ -16,16 +41,25 @@ export default function View3dOverlay() {
         )}
 
         <View style={[styles.middleColumn, {backgroundColor: debugColors ? 'rgba(4, 0, 255, 0.25)' : 'transparent'}]}>
+          {(width <= 768) && 
+          (
+            isObjectsManagerVisible && (
+            <ObjectsManager designObjects={designObjects}/>
+          )
+          )}
+
           <View style={[styles.mainControls, {backgroundColor: debugColors ? 'rgba(51, 255, 0, 0.25)' : 'transparent'}]}>
             <Button label="Main Button 1" onPress={() => console.log("Main Button 1 Pressed")} />
           </View>
         </View>
 
-        {(Dimensions.get('window').width > 768) && 
+        {(width > 768) && 
         (
           <View style={[styles.column, {backgroundColor: debugColors ? 'rgba(255, 0, 0, 0.25)' : 'transparent'}]}>
-          <Button label="Right Button 1" onPress={() => console.log("Right Button 1 Pressed")} />
-          <Button label="Right Button 2" onPress={() => console.log("Right Button 2 Pressed")} />
+          {isObjectsManagerVisible && (
+            <ObjectsManager designObjects={designObjects}/>
+          )}
+          <Button label="Edit Objects" onPress={() => setIsObjectsManagerVisible(!isObjectsManagerVisible)}/>
           </View>
         )}
     </View>

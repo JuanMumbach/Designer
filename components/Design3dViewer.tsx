@@ -43,7 +43,10 @@ const myDesignObjects: DesignObjectInstanceProps[] = [
   
 ];
 
-
+export function GetDesignObjects() : DesignObjectInstanceProps[]
+{
+  return myDesignObjects;
+}
 
 export default function Design3dView() {
 
