@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Dimensions, ScaledSize, StyleSheet, View } from "react-native";
-import { DesignObjectInstanceProps } from "../3dView/DesignObjects";
+import { DesignObjectInstanceProps, objectTypes } from "../3dView/DesignObjects";
 import Button from "../Button";
+import AddObjectMenu from "./AddObjectMenu";
 import ObjectsManager from "./ObjectsManager";
 
 const debugColors = false;
@@ -28,15 +29,14 @@ function useWindowDimensions() {
 export default function View3dOverlay({designObjects}: {designObjects : DesignObjectInstanceProps[]}) {
   const { width } = useWindowDimensions();
   const [isObjectsManagerVisible, setIsObjectsManagerVisible] = useState(false);
-  
+  const [isAddObjectMenuVisible, setIsAddObjectMenuVisible] = useState(false);
   return (
     <View style={styles.overlay}>
         
         {(width > 768) && 
         (
           <View style={[styles.column, {backgroundColor: debugColors ? 'rgba(255, 0, 0, 0.25)' : 'transparent'}]}>
-            <Button label="Left Button 1" onPress={() => console.log("Left Button 1 Pressed")} />
-            <Button label="Left Button 2" onPress={() => console.log("Left Button 2 Pressed")} />
+            <Button label="Edit Room" onPress={() => ""} />
           </View>
         )}
 
@@ -47,9 +47,11 @@ export default function View3dOverlay({designObjects}: {designObjects : DesignOb
             <ObjectsManager designObjects={designObjects}/>
           )
           )}
-
+          
+          {isAddObjectMenuVisible && (<AddObjectMenu designObjectTypes={objectTypes}/>)}
+          
           <View style={[styles.mainControls, {backgroundColor: debugColors ? 'rgba(51, 255, 0, 0.25)' : 'transparent'}]}>
-            <Button label="Main Button 1" onPress={() => console.log("Main Button 1 Pressed")} />
+            <Button label="Add Object" onPress={() => setIsAddObjectMenuVisible(!isAddObjectMenuVisible)} />
           </View>
         </View>
 

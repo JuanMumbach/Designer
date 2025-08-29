@@ -38,15 +38,9 @@ const handleBoxClick = () => {
     console.log("Box clicked!");
   }
 
-// The list of objects is now stored here, in the parent component.
-const myDesignObjects: DesignObjectInstanceProps[] = [
-  
-];
 
-export function GetDesignObjects() : DesignObjectInstanceProps[]
-{
-  return myDesignObjects;
-}
+export const myDesignObjects: DesignObjectInstanceProps[] = [];
+
 
 export default function Design3dView() {
 
