@@ -1,5 +1,6 @@
 import { OrbitControls } from '@react-three/drei/native';
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import React from 'react';
 import * as THREE from 'three';
 import DesignObjects, { DesignObjectInstanceProps, NewInstance, objectTypes } from "./3dView/DesignObjects";
 import Room3d, { RoomOrigin } from "./3dView/Room3d";

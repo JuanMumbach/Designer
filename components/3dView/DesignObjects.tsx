@@ -45,7 +45,7 @@ function getRandomColor() {
   return "#ffffff";
 }
 
-// The component now receives the list of objects as a prop.
+
 export default function DesignObjects({ objects, origin }: { objects: DesignObjectInstanceProps[], origin: [number, number, number] }) {
 
   

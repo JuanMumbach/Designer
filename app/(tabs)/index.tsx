@@ -1,5 +1,5 @@
-import View3dOverlay from "@/components/3dViewOverlay/View3dOverlay";
 import Design3dView, { myDesignObjects } from "@/components/Design3dViewer";
+import View3dOverlay from "@/components/View3dOverlay";
 import { View } from "react-native";
 
 export default function Index() {

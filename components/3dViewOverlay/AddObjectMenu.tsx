@@ -1,44 +1,41 @@
-import { Button, ScrollView, StyleSheet, Text, View } from "react-native";
-import { DesignObjectTypeProps } from "../3dView/DesignObjects";
+import { useState } from "react";
+import { TextInput, View } from "react-native";
+import { DesignObjectTypeProps, NewInstance } from "../3dView/DesignObjects";
+import Button from "../Button";
+import { myDesignObjects } from "../Design3dViewer";
 
-export default function AddObjectMenu({ designObjectTypes }: { designObjectTypes: DesignObjectTypeProps[] })
-{
-    return (
-        <ScrollView style={styles.container}>
-            {designObjectTypes.map((obj, index) => (
-                <View key={index} style={styles.element}>
-                    <Text>
-                        {obj.name}<br></br>
-                        Width: {obj.width}   Height: {obj.height}   Depth: {obj.depth}<br></br>
-                    </Text>
-                    <Button title={"Add"}></Button>
-                </View>
-                
-                /*
-                < 
-                    key={index} 
-                    type={obj.type} 
-                    scale={obj.scale} 
-                    position={obj.position} 
-                    rotation={obj.rotation} 
-                    onClick={obj.onClick} 
-                />
-                */
-            ))}
-        </ScrollView>
-    );
+
+const [name, onChangeName] = useState("");
+const [width, onChangeWidth] = useState(1);
+const [height, onChangeHeight] = useState(1);
+const [depth, onChangeDepth] = useState(1);
+const [color, onChangeColor] = useState("#ffffff");
+const [xdistance, onChangeXDistance] = useState("0");
+
+
+/*
+export interface DesignObjectInstanceProps {
+  id: string;
+  type: DesignObjectTypeProps;
+  name: string;
+  xdistance: number;
+  dimensions: [number, number, number];
+  color: string;
 }
+*/
+export default function AddObjectMenu({newObjectType}: {newObjectType: DesignObjectTypeProps}) {
+    onChangeName(newObjectType.name);
+    onChangeWidth(newObjectType.width);
+    onChangeHeight(newObjectType.height);
+    onChangeDepth(newObjectType.depth);
+    onChangeColor("#ffffff");
+    onChangeXDistance("0");
 
-const styles = StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: '#fff',
-    },
-    element: {
-        margin: 10,
-        padding: 10,
-        borderWidth: 1,
-        borderColor: '#ccc',
-        borderRadius: 5,
-    },
-});
+    return(
+            <View>
+                {newObjectType.name}<br></br>
+                <TextInput onChangeText={onChangeName} value={name} placeholder={name}/>
+                <Button label="Add Object" onPress={() => myDesignObjects.push(NewInstance(newObjectType))} />
+            </View>
+    )
+}

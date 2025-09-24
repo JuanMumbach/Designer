@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { Dimensions, ScaledSize, StyleSheet, View } from "react-native";
-import { DesignObjectInstanceProps, objectTypes } from "../3dView/DesignObjects";
-import Button from "../Button";
-import AddObjectMenu from "./AddObjectMenu";
-import ObjectsManager from "./ObjectsManager";
+import { DesignObjectInstanceProps, objectTypes } from "./3dView/DesignObjects";
+import AddObjectMenu from "./3dViewOverlay/AddObjectMenu";
+import ListInstantiableObjects from "./3dViewOverlay/ListInstantiableObjects";
+import ObjectsManager from "./3dViewOverlay/ObjectsManager";
+import Button from "./Button";
 
 const debugColors = false;
 
+var newObjectType = objectTypes[0];
 
 function useWindowDimensions() {
     const [windowDimensions, setWindowDimensions] = useState(Dimensions.get('window'));
@@ -26,10 +28,23 @@ function useWindowDimensions() {
     return windowDimensions;
 }
 
+
+
 export default function View3dOverlay({designObjects}: {designObjects : DesignObjectInstanceProps[]}) {
+  
   const { width } = useWindowDimensions();
   const [isObjectsManagerVisible, setIsObjectsManagerVisible] = useState(false);
+  const [isListInstantiableObjectsVisible, setIsListInstantiableObjectsVisible] = useState(false);
+
+  const showAddObjectMenu = () => {
+    setIsObjectsManagerVisible(false);
+    setIsListInstantiableObjectsVisible(false);
+    setIsAddObjectMenuVisible(true);
+  }
+
+  const [setShowAddObjectMenu] = useState(() => showAddObjectMenu);
   const [isAddObjectMenuVisible, setIsAddObjectMenuVisible] = useState(false);
+
   return (
     <View style={styles.overlay}>
         
@@ -48,10 +63,11 @@ export default function View3dOverlay({designObjects}: {designObjects : DesignOb
           )
           )}
           
-          {isAddObjectMenuVisible && (<AddObjectMenu designObjectTypes={objectTypes}/>)}
-          
+          {isListInstantiableObjectsVisible && (<ListInstantiableObjects designObjectTypes={objectTypes} addObjectAction={() => setShowAddObjectMenu()}/>)}
+          {isAddObjectMenuVisible && (<AddObjectMenu newObjectType={newObjectType}/>)}
+            
           <View style={[styles.mainControls, {backgroundColor: debugColors ? 'rgba(51, 255, 0, 0.25)' : 'transparent'}]}>
-            <Button label="Add Object" onPress={() => setIsAddObjectMenuVisible(!isAddObjectMenuVisible)} />
+            <Button label="Add Object" onPress={() => setIsListInstantiableObjectsVisible(!isListInstantiableObjectsVisible)} />
           </View>
         </View>
 
