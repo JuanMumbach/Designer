@@ -1,7 +1,7 @@
 import { Box } from '@react-three/drei/native';
-import React from 'react';
+import React, { Suspense } from 'react';
 import { generateUUID } from 'three/src/math/MathUtils.js';
-
+import CounterModel from '../../assets/models/model1/Model.jsx';
 
 export interface DesignObjectInstanceProps {
   id: string;
@@ -66,7 +66,27 @@ export default function DesignObjects({ objects, origin }: { objects: DesignObje
         objects.map((obj) => {
           count++;
           console.log("Rendering object:", obj.name, "at position:", positions[count-1]);
+          
+          if (obj.type.name === "Cube Medium"){
+              return(
+                <Suspense key={obj.id} fallback={null}>
+                  <CounterModel position={[
+                    origin[0]+positions[count-1],
+                    origin[1],
+                    origin[2]
+                    ]}
+
+                    
+                    rotation={[0,-Math.PI/2, 0]}
+                    scale={0.01}
+                  
+                  ></CounterModel>
+                </Suspense>
+              ) 
+            }
+
           return (
+            
             <Box key={obj.id} 
               position={[
                 origin[0]+positions[count-1]+obj.dimensions[0]/2,

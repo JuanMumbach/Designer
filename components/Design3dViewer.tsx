@@ -55,8 +55,8 @@ export default function Design3dView() {
   return (
     <Canvas shadows style={{ background: "darkgray" }} camera={{ position: [0, 3, 3] }}>
         <CameraController/>
-        <ambientLight intensity={2}/>
-        <pointLight castShadow position={[0, 3, 3.5]} intensity={35} />
+        <ambientLight intensity={10}/>
+        <pointLight castShadow position={[0, 3, 3.5]} intensity={70} />
         <Room3d/>
         <DesignObjects objects={myDesignObjects} origin={RoomOrigin()} />
         <mesh position={RoomOrigin()}>
