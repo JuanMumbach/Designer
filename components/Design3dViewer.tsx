@@ -47,8 +47,8 @@ export default function Design3dView() {
 
   myDesignObjects.push(NewInstance(objectTypes[0], .6));
   myDesignObjects.push(NewInstance(objectTypes[1]));
+  myDesignObjects.push(NewInstance(objectTypes[3]));
   myDesignObjects.push(NewInstance(objectTypes[2]));
-  myDesignObjects.push(NewInstance(objectTypes[0]));
 
 
   console.log("Design3dView render, myDesignObjects:", myDesignObjects);
@@ -64,7 +64,7 @@ export default function Design3dView() {
           <meshStandardMaterial color="lightblue" />
         </mesh>
         <OrbitControls {...cameraControlsProps} />
-        <fog attach="fog" args={["darkgray", 5, 20]} />
+        {/*<fog attach="fog" args={["darkgray", 5, 20]} />*/}
     </Canvas>
   );
 }
