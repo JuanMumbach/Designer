@@ -55,7 +55,7 @@ export default function Design3dView() {
   return (
     <Canvas shadows style={{ background: "darkgray" }} camera={{ position: [0, 3, 3] }}>
         <CameraController/>
-        <ambientLight intensity={10}/>
+        <ambientLight intensity={.5}/>
         <pointLight castShadow position={[0, 3, 3.5]} intensity={70} />
         <Room3d/>
         <DesignObjects objects={myDesignObjects} origin={RoomOrigin()} />
@@ -64,7 +64,7 @@ export default function Design3dView() {
           <meshStandardMaterial color="lightblue" />
         </mesh>
         <OrbitControls {...cameraControlsProps} />
-        {/*<fog attach="fog" args={["darkgray", 5, 20]} />*/}
+        <fog attach="fog" args={["darkgray", 5, 20]} />
     </Canvas>
   );
 }

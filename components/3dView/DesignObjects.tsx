@@ -2,7 +2,7 @@ import { Box } from '@react-three/drei/native';
 import React, { Suspense } from 'react';
 import { generateUUID } from 'three/src/math/MathUtils.js';
 import CounterModel from '../../assets/models/model1/Model.jsx';
-import { RemoteModelInstance } from './remote3dModel.tsx';
+import { RemoteModelInstance } from './remote3dModel';
 
 export interface DesignObjectInstanceProps {
     id: string;
