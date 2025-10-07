@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { TextInput, View } from "react-native";
-import { DesignObjectTypeProps, NewInstance } from "../3dView/DesignObjects";
+import { DesignObjectProps, NewInstance } from "../3dView/DesignObjects";
 import Button from "../Button";
-import { myDesignObjects } from "../Design3dViewer";
+import { counterLineObjects } from "../Design3dViewer";
 
 
 const [name, onChangeName] = useState("");
@@ -23,7 +23,7 @@ export interface DesignObjectInstanceProps {
   color: string;
 }
 */
-export default function AddObjectMenu({newObjectType}: {newObjectType: DesignObjectTypeProps}) {
+export default function AddObjectMenu({newObjectType}: {newObjectType: DesignObjectProps}) {
     onChangeName(newObjectType.name);
     onChangeWidth(newObjectType.width);
     onChangeHeight(newObjectType.height);
@@ -35,7 +35,7 @@ export default function AddObjectMenu({newObjectType}: {newObjectType: DesignObj
             <View>
                 {newObjectType.name}<br></br>
                 <TextInput onChangeText={onChangeName} value={name} placeholder={name}/>
-                <Button label="Add Object" onPress={() => myDesignObjects.push(NewInstance(newObjectType))} />
+                <Button label="Add Object" onPress={() => counterLineObjects.push(NewInstance(newObjectType))} />
             </View>
     )
 }

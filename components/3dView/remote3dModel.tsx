@@ -76,21 +76,18 @@ export function RemoteModelInstance({ obj, position, origin, dimensions, modelSc
     origin: [number, number, number],
     dimensions: [number, number, number],
     modelScale?: number,
+    modelUrl: string
 }) {
-    // La URL de Firebase Storage
-    const url = "https://firebasestorage.googleapis.com/v0/b/designer-models.firebasestorage.app/o/mesadaconzocalon.skp.glb?alt=media&token=090fca3b-4666-453e-be1e-d3f3553961ba";
-
-    // ✅ Llamada correcta del hook
+    const url = obj.type.modelUrl;
+    
     const { localUri, isLoading, error } = useDownload3dModel(url, obj.id);
 
-    // Calcular la posición central para el Box de carga/error
     const boxPosition: [number, number, number] = [
         origin[0] + position + dimensions[0] / 2,
         origin[1] + dimensions[1] / 2,
         origin[2] + dimensions[2] / 2
     ];
 
-    // Posición del modelo 3D (normalmente sin offset)
     const modelPosition: [number, number, number] = [
         origin[0] + position,
         origin[1],

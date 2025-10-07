@@ -40,25 +40,32 @@ const handleBoxClick = () => {
   }
 
 
-export const myDesignObjects: DesignObjectInstanceProps[] = [];
-
+export const counterLineObjects: DesignObjectInstanceProps[] = [];
+export const cupboardLineObjects: DesignObjectInstanceProps[] = [];
+export const cupboardLineHeight : number = 1.5;
 
 export default function Design3dView() {
 
-  myDesignObjects.push(NewInstance(objectTypes[0], .6));
-  myDesignObjects.push(NewInstance(objectTypes[1]));
-  myDesignObjects.push(NewInstance(objectTypes[3]));
-  myDesignObjects.push(NewInstance(objectTypes[2]));
+  counterLineObjects.push(NewInstance(objectTypes[0], .6));
+  counterLineObjects.push(NewInstance(objectTypes[1]));
+  counterLineObjects.push(NewInstance(objectTypes[1]));
+  counterLineObjects.push(NewInstance(objectTypes[0], .6));
+  cupboardLineObjects.push(NewInstance(objectTypes[2]));
+  cupboardLineObjects.push(NewInstance(objectTypes[3]));
+  cupboardLineObjects.push(NewInstance(objectTypes[2]));
+  cupboardLineObjects.push(NewInstance(objectTypes[2]));
+  cupboardLineObjects.push(NewInstance(objectTypes[3], .6));
+  const cupboardOrigin : [number, number, number] = [RoomOrigin()[0], RoomOrigin()[1] + cupboardLineHeight, RoomOrigin()[2]];
 
-
-  console.log("Design3dView render, myDesignObjects:", myDesignObjects);
+  console.log("Design3dView render, myDesignObjects:", counterLineObjects);
   return (
     <Canvas shadows style={{ background: "darkgray" }} camera={{ position: [0, 3, 3] }}>
         <CameraController/>
         <ambientLight intensity={.5}/>
         <pointLight castShadow position={[0, 3, 3.5]} intensity={70} />
         <Room3d/>
-        <DesignObjects objects={myDesignObjects} origin={RoomOrigin()} />
+        <DesignObjects objects={counterLineObjects} origin={RoomOrigin()} />
+        <DesignObjects objects={cupboardLineObjects} origin={cupboardOrigin} />
         <mesh position={RoomOrigin()}>
         <sphereGeometry args={[.1, 16, 16]} />
           <meshStandardMaterial color="lightblue" />
