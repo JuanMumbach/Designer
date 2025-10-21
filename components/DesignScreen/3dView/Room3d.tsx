@@ -9,13 +9,6 @@ export interface Room3dProps{
     rightWall: boolean;
 }
 
-var myRoom3d : Room3dProps = {
-    width: 5,
-    height: 3,
-    depth: 4,
-    leftWall: true,
-    rightWall: true
-};
 const wallThickness = 0.2;
 const floorThickness = 0.2;
 
@@ -37,48 +30,49 @@ function VoidSpaceWall() {
     );
 }
 
-export function RoomOrigin() : [number, number, number] {
-    return [-myRoom3d.width/2, 0, 0];
+export function RoomOrigin( {room3d} : { room3d: Room3dProps }) : [number, number, number] {
+    return [-(room3d.width)/2, 0, 0];
 }
 
-function DesignRoom() {
+function DesignRoom( _room3d : { room3d: Room3dProps }) {
+    const room3d = _room3d.room3d;
     return (
         <>
-            {(myRoom3d.leftWall && 
+            {(room3d.leftWall && 
                 (
                     <Box 
                         position=
-                            {[-myRoom3d.width/2-wallThickness/2, 
-                            myRoom3d.height/2, 
-                            myRoom3d.depth/2-wallThickness/2]} 
+                            {[-room3d.width/2-wallThickness/2, 
+                            room3d.height/2, 
+                            room3d.depth/2-wallThickness/2]} 
                         args=
                             {[wallThickness, 
-                            myRoom3d.height, 
-                            myRoom3d.depth+wallThickness]}>
+                            room3d.height, 
+                            room3d.depth+wallThickness]}>
                         <meshStandardMaterial attach="material" color={"#914646"} />
                     </Box>
                 )
             )}
 
-            <Box position={[0, myRoom3d.height/2, -.1]} args={[myRoom3d.width, myRoom3d.height, wallThickness]}>
+            <Box position={[0, room3d.height/2, -.1]} args={[room3d.width, room3d.height, wallThickness]}>
                 <meshStandardMaterial attach="material" color={"#ffffff"} />
             </Box>
 
-            <Box position={[0, -floorThickness/2, myRoom3d.depth/2-wallThickness/2]} args={[myRoom3d.width+wallThickness*2, floorThickness, myRoom3d.depth+wallThickness]}>
+            <Box position={[0, -floorThickness/2, room3d.depth/2-wallThickness/2]} args={[room3d.width+wallThickness*2, floorThickness, room3d.depth+wallThickness]}>
                 <meshStandardMaterial attach="material" color={"#ffffff"} />
             </Box>
 
-            {(myRoom3d.rightWall && 
+            {(room3d.rightWall && 
                 (
                     <Box 
                         position=
-                            {[myRoom3d.width/2+wallThickness/2, 
-                            myRoom3d.height/2, 
-                            myRoom3d.depth/2-wallThickness/2]} 
+                            {[room3d.width/2+wallThickness/2, 
+                            room3d.height/2, 
+                            room3d.depth/2-wallThickness/2]} 
                         args=
                             {[wallThickness, 
-                            myRoom3d.height, 
-                            myRoom3d.depth+wallThickness]}>
+                            room3d.height, 
+                            room3d.depth+wallThickness]}>
                         <meshStandardMaterial attach="material" color={"#ff7777"} />
                     </Box>
                 )
@@ -87,12 +81,12 @@ function DesignRoom() {
     )
 }
 
-export default function Room3d(){
+export default function Room3d( props : Room3dProps){
     return (
         <>
         <VoidSpaceFloor />
         <VoidSpaceWall />
-        <DesignRoom/>
+        <DesignRoom room3d={props}/> 
         </>
     );
 }

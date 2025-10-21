@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { TextInput, View } from "react-native";
+import Button from "../../Button";
 import { DesignObjectProps, NewInstance } from "../3dView/DesignObjects";
-import Button from "../Button";
 import { counterLineObjects } from "../Design3dViewer";
 
 

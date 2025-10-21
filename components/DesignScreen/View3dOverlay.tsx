@@ -1,14 +1,23 @@
 import { useEffect, useState } from "react";
 import { Dimensions, ScaledSize, StyleSheet, View } from "react-native";
+import Button from "../Button";
 import { DesignObjectInstanceProps, objectTypes } from "./3dView/DesignObjects";
+import { Room3dProps } from "./3dView/Room3d";
 import AddObjectMenu from "./3dViewOverlay/AddObjectMenu";
 import ListInstantiableObjects from "./3dViewOverlay/ListInstantiableObjects";
 import ObjectsManager from "./3dViewOverlay/ObjectsManager";
-import Button from "./Button";
+import RoomManager from "./3dViewOverlay/RoomManager";
 
 const debugColors = false;
 
 var newObjectType = objectTypes[0];
+
+interface View3dOverlayProps {
+    designObjects: DesignObjectInstanceProps[];
+    // Añadir room3dProps (valores actuales) y setRoom3d (función de actualización)
+    room3dProps: Room3dProps;
+    setRoom3d: React.Dispatch<React.SetStateAction<Room3dProps>>;
+}
 
 function useWindowDimensions() {
     const [windowDimensions, setWindowDimensions] = useState(Dimensions.get('window'));
@@ -30,11 +39,12 @@ function useWindowDimensions() {
 
 
 
-export default function View3dOverlay({designObjects}: {designObjects : DesignObjectInstanceProps[]}) {
+export default function View3dOverlay({ designObjects, room3dProps, setRoom3d}: View3dOverlayProps){
   
   const { width } = useWindowDimensions();
   const [isObjectsManagerVisible, setIsObjectsManagerVisible] = useState(false);
   const [isListInstantiableObjectsVisible, setIsListInstantiableObjectsVisible] = useState(false);
+  const [isRoomSettingsVisible, setIsRoomSettingsVisible] = useState(false);
 
   const showAddObjectMenu = () => {
     setIsObjectsManagerVisible(false);
@@ -51,7 +61,10 @@ export default function View3dOverlay({designObjects}: {designObjects : DesignOb
         {(width > 768) && 
         (
           <View style={[styles.column, {backgroundColor: debugColors ? 'rgba(255, 0, 0, 0.25)' : 'transparent'}]}>
-            <Button label="Edit Room" onPress={() => ""} />
+            {isRoomSettingsVisible && (
+            <RoomManager room3dProps={room3dProps} setRoom3d={setRoom3d}></RoomManager>
+            )}
+            <Button label="Edit Room" onPress={() => setIsRoomSettingsVisible(!isRoomSettingsVisible)} />
           </View>
         )}
 
