@@ -5,7 +5,7 @@ import { DesignObjectInstanceProps } from "../3dView/DesignObjects";
 
 export default function EditObjectMenu({object, onEditComplete} : {
         object : DesignObjectInstanceProps, 
-        onEditComplete : (id: string, updates: { name: string, xdistance: number }) => void
+        onEditComplete : (id: string, updates: { name: string, xdistance: number }) => void,
     }){
 
     const [name, onChangeName] = useState(object.name);
@@ -16,7 +16,6 @@ export default function EditObjectMenu({object, onEditComplete} : {
             name: name, 
             xdistance: xdistance
         });
-        // Aquí llamar a una función para cerrar el menú.
     };
 
     useEffect(() => {

@@ -4,6 +4,7 @@ import Button from "../Button";
 import { DesignObjectInstanceProps, DesignObjectProps, objectTypes } from "./3dView/DesignObjects";
 import { Room3dProps } from "./3dView/Room3d";
 import AddObjectMenu from "./3dViewOverlay/AddObjectMenu";
+import EditObjectMenu from "./3dViewOverlay/EditObjectMenu";
 import ListInstantiableObjects from "./3dViewOverlay/ListInstantiableObjects";
 import ObjectsManager from "./3dViewOverlay/ObjectsManager";
 import RoomManager from "./3dViewOverlay/RoomManager";
@@ -16,6 +17,7 @@ interface View3dOverlayProps {
   room3dProps: Room3dProps;
   setRoom3d: React.Dispatch<React.SetStateAction<Room3dProps>>;
   onObjectAdded: (newObject: DesignObjectInstanceProps) => void;
+  onObjectEdited: (id: string, updates: { name: string, xdistance: number }) => void;
 }
 
 function useWindowDimensions() {
@@ -38,25 +40,46 @@ function useWindowDimensions() {
 
 
 
-export default function View3dOverlay({ designObjects, room3dProps, setRoom3d , onObjectAdded } : View3dOverlayProps) {
+export default function View3dOverlay({ designObjects, room3dProps, setRoom3d , onObjectAdded, onObjectEdited} : View3dOverlayProps) {
 
   const { width } = useWindowDimensions();
   const [isObjectsManagerVisible, setIsObjectsManagerVisible] = useState(false);
   const [isListInstantiableObjectsVisible, setIsListInstantiableObjectsVisible] = useState(false);
   const [isRoomSettingsVisible, setIsRoomSettingsVisible] = useState(false);
-
-  const [newObjectTypeState, setNewObjectTypeState] = useState(objectTypes[0]);
-  const showAddObjectMenu = (objectType: DesignObjectProps) => {
-    // 2. Set the selected object type
-    setNewObjectTypeState(objectType); 
-    
-    // 3. Manage menu visibility: Hide list and show add menu
-    setIsObjectsManagerVisible(false);
-    setIsListInstantiableObjectsVisible(false); // Hide the list
-    setIsAddObjectMenuVisible(true); // Show the add menu
-  }
-
   const [isAddObjectMenuVisible, setIsAddObjectMenuVisible] = useState(false);
+  
+  const [newObjectTypeState, setNewObjectTypeState] = useState(objectTypes[0]);
+  
+  const [isEditObjectMenuVisible, setIsEditObjectMenuVisible] = useState(false);
+  const [selectedObjectState, setSelectedObjectState] = useState<DesignObjectInstanceProps | undefined>(undefined);
+
+  const showAddObjectMenu = (objectType: DesignObjectProps) => {
+    setIsEditObjectMenuVisible(false); 
+    setIsObjectsManagerVisible(false);
+    setIsListInstantiableObjectsVisible(false); 
+    setNewObjectTypeState(objectType); 
+    setIsAddObjectMenuVisible(true); 
+  }
+  
+  const handleEditObject = (object: DesignObjectInstanceProps) => {
+    setIsAddObjectMenuVisible(false);
+    setIsListInstantiableObjectsVisible(false);
+    setIsRoomSettingsVisible(false);
+    setIsObjectsManagerVisible(false); // Ocultar el ObjectsManager al abrir el editor
+    
+    setSelectedObjectState(object);
+    setIsEditObjectMenuVisible(true);
+  };
+
+  const closeEditMenu = () => {
+      setIsEditObjectMenuVisible(false);
+      setSelectedObjectState(undefined); // Limpiar el objeto seleccionado
+  };
+
+  const handleObjectEditAndClose = (id: string, updates: { name: string, xdistance: number }) => {
+      onObjectEdited(id, updates);
+      closeEditMenu();
+  };
 
   return (
     <View style={styles.overlay}>
@@ -79,7 +102,7 @@ export default function View3dOverlay({ designObjects, room3dProps, setRoom3d , 
           (
             (
               isObjectsManagerVisible && (
-                <ObjectsManager designObjects={designObjects} />
+                <ObjectsManager designObjects={designObjects} onObjectSelect={handleEditObject} />
               )
             ) ||
             (
@@ -94,6 +117,14 @@ export default function View3dOverlay({ designObjects, room3dProps, setRoom3d , 
             ) ||
             (
               isAddObjectMenuVisible && (<AddObjectMenu newObjectType={newObjectTypeState} onObjectAdded={onObjectAdded} closeMenu={() => setIsAddObjectMenuVisible(false)}/>)
+            ) ||
+            (
+                isEditObjectMenuVisible && selectedObjectState && (
+                    <EditObjectMenu 
+                        object={selectedObjectState} 
+                        onEditComplete={handleObjectEditAndClose} // Usa el wrapper que cierra el menú
+                    />
+                )
             )
           )
         }
@@ -104,7 +135,15 @@ export default function View3dOverlay({ designObjects, room3dProps, setRoom3d , 
           (isListInstantiableObjectsVisible && (<ListInstantiableObjects designObjectTypes={objectTypes} addObjectAction={showAddObjectMenu} />))
           ||
           (isAddObjectMenuVisible && (<AddObjectMenu newObjectType={newObjectTypeState} onObjectAdded={onObjectAdded} closeMenu={() => setIsAddObjectMenuVisible(false)}/>))
-        )
+        ) ||
+        (
+            isEditObjectMenuVisible && selectedObjectState && (
+                <EditObjectMenu 
+                    object={selectedObjectState} 
+                    onEditComplete={handleObjectEditAndClose}
+                />
+            )
+          )
         )}
 
         {/*----------------------------------Botonera principal-----------------------------------------*/}
@@ -124,7 +163,7 @@ export default function View3dOverlay({ designObjects, room3dProps, setRoom3d , 
         (
           <View style={[styles.column, { backgroundColor: debugColors ? 'rgba(255, 0, 0, 0.25)' : 'transparent' }]}>
             {isObjectsManagerVisible && (
-              <ObjectsManager designObjects={designObjects} />
+              <ObjectsManager designObjects={designObjects} onObjectSelect={handleEditObject}/>
             )}
             <Button label="Edit Objects" onPress={() => setIsObjectsManagerVisible(!isObjectsManagerVisible)} />
           </View>
