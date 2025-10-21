@@ -6,8 +6,8 @@ import { DesignObjectInstanceProps, DesignObjectProps, NewInstance } from "../3d
 
 export default function AddObjectMenu({
   newObjectType,
-  onObjectAdded, // <-- New prop
-  closeMenu // <-- New prop
+  onObjectAdded,
+  closeMenu
 }: {
   newObjectType: DesignObjectProps,
   onObjectAdded: (newObject: DesignObjectInstanceProps) => void,
