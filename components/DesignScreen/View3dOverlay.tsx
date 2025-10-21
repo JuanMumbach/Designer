@@ -13,34 +13,34 @@ const debugColors = false;
 var newObjectType = objectTypes[0];
 
 interface View3dOverlayProps {
-    designObjects: DesignObjectInstanceProps[];
-    // Añadir room3dProps (valores actuales) y setRoom3d (función de actualización)
-    room3dProps: Room3dProps;
-    setRoom3d: React.Dispatch<React.SetStateAction<Room3dProps>>;
+  designObjects: DesignObjectInstanceProps[];
+  // Añadir room3dProps (valores actuales) y setRoom3d (función de actualización)
+  room3dProps: Room3dProps;
+  setRoom3d: React.Dispatch<React.SetStateAction<Room3dProps>>;
 }
 
 function useWindowDimensions() {
-    const [windowDimensions, setWindowDimensions] = useState(Dimensions.get('window'));
+  const [windowDimensions, setWindowDimensions] = useState(Dimensions.get('window'));
 
-    useEffect(() => {
-        const onChange = ({ window }: { window: ScaledSize }) => {
-            setWindowDimensions(window);
-        };
+  useEffect(() => {
+    const onChange = ({ window }: { window: ScaledSize }) => {
+      setWindowDimensions(window);
+    };
 
-        const subscription = Dimensions.addEventListener('change', onChange);
-        
-        return () => {
-            subscription.remove();
-        };
-    }, []);
+    const subscription = Dimensions.addEventListener('change', onChange);
 
-    return windowDimensions;
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
+  return windowDimensions;
 }
 
 
 
-export default function View3dOverlay({ designObjects, room3dProps, setRoom3d}: View3dOverlayProps){
-  
+export default function View3dOverlay({ designObjects, room3dProps, setRoom3d }: View3dOverlayProps) {
+
   const { width } = useWindowDimensions();
   const [isObjectsManagerVisible, setIsObjectsManagerVisible] = useState(false);
   const [isListInstantiableObjectsVisible, setIsListInstantiableObjectsVisible] = useState(false);
@@ -57,40 +57,70 @@ export default function View3dOverlay({ designObjects, room3dProps, setRoom3d}: 
 
   return (
     <View style={styles.overlay}>
-        
-        {(width > 768) && 
+      {/*---------------------------------Menu lateral (Solo desktop)-------------------------------------*/}
+      {(width > 768) &&
         (
-          <View style={[styles.column, {backgroundColor: debugColors ? 'rgba(255, 0, 0, 0.25)' : 'transparent'}]}>
+          <View style={[styles.column, { backgroundColor: debugColors ? 'rgba(255, 0, 0, 0.25)' : 'transparent' }]}>
             {isRoomSettingsVisible && (
-            <RoomManager room3dProps={room3dProps} setRoom3d={setRoom3d}></RoomManager>
+              <RoomManager room3dProps={room3dProps} setRoom3d={setRoom3d}></RoomManager>
             )}
             <Button label="Edit Room" onPress={() => setIsRoomSettingsVisible(!isRoomSettingsVisible)} />
           </View>
         )}
-
-        <View style={[styles.middleColumn, {backgroundColor: debugColors ? 'rgba(4, 0, 255, 0.25)' : 'transparent'}]}>
-          {(width <= 768) && 
+      
+      {/*-------------------------------------Columna central------------------------------------------*/}
+      <View style={[styles.middleColumn, { backgroundColor: debugColors ? 'rgba(4, 0, 255, 0.25)' : 'transparent' }]}>
+        
+        {/*Renderizar menus laterales en el centro si es mobile*/}
+        {(width <= 768) &&
           (
-            isObjectsManagerVisible && (
-            <ObjectsManager designObjects={designObjects}/>
+            (
+              isObjectsManagerVisible && (
+                <ObjectsManager designObjects={designObjects} />
+              )
+            ) ||
+            (
+              isRoomSettingsVisible && (
+                <RoomManager room3dProps={room3dProps} setRoom3d={setRoom3d}></RoomManager>
+              )
+            ) ||
+            (
+              isListInstantiableObjectsVisible && (
+                <ListInstantiableObjects designObjectTypes={objectTypes} addObjectAction={() => setShowAddObjectMenu()} />
+              )
+            )
           )
-          )}
-          
-          {isListInstantiableObjectsVisible && (<ListInstantiableObjects designObjectTypes={objectTypes} addObjectAction={() => setShowAddObjectMenu()}/>)}
-          {isAddObjectMenuVisible && (<AddObjectMenu newObjectType={newObjectType}/>)}
-            
-          <View style={[styles.mainControls, {backgroundColor: debugColors ? 'rgba(51, 255, 0, 0.25)' : 'transparent'}]}>
-            <Button label="Add Object" onPress={() => setIsListInstantiableObjectsVisible(!isListInstantiableObjectsVisible)} />
-          </View>
-        </View>
+        }
 
-        {(width > 768) && 
+        {/*------------------------Renderiza menus centrales version Desktop-----------------------------*/}
+        {((width > 768) &&
         (
-          <View style={[styles.column, {backgroundColor: debugColors ? 'rgba(255, 0, 0, 0.25)' : 'transparent'}]}>
-          {isObjectsManagerVisible && (
-            <ObjectsManager designObjects={designObjects}/>
-          )}
-          <Button label="Edit Objects" onPress={() => setIsObjectsManagerVisible(!isObjectsManagerVisible)}/>
+          (isListInstantiableObjectsVisible && (<ListInstantiableObjects designObjectTypes={objectTypes} addObjectAction={() => setShowAddObjectMenu()} />))
+          ||
+          (isAddObjectMenuVisible && (<AddObjectMenu newObjectType={newObjectType} />))
+        )
+        )}
+
+        {/*----------------------------------Botonera principal-----------------------------------------*/}
+        <View style={[styles.mainControls, { backgroundColor: debugColors ? 'rgba(51, 255, 0, 0.25)' : 'transparent' }]}>
+          {(width <= 768) &&
+            (<Button label="Edit Room" onPress={() => setIsRoomSettingsVisible(!isRoomSettingsVisible)} />)
+          }
+          <Button label="Add Object" onPress={() => setIsListInstantiableObjectsVisible(!isListInstantiableObjectsVisible)} />
+          {(width <= 768) &&
+            (<Button label="Edit Objects" onPress={() => setIsObjectsManagerVisible(!isObjectsManagerVisible)} />)
+          }
+        </View>
+      </View>
+      
+      {/*---------------------------------Menu lateral (Solo desktop)-------------------------------------*/}
+      {(width > 768) &&
+        (
+          <View style={[styles.column, { backgroundColor: debugColors ? 'rgba(255, 0, 0, 0.25)' : 'transparent' }]}>
+            {isObjectsManagerVisible && (
+              <ObjectsManager designObjects={designObjects} />
+            )}
+            <Button label="Edit Objects" onPress={() => setIsObjectsManagerVisible(!isObjectsManagerVisible)} />
           </View>
         )}
     </View>
@@ -105,7 +135,7 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
     alignItems: 'center',
-    pointerEvents: "box-none",      
+    pointerEvents: "box-none",
     paddingBottom: 0,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -134,7 +164,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    paddingBottom: 30, 
+    paddingBottom: 30,
     pointerEvents: "box-none"
-  }
+  }, 
 });
