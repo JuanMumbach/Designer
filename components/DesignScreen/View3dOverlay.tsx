@@ -10,13 +10,12 @@ import RoomManager from "./3dViewOverlay/RoomManager";
 
 const debugColors = false;
 
-var newObjectType = objectTypes[0];
-
 interface View3dOverlayProps {
   designObjects: DesignObjectInstanceProps[];
   // Añadir room3dProps (valores actuales) y setRoom3d (función de actualización)
   room3dProps: Room3dProps;
   setRoom3d: React.Dispatch<React.SetStateAction<Room3dProps>>;
+  onObjectAdded: (newObject: DesignObjectInstanceProps) => void;
 }
 
 function useWindowDimensions() {
@@ -39,7 +38,7 @@ function useWindowDimensions() {
 
 
 
-export default function View3dOverlay({ designObjects, room3dProps, setRoom3d }: View3dOverlayProps) {
+export default function View3dOverlay({ designObjects, room3dProps, setRoom3d , onObjectAdded } : View3dOverlayProps) {
 
   const { width } = useWindowDimensions();
   const [isObjectsManagerVisible, setIsObjectsManagerVisible] = useState(false);
@@ -57,7 +56,6 @@ export default function View3dOverlay({ designObjects, room3dProps, setRoom3d }:
     setIsAddObjectMenuVisible(true); // Show the add menu
   }
 
-  const [setShowAddObjectMenu] = useState(() => showAddObjectMenu);
   const [isAddObjectMenuVisible, setIsAddObjectMenuVisible] = useState(false);
 
   return (
@@ -95,7 +93,7 @@ export default function View3dOverlay({ designObjects, room3dProps, setRoom3d }:
               )
             ) ||
             (
-              isAddObjectMenuVisible && (<AddObjectMenu newObjectType={newObjectTypeState} />)
+              isAddObjectMenuVisible && (<AddObjectMenu newObjectType={newObjectTypeState} onObjectAdded={onObjectAdded} closeMenu={() => setIsAddObjectMenuVisible(false)}/>)
             )
           )
         }
@@ -103,9 +101,9 @@ export default function View3dOverlay({ designObjects, room3dProps, setRoom3d }:
         {/*------------------------Renderiza menus centrales version Desktop-----------------------------*/}
         {((width > 768) &&
         (
-          (isListInstantiableObjectsVisible && (<ListInstantiableObjects designObjectTypes={objectTypes} addObjectAction={setShowAddObjectMenu} />))
+          (isListInstantiableObjectsVisible && (<ListInstantiableObjects designObjectTypes={objectTypes} addObjectAction={showAddObjectMenu} />))
           ||
-          (isAddObjectMenuVisible && (<AddObjectMenu newObjectType={newObjectType} />))
+          (isAddObjectMenuVisible && (<AddObjectMenu newObjectType={newObjectTypeState} onObjectAdded={onObjectAdded} closeMenu={() => setIsAddObjectMenuVisible(false)}/>))
         )
         )}
 

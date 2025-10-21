@@ -2,7 +2,7 @@ import { OrbitControls } from '@react-three/drei/native';
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import React from 'react';
 import * as THREE from 'three';
-import DesignObjects, { DesignObjectInstanceProps, NewInstance, objectTypes } from "./3dView/DesignObjects";
+import DesignObjects, { DesignObjectInstanceProps } from "./3dView/DesignObjects";
 import Room3d, { Room3dProps, RoomOrigin } from "./3dView/Room3d";
 
 const cameraControlsProps = {
@@ -40,33 +40,24 @@ const handleBoxClick = () => {
   }
 
 
-export const counterLineObjects: DesignObjectInstanceProps[] = [];
-export const cupboardLineObjects: DesignObjectInstanceProps[] = [];
+export const defaultCounterObjects: DesignObjectInstanceProps[] = [];
+export const defaultCupboardObjects: DesignObjectInstanceProps[] = [];
 export const cupboardLineHeight : number = 1.5;
 
-counterLineObjects.push(NewInstance(objectTypes[0], .6));
-counterLineObjects.push(NewInstance(objectTypes[1]));
-counterLineObjects.push(NewInstance(objectTypes[1]));
-counterLineObjects.push(NewInstance(objectTypes[0], .6));
-cupboardLineObjects.push(NewInstance(objectTypes[2]));
-cupboardLineObjects.push(NewInstance(objectTypes[3]));
-cupboardLineObjects.push(NewInstance(objectTypes[2]));
-cupboardLineObjects.push(NewInstance(objectTypes[2]));
-cupboardLineObjects.push(NewInstance(objectTypes[3], .6));
 
-export default function Design3dView( room3d : Room3dProps ) {
+export default function Design3dView({ room3d, counterObjects, cupboardObjects}: {room3d: Room3dProps} & { counterObjects: DesignObjectInstanceProps[] } & { cupboardObjects: DesignObjectInstanceProps[] }) {
 
   const cupboardOrigin : [number, number, number] = [RoomOrigin({room3d})[0], RoomOrigin({room3d})[1] + cupboardLineHeight, RoomOrigin({room3d})[2]];
 
-  console.log("Design3dView render, myDesignObjects:", counterLineObjects);
+  console.log("Design3dView render, myDesignObjects:", counterObjects);
   return (
     <Canvas shadows style={{ background: "darkgray" }} camera={{ position: [0, 3, 3] }}>
         <CameraController/>
         <ambientLight intensity={.5}/>
         <pointLight castShadow position={[0, 3, 3.5]} intensity={70} />
         <Room3d {...room3d}/>
-        <DesignObjects objects={counterLineObjects} origin={RoomOrigin({room3d})} />
-        <DesignObjects objects={cupboardLineObjects} origin={cupboardOrigin} />
+        <DesignObjects objects={counterObjects} origin={RoomOrigin({room3d})} />
+        <DesignObjects objects={cupboardObjects} origin={cupboardOrigin} />
         <mesh position={RoomOrigin({room3d})}>
         <sphereGeometry args={[.1, 16, 16]} />
           <meshStandardMaterial color="lightblue" />
