@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Dimensions, ScaledSize, StyleSheet, View } from "react-native";
 import Button from "../Button";
-import { DesignObjectInstanceProps, objectTypes } from "./3dView/DesignObjects";
+import { DesignObjectInstanceProps, DesignObjectProps, objectTypes } from "./3dView/DesignObjects";
 import { Room3dProps } from "./3dView/Room3d";
 import AddObjectMenu from "./3dViewOverlay/AddObjectMenu";
 import ListInstantiableObjects from "./3dViewOverlay/ListInstantiableObjects";
@@ -46,10 +46,15 @@ export default function View3dOverlay({ designObjects, room3dProps, setRoom3d }:
   const [isListInstantiableObjectsVisible, setIsListInstantiableObjectsVisible] = useState(false);
   const [isRoomSettingsVisible, setIsRoomSettingsVisible] = useState(false);
 
-  const showAddObjectMenu = () => {
+  const [newObjectTypeState, setNewObjectTypeState] = useState(objectTypes[0]);
+  const showAddObjectMenu = (objectType: DesignObjectProps) => {
+    // 2. Set the selected object type
+    setNewObjectTypeState(objectType); 
+    
+    // 3. Manage menu visibility: Hide list and show add menu
     setIsObjectsManagerVisible(false);
-    setIsListInstantiableObjectsVisible(false);
-    setIsAddObjectMenuVisible(true);
+    setIsListInstantiableObjectsVisible(false); // Hide the list
+    setIsAddObjectMenuVisible(true); // Show the add menu
   }
 
   const [setShowAddObjectMenu] = useState(() => showAddObjectMenu);
@@ -86,8 +91,11 @@ export default function View3dOverlay({ designObjects, room3dProps, setRoom3d }:
             ) ||
             (
               isListInstantiableObjectsVisible && (
-                <ListInstantiableObjects designObjectTypes={objectTypes} addObjectAction={() => setShowAddObjectMenu()} />
+                <ListInstantiableObjects designObjectTypes={objectTypes} addObjectAction={showAddObjectMenu} />
               )
+            ) ||
+            (
+              isAddObjectMenuVisible && (<AddObjectMenu newObjectType={newObjectTypeState} />)
             )
           )
         }
@@ -95,7 +103,7 @@ export default function View3dOverlay({ designObjects, room3dProps, setRoom3d }:
         {/*------------------------Renderiza menus centrales version Desktop-----------------------------*/}
         {((width > 768) &&
         (
-          (isListInstantiableObjectsVisible && (<ListInstantiableObjects designObjectTypes={objectTypes} addObjectAction={() => setShowAddObjectMenu()} />))
+          (isListInstantiableObjectsVisible && (<ListInstantiableObjects designObjectTypes={objectTypes} addObjectAction={setShowAddObjectMenu} />))
           ||
           (isAddObjectMenuVisible && (<AddObjectMenu newObjectType={newObjectType} />))
         )

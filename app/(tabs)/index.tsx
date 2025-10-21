@@ -1,4 +1,4 @@
-import DesignScreen from "@/components/DesignScreen/DesignScreen";
+import DesignScreen from "@/components/DesignScreen";
 import React from "react";
 
 export default function Index() {

@@ -6,7 +6,7 @@ export default function ListInstantiableObjects({
   addObjectAction,
 }: {
   designObjectTypes: DesignObjectProps[],
-  addObjectAction: () => void
+  addObjectAction: (objectType: DesignObjectProps) => void;
 }){
     
     return (
@@ -17,7 +17,7 @@ export default function ListInstantiableObjects({
                         {obj.name}<br></br>
                         Width: {obj.width}   Height: {obj.height}   Depth: {obj.depth}<br></br>
                     </Text>
-                    <Button title={"Add"} onPress={() => addObjectAction}></Button>
+                    <Button title={"Add"} onPress={() => addObjectAction(obj)}></Button>
                 </View>
             ))}
         </ScrollView>

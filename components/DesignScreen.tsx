@@ -2,7 +2,7 @@ import Design3dView, { counterLineObjects } from "@/components/DesignScreen/Desi
 import View3dOverlay from "@/components/DesignScreen/View3dOverlay";
 import { useState } from "react";
 import { View } from "react-native";
-import { Room3dProps } from "./3dView/Room3d";
+import { Room3dProps } from "./DesignScreen/3dView/Room3d";
 
 
 const initialRoom3d: Room3dProps = {
