@@ -19,16 +19,17 @@ const cameraControlsProps = {
     enableDamping: false,
     minAzimuthAngle: -Math.PI / 4,
     maxAzimuthAngle: Math.PI / 4,
-    minPolarAngle: Math.PI / 4+.2,
-    maxPolarAngle: Math.PI / 4+.2,
+    minPolarAngle: Math.PI / 4+.3,
+    maxPolarAngle: Math.PI / 4+.3,
     rotateSpeed: 0.25,
   };
 
-function CameraController() {
+function CameraController({room3d}: {room3d : Room3dProps}) {
   const { camera } = useThree();
 
+
   useFrame(() => {
-    camera.lookAt(0, 1, 0);
+    camera.lookAt(0, 1.5, room3d.depth / 2);
     camera.updateProjectionMatrix();
   });
 
@@ -49,16 +50,21 @@ export default function Design3dView({ room3d, counterObjects, cupboardObjects}:
 
   const cupboardOrigin : [number, number, number] = [RoomOrigin({room3d})[0], RoomOrigin({room3d})[1] + cupboardLineHeight, RoomOrigin({room3d})[2]];
 
+  
   console.log("Design3dView render, myDesignObjects:", counterObjects);
+  let roomOrigin = RoomOrigin({room3d});
+  let rightCorner : [number, number, number] = [roomOrigin[0] + room3d.width, roomOrigin[1], roomOrigin[2]];
   return (
     <Canvas shadows style={{ background: "darkgray" }} camera={{ position: [0, 3, 3] }}>
-        <CameraController/>
-        <ambientLight intensity={.5}/>
-        <pointLight castShadow position={[0, 3, 3.5]} intensity={70} />
+        <CameraController room3d={room3d}/>
+        <ambientLight intensity={.25}/>
+        <pointLight castShadow position={[0, 3, room3d.depth*.75]} intensity={(room3d.depth*room3d.width)*2} />
         <Room3d {...room3d}/>
-        <DesignObjects objects={counterObjects} origin={RoomOrigin({room3d})} />
+        <DesignObjects objects={counterObjects} origin={roomOrigin} />
         <DesignObjects objects={cupboardObjects} origin={cupboardOrigin} />
-        <mesh position={RoomOrigin({room3d})}>
+        <DesignObjects objects={counterObjects} origin={roomOrigin} rightToLeft={true} onZAxis={true}/>
+        <DesignObjects objects={counterObjects} origin={rightCorner} rightToLeft={false} onZAxis={true}/>
+        <mesh position={roomOrigin}>
         <sphereGeometry args={[.1, 16, 16]} />
           <meshStandardMaterial color="lightblue" />
         </mesh>

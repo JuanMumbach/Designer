@@ -70,28 +70,29 @@ export function useDownload3dModel(remoteUrl: string, assetName: string = 'asset
 /**
  * Componente que envuelve el modelo 3D y maneja el estado de carga y error.
  */
-export function RemoteModelInstance({ obj, position, origin, dimensions, modelScale }: { 
+export function RemoteModelInstance({ obj, position, origin, dimensions, modelScale, rotation }: { 
     obj: DesignObjectInstanceProps, 
-    position: number, 
+    position: [number, number, number], 
     origin: [number, number, number],
     dimensions: [number, number, number],
     modelScale?: number,
-    modelUrl: string
+    modelUrl: string,
+    rotation?: number
 }) {
     const url = obj.type.modelUrl;
     
     const { localUri, isLoading, error } = useDownload3dModel(url, obj.id);
 
     const boxPosition: [number, number, number] = [
-        origin[0] + position + dimensions[0] / 2,
-        origin[1] + dimensions[1] / 2,
-        origin[2] + dimensions[2] / 2
+        origin[0] + position[0] + dimensions[0] / 2,
+        origin[1] + position[1] + dimensions[1] / 2,
+        origin[2] + position[2] + dimensions[2] / 2
     ];
 
     const modelPosition: [number, number, number] = [
-        origin[0] + position,
-        origin[1],
-        origin[2]
+        origin[0] + position[0],
+        origin[1] + position[1],
+        origin[2] + position[2]
     ];
 
     if (isLoading) {
@@ -116,7 +117,7 @@ export function RemoteModelInstance({ obj, position, origin, dimensions, modelSc
             <Gltf 
                 src={localUri} // ✅ Se usa localUri para la ruta correcta (local o remota)
                 position={modelPosition}
-                rotation={[0, -Math.PI / 2, 0]}
+                rotation={[0, -Math.PI / 2 + (rotation || 0), 0]}
                 scale={modelScale || 1}
             ></Gltf>
         </Suspense>

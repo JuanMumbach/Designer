@@ -87,16 +87,30 @@ function getRandomColor() {
 }
 
 
-export default function DesignObjects({ objects, origin }: { objects: DesignObjectInstanceProps[], origin: [number, number, number] }) {
+export default function DesignObjects({ objects, origin, rightToLeft, onZAxis }: { objects: DesignObjectInstanceProps[], origin: [number, number, number], rightToLeft?: boolean , onZAxis?: boolean}) {
 
 
-    let positions: number[] = [];
+    let positions: [[number, number, number]] = [] as unknown as [[number, number, number]];
 
-    let previousXPosition = 0;
+    let prevRelativePos = 0;
     for (let i = 0; i < objects.length; i++) {
-        let posx = previousXPosition + objects[i].xdistance;
-        previousXPosition += objects[i].dimensions[0] + objects[i].xdistance;
-        positions.push(posx);
+        let relativePos = 0;
+
+        if (rightToLeft) {
+            relativePos = prevRelativePos + objects[i].xdistance + objects[i].dimensions[0];
+            prevRelativePos += objects[i].dimensions[0] + objects[i].xdistance;
+        }
+        else {
+        relativePos = prevRelativePos + objects[i].xdistance;
+        prevRelativePos += objects[i].dimensions[0] + objects[i].xdistance;
+        }
+        
+        if (onZAxis) {
+            positions.push([0, 0, relativePos]);
+        }
+        else {
+            positions.push([relativePos, 0, 0]);
+        }
     }
 
     var count = 0;
@@ -106,9 +120,17 @@ export default function DesignObjects({ objects, origin }: { objects: DesignObje
 
                 objects.map((obj) => {
                     count++;
-                    const currentPosition = positions[count - 1]; // Posición de inicio del objeto
+                    let currentPosition : [number, number, number] = positions[count - 1]; // Posición de inicio del objeto
                     
                     console.log("Rendering object:", obj.name, "at position:", currentPosition);
+
+                    let rotation = 0;
+                    if (onZAxis && rightToLeft) {
+                        rotation = Math.PI / 2;
+                    }
+                    else if (onZAxis && !rightToLeft) {
+                        rotation = -Math.PI / 2;
+                    }
 
                     return (
                             <RemoteModelInstance
@@ -119,6 +141,7 @@ export default function DesignObjects({ objects, origin }: { objects: DesignObje
                                 dimensions={obj.dimensions}
                                 modelUrl={obj.type.modelUrl}
                                 modelScale={0.01}
+                                rotation={rotation}
                             />
                         )
                 })}
