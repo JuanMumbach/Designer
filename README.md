@@ -24,7 +24,7 @@ El proyecto utiliza una arquitectura desacoplada de alto rendimiento (API REST):
 | **Renderizado 3D** | **@react-three/fiber + three.js** | Motor de visualización e interacción 3D de alto rendimiento. |
 | **Backend (API)** | **ASP.NET Core (C#)** | Servir el catálogo de módulos y gestionar la persistencia de diseños. |
 
-### Racional Multiplataforma
+### Multiplataforma
 
 La capacidad de funcionamiento en **celulares** es crucial para el flujo de ventas:
 
@@ -39,8 +39,8 @@ La capacidad de funcionamiento en **celulares** es crucial para el flujo de vent
 
 * **Diseño Asistido y Estándar:** Uso exclusivo de módulos prefabricados del catálogo de la empresa.
 * **Cálculo de Costos:** Función integrada para calcular el **costo estimado del proyecto en tiempo real** (basado en módulos y materiales).
-* **Modelo de Posición:** Utiliza un **Modelo de Posición Absoluta (XYZ)** para almacenar la ubicación de los módulos, garantizando la flexibilidad para estructuras complejas (ej. islas).
-* **Exportación 3D:** Capacidad de exportar el **modelo 3D completo** del diseño final (no solo metadata) para que pueda ser importado y retocado en SketchUp u otros programas de modelado.
+* **Modelo de Posición:** Utiliza un **Modelo de Posición Absoluta (XYZ)** para almacenar la ubicación de los módulos, garantizando la flexibilidad para estructuras complejas como por ejemplo: cocinas con islas, racks de TV con elementos superpuestos (Si bien en un principio el diseño de racks de TV no son parte del proyecto, se considera como un posible agregado a futuro).
+* **Exportación 3D:** Capacidad de exportar el **modelo 3D completo** del diseño para que pueda ser importado en otros programas de modelado 3d para agregar detalles o ampliar el diseño.
 
 ### B. Interacción del Diseñador (UX)
 
