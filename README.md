@@ -1,50 +1,50 @@
-# Welcome to your Expo app 👋
+# 📐 Resumen del Proyecto: Designer (Diseño 3D Modular)
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+## 1. Misión y Propuesta de Valor (PV)
 
-## Get started
+El proyecto "Designer" es una herramienta de **diseño 3D modular** multiplataforma (móvil y web), enfocada inicialmente en la creación rápida y estandarizada de **amoblamientos de cocina**.
 
-1. Install dependencies
+### Propuesta de Valor Central (Diferenciador de Negocio)
 
-   ```bash
-   npm install
-   ```
+El principal valor reside en **acelerar notablemente el proceso de diseño**, lo que genera un triple impacto:
 
-2. Start the app
+* **Mayor Eficiencia:** Reduce el tiempo de diseño al utilizar módulos predefinidos.
+* **Reducción de Costos:** Permite que la tarea sea realizada por **personal menos especializado**, ya que elimina la necesidad de conocimientos avanzados en modelado 3D para diseños estándar.
+* **Aceleración de Ventas:** Los prospectos ven resultados más rápido, lo que potencialmente aumenta la tasa de confirmación de proyectos.
 
-   ```bash
-   npx expo start
-   ```
+---
 
-In the output, you'll find options to open the app in a
+## 2. Pila Tecnológica (Stack) y Arquitectura
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+El proyecto utiliza una arquitectura desacoplada de alto rendimiento (API REST):
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+| Componente | Tecnología | Rol Principal |
+| :--- | :--- | :--- |
+| **Frontend (Cliente)** | **React Native** (Expo, TypeScript) | Interfaz de diseño y lógica 3D. |
+| **Renderizado 3D** | **@react-three/fiber + three.js** | Motor de visualización e interacción 3D de alto rendimiento. |
+| **Backend (API)** | **ASP.NET Core (C#)** | Servir el catálogo de módulos y gestionar la persistencia de diseños. |
 
-## Get a fresh project
+### Racional Multiplataforma
 
-When you're ready, run:
+La capacidad de funcionamiento en **celulares** es crucial para el flujo de ventas:
 
-```bash
-npm run reset-project
-```
+* **Demostración al Cliente:** Mostrar el diseño y sus variantes a los clientes en sus propios dispositivos o en el celular del diseñador, incluso fuera de un local comercial.
+* **Retoques en Tiempo Real:** Realizar modificaciones rápidas y visualizarlas al instante frente al cliente, mejorando la experiencia de compra.
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+---
 
-## Learn more
+## 3. Funcionalidad Clave y Flujo de Interacción
 
-To learn more about developing your project with Expo, look at the following resources:
+### A. Diseño, Datos y Exportación
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+* **Diseño Asistido y Estándar:** Uso exclusivo de módulos prefabricados del catálogo de la empresa.
+* **Cálculo de Costos:** Función integrada para calcular el **costo estimado del proyecto en tiempo real** (basado en módulos y materiales).
+* **Modelo de Posición:** Utiliza un **Modelo de Posición Absoluta (XYZ)** para almacenar la ubicación de los módulos, garantizando la flexibilidad para estructuras complejas (ej. islas).
+* **Exportación 3D:** Capacidad de exportar el **modelo 3D completo** del diseño final (no solo metadata) para que pueda ser importado y retocado en SketchUp u otros programas de modelado.
 
-## Join the community
+### B. Interacción del Diseñador (UX)
 
-Join our community of developers creating universal apps.
+La colocación de muebles se optimiza mediante interacciones asistidas y precisas:
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+1.  **Colocación Rápida:** Al seleccionar un módulo, aparecen **botones flotantes ("+") dentro de la escena 3D** en los espacios lógicos disponibles, permitiendo una colocación instantánea y guiada.
+2.  **Ajuste Preciso:** Para desplazar un mueble ya colocado, el usuario accede a un **panel flotante** que permite introducir la distancia y la dirección exactas del movimiento, asegurando la precisión dimensional requerida en la carpintería.
