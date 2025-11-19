@@ -70,7 +70,7 @@ export function useDownload3dModel(remoteUrl: string, assetName: string = 'asset
 /**
  * Componente que envuelve el modelo 3D y maneja el estado de carga y error.
  */
-export function RemoteModelInstance({ obj, position, origin, dimensions, modelScale, rotation }: { 
+export function RemoteModelInstance({ obj, position, origin, dimensions, modelScale, rotation, onObjectInteraction }: { 
     obj: DesignObjectInstanceProps, 
     position: [number, number, number], 
     origin: [number, number, number],
@@ -78,16 +78,23 @@ export function RemoteModelInstance({ obj, position, origin, dimensions, modelSc
     modelScale?: number,
     modelUrl: string,
     rotation?: number
+    onObjectInteraction: (object: DesignObjectInstanceProps) => void
 }) {
     const url = obj.type.modelUrl;
     
     const { localUri, isLoading, error } = useDownload3dModel(url, obj.id);
+
+    const handleInteraction = React.useCallback(() => {
+        console.log("Object interaction from remote3dModel");
+        onObjectInteraction(obj);
+    }, [obj, onObjectInteraction]);
 
     const boxPosition: [number, number, number] = [
         origin[0] + position[0] + dimensions[0] / 2,
         origin[1] + position[1] + dimensions[1] / 2,
         origin[2] + position[2] + dimensions[2] / 2
     ];
+
 
     const modelPosition: [number, number, number] = [
         origin[0] + position[0],
@@ -119,6 +126,16 @@ export function RemoteModelInstance({ obj, position, origin, dimensions, modelSc
                 position={modelPosition}
                 rotation={[0, -Math.PI / 2 + (rotation || 0), 0]}
                 scale={modelScale || 1}
+                onDoubleClick={Platform.OS === 'web' ? handleInteraction : undefined}
+                onPointerDown={Platform.OS !== 'web' ? (e) => {
+                    // Inicia un temporizador para detectar una pulsación larga
+                    const timer = setTimeout(() => {
+                        handleInteraction();
+                    }, 500); // 500 ms para una pulsación larga
+
+                    // Limpia el temporizador si el usuario levanta el dedo antes
+                    e.target.addEventListener('pointerup', () => clearTimeout(timer), { once: true });
+                } : undefined}
             ></Gltf>
         </Suspense>
     );

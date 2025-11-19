@@ -46,7 +46,7 @@ export const defaultCupboardObjects: DesignObjectInstanceProps[] = [];
 export const cupboardLineHeight : number = 1.5;
 
 
-export default function Design3dView({ room3d, counterObjects, cupboardObjects}: {room3d: Room3dProps} & { counterObjects: DesignObjectInstanceProps[] } & { cupboardObjects: DesignObjectInstanceProps[] }) {
+export default function Design3dView({ room3d, counterObjects, cupboardObjects, onObjectInteraction}: {room3d: Room3dProps} & { counterObjects: DesignObjectInstanceProps[] } & { cupboardObjects: DesignObjectInstanceProps[] } & { onObjectInteraction: (object: DesignObjectInstanceProps) => void}) {
 
   const cupboardOrigin : [number, number, number] = [RoomOrigin({room3d})[0], RoomOrigin({room3d})[1] + cupboardLineHeight, RoomOrigin({room3d})[2]];
 
@@ -60,8 +60,8 @@ export default function Design3dView({ room3d, counterObjects, cupboardObjects}:
         <ambientLight intensity={.25}/>
         <pointLight castShadow position={[0, 3, room3d.depth*.75]} intensity={(room3d.depth*room3d.width)*2} />
         <Room3d {...room3d}/>
-        <DesignObjects objects={counterObjects} origin={roomOrigin} />
-        <DesignObjects objects={cupboardObjects} origin={cupboardOrigin} />
+        <DesignObjects objects={counterObjects} origin={roomOrigin} onObjectInteraction={onObjectInteraction} />
+        <DesignObjects objects={cupboardObjects} origin={cupboardOrigin} onObjectInteraction={onObjectInteraction} />
         <mesh position={roomOrigin}>
         <sphereGeometry args={[.1, 16, 16]} />
           <meshStandardMaterial color="lightblue" />

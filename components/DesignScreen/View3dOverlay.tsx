@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Dimensions, ScaledSize, StyleSheet, View } from "react-native";
 import Button from "../Button";
+import MoveObjectMenu from "./3dViewOverlay/MoveObjectMenu";
 import { DesignObjectInstanceProps, DesignObjectProps, objectTypes } from "./3dView/DesignObjects";
 import { Room3dProps } from "./3dView/Room3d";
 import AddObjectMenu from "./3dViewOverlay/AddObjectMenu";
@@ -17,7 +18,9 @@ interface View3dOverlayProps {
   room3dProps: Room3dProps;
   setRoom3d: React.Dispatch<React.SetStateAction<Room3dProps>>;
   onObjectAdded: (newObject: DesignObjectInstanceProps) => void;
-  onObjectEdited: (id: string, updates: { name: string, xdistance: number }) => void;
+  onObjectEdited: (id: string, updates: { name: string, position: [number, number, number] }) => void;
+  movingObject?: DesignObjectInstanceProps;
+  setMovingObject: (object?: DesignObjectInstanceProps) => void;
 }
 
 function useWindowDimensions() {
@@ -40,7 +43,7 @@ function useWindowDimensions() {
 
 
 
-export default function View3dOverlay({ designObjects, room3dProps, setRoom3d , onObjectAdded, onObjectEdited} : View3dOverlayProps) {
+export default function View3dOverlay({ designObjects, room3dProps, setRoom3d , onObjectAdded, onObjectEdited, movingObject, setMovingObject} : View3dOverlayProps) {
 
   const { width } = useWindowDimensions();
   const [isObjectsManagerVisible, setIsObjectsManagerVisible] = useState(false);
@@ -76,9 +79,15 @@ export default function View3dOverlay({ designObjects, room3dProps, setRoom3d , 
       setSelectedObjectState(undefined); // Limpiar el objeto seleccionado
   };
 
-  const handleObjectEditAndClose = (id: string, updates: { name: string, xdistance: number }) => {
+  const handleObjectEditAndClose = (id: string, updates: { name: string, position: [number, number, number] }) => {
       onObjectEdited(id, updates);
       closeEditMenu();
+  };
+
+  const handleObjectMoveAndClose = (newPosition: [number, number, number]) => {
+    if (movingObject) {
+      onObjectEdited(movingObject.id, { name: movingObject.name, position: newPosition });
+    }
   };
 
   return (
@@ -144,6 +153,14 @@ export default function View3dOverlay({ designObjects, room3dProps, setRoom3d , 
                 />
             )
           )
+        )}
+
+        {movingObject && (
+          <MoveObjectMenu
+            selectedObject={movingObject}
+            onMove={handleObjectMoveAndClose}
+            onClose={() => setMovingObject(undefined)}
+          />
         )}
 
         {/*----------------------------------Botonera principal-----------------------------------------*/}

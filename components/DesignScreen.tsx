@@ -29,6 +29,12 @@ export default function DesignScreen() {
   const [room3d, setRoom3d] = useState<Room3dProps>(initialRoom3d);
   const [counterLineObjects, setCounterObjects] = useState<DesignObjectInstanceProps[]>(defaultCounterObjects);
   const [cupboardLineObjects, setCupboardObjects] = useState<DesignObjectInstanceProps[]>(defaultCupboardObjects);
+  const [movingObject, setMovingObject] = useState<DesignObjectInstanceProps | undefined>(undefined);
+
+  const handleObjectInteraction = (object: DesignObjectInstanceProps) => {
+    console.log("Interacted with object:", object.id);
+    setMovingObject(object);
+  };
 
   const handleObjectAdded = (newObject: DesignObjectInstanceProps) => {
     if (newObject.type.type === DesignObjectType.Counter) {
@@ -79,7 +85,7 @@ export default function DesignScreen() {
         alignItems: "center",
       }}
     >
-      <Design3dView {...{ room3d }} counterObjects={counterLineObjects} cupboardObjects={cupboardLineObjects}></Design3dView>
+      <Design3dView {...{ room3d }} counterObjects={counterLineObjects} cupboardObjects={cupboardLineObjects} onObjectInteraction={handleObjectInteraction} onObjectEdited={handleObjectEdited}></Design3dView>
       <View3dOverlay
         room3dProps={room3d}
         setRoom3d={setRoom3d}
@@ -89,6 +95,8 @@ export default function DesignScreen() {
         onObjectAdded={handleObjectAdded}
         // 2. PASAR LA NUEVA FUNCIÓN DE EDICIÓN AL OVERLAY
         onObjectEdited={handleObjectEdited}
+        movingObject={movingObject}
+        setMovingObject={setMovingObject}
       >
       </View3dOverlay>
     </View>

@@ -7,6 +7,7 @@ export interface DesignObjectInstanceProps {
     type: DesignObjectProps;
     name: string;
     position: [number, number, number];
+    rotation: number;
     dimensions: [number, number, number];
     color: string;
 }
@@ -33,6 +34,7 @@ export function NewInstance(type: DesignObjectProps, position?: [number, number,
         type: type,
         name: type.name,
         position: position ? position : [0, 0, 0],
+        rotation: 0,
         dimensions: [type.width, type.height, type.depth],
         color: getRandomColor(),
     };
@@ -87,7 +89,7 @@ function getRandomColor() {
 }
 
 
-export default function DesignObjects({ objects, origin }: { objects: DesignObjectInstanceProps[], origin: [number, number, number] }) {
+export default function DesignObjects({ objects, origin, onObjectInteraction }: { objects: DesignObjectInstanceProps[], origin: [number, number, number], onObjectInteraction: (object: DesignObjectInstanceProps) => void }) {
 
     return (
         <>
@@ -98,18 +100,17 @@ export default function DesignObjects({ objects, origin }: { objects: DesignObje
                     
                     console.log("Rendering object:", obj.name, "at position:", currentPosition);
 
-                    let rotation = 0;
-
                     return (
                             <RemoteModelInstance
                                 key={obj.id}
                                 obj={obj}
+                                onObjectInteraction={onObjectInteraction}
                                 position={currentPosition}
                                 origin={origin}
                                 dimensions={obj.dimensions}
                                 modelUrl={obj.type.modelUrl}
                                 modelScale={0.01}
-                                rotation={rotation}
+                                rotation={obj.rotation}
                             />
                         )
                 })}
