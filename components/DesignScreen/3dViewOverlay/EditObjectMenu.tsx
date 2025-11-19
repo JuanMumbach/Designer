@@ -5,39 +5,65 @@ import { DesignObjectInstanceProps } from "../3dView/DesignObjects";
 
 export default function EditObjectMenu({object, onEditComplete} : {
         object : DesignObjectInstanceProps, 
-        onEditComplete : (id: string, updates: { name: string, xdistance: number }) => void,
+        onEditComplete : (id: string, updates: { name: string, position: [number, number, number] }) => void,
     }){
 
     const [name, onChangeName] = useState(object.name);
-    const [xdistance, onChangeXDistance] = useState(object.xdistance);
+    const [positionX, onChangePositionX] = useState(object.position?.[0] ?? 0);
+    const [positionY, onChangePositionY] = useState(object.position?.[1] ?? 0);
+    const [positionZ, onChangePositionZ] = useState(object.position?.[2] ?? 0);
     
     const handleSave = () => {
         onEditComplete(object.id, { 
             name: name, 
-            xdistance: xdistance
+            position: [positionX, positionY, positionZ]
         });
     };
 
     useEffect(() => {
         onChangeName(object.name);
-        onChangeXDistance(object.xdistance);
+        onChangePositionX(object.position?.[0] ?? 0);
+        onChangePositionY(object.position?.[1] ?? 0);
+        onChangePositionZ(object.position?.[2] ?? 0);
       }, [object]);
     
-    const handleXDistanceChange = (text: string) => {
+    const handlePositionXChange = (text: string) => {
         var aNumber : number = parseFloat(text);
-        if (!isNaN(aNumber)) onChangeXDistance(aNumber);
+        if (!isNaN(aNumber)) onChangePositionX(aNumber);
+    };
+
+    const handlePositionYChange = (text: string) => {
+        var aNumber : number = parseFloat(text);
+        if (!isNaN(aNumber)) onChangePositionY(aNumber);
+    };
+
+    const handlePositionZChange = (text: string) => {
+        var aNumber : number = parseFloat(text);
+        if (!isNaN(aNumber)) onChangePositionZ(aNumber);
     };
 
     return (
     <View style={styles.container}>
         <TextInput style={styles.input} onChangeText={onChangeName} value={name} placeholder={object.name} />
         <Text>Type: {object.type.name}</Text>
-        <Text style={styles.label}>X Distance (pos)</Text>
+        <Text style={styles.label}>Position X</Text>
               <TextInput style={styles.input}
-                onChangeText={handleXDistanceChange}
-                value={xdistance.toString()}
+                onChangeText={handlePositionXChange}
+                value={positionX.toString()}
                 keyboardType="numeric"
               />
+        <Text style={styles.label}>Position Y</Text>
+                <TextInput style={styles.input}
+                    onChangeText={handlePositionYChange}
+                    value={positionY.toString()}
+                    keyboardType="numeric"
+                />
+        <Text style={styles.label}>Position Z</Text>
+                <TextInput style={styles.input}
+                    onChangeText={handlePositionZChange}
+                    value={positionZ.toString()}
+                    keyboardType="numeric"
+                />
         <Button label="Save Changes" onPress={handleSave} />
     </View>
     );

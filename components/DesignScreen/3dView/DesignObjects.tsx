@@ -6,7 +6,7 @@ export interface DesignObjectInstanceProps {
     id: string;
     type: DesignObjectProps;
     name: string;
-    xdistance: number;
+    position: [number, number, number];
     dimensions: [number, number, number];
     color: string;
 }
@@ -27,12 +27,12 @@ export interface DesignObjectProps {
     variantOf?: string;
 }
 
-export function NewInstance(type: DesignObjectProps, xDistance?: number): DesignObjectInstanceProps {
+export function NewInstance(type: DesignObjectProps, position?: [number, number, number]): DesignObjectInstanceProps {
     return {
         id: generateUUID(),
         type: type,
         name: type.name,
-        xdistance: xDistance ? xDistance : 0,
+        position: position ? position : [0, 0, 0],
         dimensions: [type.width, type.height, type.depth],
         color: getRandomColor(),
     };
@@ -87,50 +87,18 @@ function getRandomColor() {
 }
 
 
-export default function DesignObjects({ objects, origin, rightToLeft, onZAxis }: { objects: DesignObjectInstanceProps[], origin: [number, number, number], rightToLeft?: boolean , onZAxis?: boolean}) {
+export default function DesignObjects({ objects, origin }: { objects: DesignObjectInstanceProps[], origin: [number, number, number] }) {
 
-
-    let positions: [[number, number, number]] = [] as unknown as [[number, number, number]];
-
-    let prevRelativePos = 0;
-    for (let i = 0; i < objects.length; i++) {
-        let relativePos = 0;
-
-        if (rightToLeft) {
-            relativePos = prevRelativePos + objects[i].xdistance + objects[i].dimensions[0];
-            prevRelativePos += objects[i].dimensions[0] + objects[i].xdistance;
-        }
-        else {
-        relativePos = prevRelativePos + objects[i].xdistance;
-        prevRelativePos += objects[i].dimensions[0] + objects[i].xdistance;
-        }
-        
-        if (onZAxis) {
-            positions.push([0, 0, relativePos]);
-        }
-        else {
-            positions.push([relativePos, 0, 0]);
-        }
-    }
-
-    var count = 0;
     return (
         <>
             {
 
                 objects.map((obj) => {
-                    count++;
-                    let currentPosition : [number, number, number] = positions[count - 1]; // Posición de inicio del objeto
+                    let currentPosition : [number, number, number] = obj.position; // Posición de inicio del objeto
                     
                     console.log("Rendering object:", obj.name, "at position:", currentPosition);
 
                     let rotation = 0;
-                    if (onZAxis && rightToLeft) {
-                        rotation = Math.PI / 2;
-                    }
-                    else if (onZAxis && !rightToLeft) {
-                        rotation = -Math.PI / 2;
-                    }
 
                     return (
                             <RemoteModelInstance

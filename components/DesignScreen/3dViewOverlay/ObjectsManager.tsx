@@ -15,6 +15,7 @@ export default function ObjectsManager({ designObjects, onObjectSelect }: {
                         {obj.name}<br></br>
                         {obj.type.name}<br></br>
                         {obj.dimensions[0]} x {obj.dimensions[1]} x {obj.dimensions[2]}<br></br>
+                        X: {obj.position[0]} Y: {obj.position[1]} Z: {obj.position[2]}<br></br>
                         {obj.color}<br></br>
                     </Text>
                     <Button label="Edit" onPress={() => onObjectSelect(obj)} />

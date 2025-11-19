@@ -62,8 +62,6 @@ export default function Design3dView({ room3d, counterObjects, cupboardObjects}:
         <Room3d {...room3d}/>
         <DesignObjects objects={counterObjects} origin={roomOrigin} />
         <DesignObjects objects={cupboardObjects} origin={cupboardOrigin} />
-        <DesignObjects objects={counterObjects} origin={roomOrigin} rightToLeft={true} onZAxis={true}/>
-        <DesignObjects objects={counterObjects} origin={rightCorner} rightToLeft={false} onZAxis={true}/>
         <mesh position={roomOrigin}>
         <sphereGeometry args={[.1, 16, 16]} />
           <meshStandardMaterial color="lightblue" />

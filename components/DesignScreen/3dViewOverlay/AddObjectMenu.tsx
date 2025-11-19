@@ -19,7 +19,9 @@ export default function AddObjectMenu({
   const [height, onChangeHeight] = useState(newObjectType.height);
   const [depth, onChangeDepth] = useState(newObjectType.depth);
   const [color, onChangeColor] = useState("#ffffff");
-  const [xdistance, onChangeXDistance] = useState("0");
+  const [positionX, onChangePositionX] = useState("0");
+  const [positionY, onChangePositionY] = useState("0");
+  const [positionZ, onChangePositionZ] = useState("0");
 
   useEffect(() => {
     onChangeName(newObjectType.name);
@@ -27,16 +29,22 @@ export default function AddObjectMenu({
     onChangeHeight(newObjectType.height);
     onChangeDepth(newObjectType.depth);
     onChangeColor("#ffffff");
-    onChangeXDistance("0");
+    onChangePositionX("0");
+    onChangePositionY("0");
+    onChangePositionZ("0");
   }, [newObjectType]);
 
 
   const handleAddObject = () => {
-    const newObjectInstance = NewInstance(newObjectType);
+    const position: [number, number, number] = [
+      parseFloat(positionX || "0"),
+      parseFloat(positionY || "0"),
+      parseFloat(positionZ || "0")
+    ];
+    const newObjectInstance = NewInstance(newObjectType, position);
 
     // Apply form values
     newObjectInstance.name = name;
-    newObjectInstance.xdistance = parseFloat(xdistance || "0");
 
     // 1. ADD OBJECT: Call the function passed from DesignScreen to update the state
     onObjectAdded(newObjectInstance);
@@ -52,10 +60,22 @@ export default function AddObjectMenu({
       <Text style={styles.label}>Name</Text>
       <TextInput style={styles.input} onChangeText={onChangeName} value={name} placeholder={newObjectType.name} />
 
-      <Text style={styles.label}>X Distance (pos)</Text>
+      <Text style={styles.label}>Position X</Text>
       <TextInput style={styles.input}
-        onChangeText={onChangeXDistance}
-        value={xdistance}
+        onChangeText={onChangePositionX}
+        value={positionX}
+        keyboardType="numeric"
+      />
+      <Text style={styles.label}>Position Y</Text>
+      <TextInput style={styles.input}
+        onChangeText={onChangePositionY}
+        value={positionY}
+        keyboardType="numeric"
+      />
+      <Text style={styles.label}>Position Z</Text>
+      <TextInput style={styles.input}
+        onChangeText={onChangePositionZ}
+        value={positionZ}
         keyboardType="numeric"
       />
 

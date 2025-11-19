@@ -15,15 +15,15 @@ const initialRoom3d: Room3dProps = {
 };
 
 
-defaultCounterObjects.push(NewInstance(objectTypes[0], .6));
+defaultCounterObjects.push(NewInstance(objectTypes[0], [0.6, 0, 0]));
 defaultCounterObjects.push(NewInstance(objectTypes[1]));
 defaultCounterObjects.push(NewInstance(objectTypes[1]));
-defaultCounterObjects.push(NewInstance(objectTypes[0], .6));
+defaultCounterObjects.push(NewInstance(objectTypes[0], [0.6, 0, 0]));
 defaultCupboardObjects.push(NewInstance(objectTypes[2]));
 defaultCupboardObjects.push(NewInstance(objectTypes[3]));
 defaultCupboardObjects.push(NewInstance(objectTypes[2]));
 defaultCupboardObjects.push(NewInstance(objectTypes[2]));
-defaultCupboardObjects.push(NewInstance(objectTypes[3], .6));
+defaultCupboardObjects.push(NewInstance(objectTypes[3], [0.6, 0, 0]));
 
 export default function DesignScreen() {
   const [room3d, setRoom3d] = useState<Room3dProps>(initialRoom3d);
@@ -41,7 +41,7 @@ export default function DesignScreen() {
   };
 
   // 1. NUEVA FUNCIÓN PARA EDITAR OBJETOS
-  const handleObjectEdited = (id: string, updates: { name: string, xdistance: number }) => {
+  const handleObjectEdited = (id: string, updates: { name: string, position: [number, number, number] }) => {
 
     // Función de ayuda para encontrar y actualizar un objeto en un array de estado
     const updateObjects = (prevObjects: DesignObjectInstanceProps[]) => {
@@ -52,7 +52,7 @@ export default function DesignScreen() {
           return {
             ...obj,
             name: updates.name,
-            xdistance: updates.xdistance,
+            position: updates.position,
             // Opcional: actualizar otras propiedades si las estás editando
           };
         }
