@@ -10,7 +10,10 @@ El principal valor reside en **acelerar notablemente el proceso de diseño**, lo
 
 * **Mayor Eficiencia:** Reduce el tiempo de diseño al utilizar módulos predefinidos.
 * **Reducción de Costos:** Permite que la tarea sea realizada por **personal menos especializado**, ya que elimina la necesidad de conocimientos avanzados en modelado 3D para diseños estándar.
-* **Aceleración de Ventas:** Los prospectos ven resultados más rápido, lo que potencialmente aumenta la tasa de confirmación de proyectos.
+* **Aceleración de Ventas:** Los prospectos ven resultados más rápido, lo que podría reducir el tiempo de confirmación de proyectos.
+* **Mejora en tasa de ventas:** Al tener un feedback visual más rápido, los prospectos podrían estar más proclives a confirmar el proyecto.
+
+
 
 ---
 
@@ -40,7 +43,7 @@ La capacidad de funcionamiento en **celulares** es crucial para el flujo de vent
 * **Diseño Asistido y Estándar:** Uso exclusivo de módulos prefabricados del catálogo de la empresa.
 * **Cálculo de Costos:** Función integrada para calcular el **costo estimado del proyecto en tiempo real** (basado en módulos y materiales).
 * **Modelo de Posición:** Utiliza un **Modelo de Posición Absoluta (XYZ)** para almacenar la ubicación de los módulos, garantizando la flexibilidad para estructuras complejas como por ejemplo: cocinas con islas, racks de TV con elementos superpuestos (Si bien en un principio el diseño de racks de TV no son parte del proyecto, se considera como un posible agregado a futuro).
-* **Exportación 3D:** Capacidad de exportar el **modelo 3D completo** del diseño para que pueda ser importado en otros programas de modelado 3d para agregar detalles o ampliar el diseño.
+* **Exportación 3D:** Capacidad de exportar el **modelo 3D completo** del diseño para que pueda ser importado en otros programas de modelado 3D para agregar detalles o ampliar el diseño.
 
 ### B. Interacción del Diseñador (UX)
 
