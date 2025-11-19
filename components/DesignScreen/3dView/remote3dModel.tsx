@@ -84,6 +84,20 @@ export function RemoteModelInstance({ obj, position, origin, dimensions, modelSc
     
     const { localUri, isLoading, error } = useDownload3dModel(url, obj.id);
 
+    const [isDesktop, setIsDesktop] = useState(false);
+
+    useEffect(() => {
+        if (Platform.OS === 'web') {
+            // Check if it's a desktop browser by looking for 'Mobi' in the user agent
+            if (!/Mobi|Android/i.test(navigator.userAgent)) {
+                setIsDesktop(true);
+            }
+        }
+    }, []);
+
+    const longPressTimer = React.useRef<NodeJS.Timeout | null>(null);
+    const pointerDownPosition = React.useRef<{ x: number, y: number } | null>(null);
+
     const handleInteraction = React.useCallback(() => {
         console.log("Object interaction from remote3dModel");
         onObjectInteraction(obj);
@@ -119,6 +133,51 @@ export function RemoteModelInstance({ obj, position, origin, dimensions, modelSc
         );
     }
     
+    const handlePointerDown = (e: any) => {
+        if (isDesktop) return;
+        e.stopPropagation();
+        pointerDownPosition.current = { x: e.clientX, y: e.clientY };
+        longPressTimer.current = setTimeout(() => {
+            e.stopPropagation();
+            handleInteraction();
+            longPressTimer.current = null;
+            pointerDownPosition.current = null;
+        }, 500);
+    };
+
+    const handlePointerUp = (e: any) => {
+        if (isDesktop) return;
+        e.stopPropagation();
+        if (longPressTimer.current) {
+            clearTimeout(longPressTimer.current);
+            longPressTimer.current = null;
+        }
+        pointerDownPosition.current = null;
+    };
+
+    const handlePointerMove = (e: any) => {
+        if (isDesktop || !pointerDownPosition.current) return;
+        e.stopPropagation();
+        if (longPressTimer.current) {
+            const deltaX = Math.abs(e.clientX - pointerDownPosition.current.x);
+            const deltaY = Math.abs(e.clientY - pointerDownPosition.current.y);
+            const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+            if (distance > 10) {
+                clearTimeout(longPressTimer.current);
+                longPressTimer.current = null;
+                pointerDownPosition.current = null;
+            }
+        }
+    };
+
+    const handlePointerLeave = (e: any) => {
+        if (longPressTimer.current) {
+            clearTimeout(longPressTimer.current);
+            longPressTimer.current = null;
+            pointerDownPosition.current = null;
+        }
+    };
+    
     return (
         <Suspense key={obj.id} fallback={null}>
             <Gltf 
@@ -126,16 +185,11 @@ export function RemoteModelInstance({ obj, position, origin, dimensions, modelSc
                 position={modelPosition}
                 rotation={[0, -Math.PI / 2 + (rotation || 0), 0]}
                 scale={modelScale || 1}
-                onDoubleClick={Platform.OS === 'web' ? handleInteraction : undefined}
-                onPointerDown={Platform.OS !== 'web' ? (e) => {
-                    // Inicia un temporizador para detectar una pulsación larga
-                    const timer = setTimeout(() => {
-                        handleInteraction();
-                    }, 500); // 500 ms para una pulsación larga
-
-                    // Limpia el temporizador si el usuario levanta el dedo antes
-                    e.target.addEventListener('pointerup', () => clearTimeout(timer), { once: true });
-                } : undefined}
+                onDoubleClick={isDesktop ? handleInteraction : () => {}}
+                onPointerDown={handlePointerDown}
+                onPointerUp={handlePointerUp}
+                onPointerMove={handlePointerMove}
+                onPointerLeave={handlePointerLeave}
             ></Gltf>
         </Suspense>
     );
