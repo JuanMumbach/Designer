@@ -1,10 +1,10 @@
 import Button from "@/components/Button";
 import { useEffect, useState } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
-import { DesignObjectInstanceProps } from "../3dView/DesignObjects";
+import { FurnitureInstanceProps } from "../3dView/DesignObjects";
 
-export default function EditObjectMenu({object, onEditComplete} : {
-        object : DesignObjectInstanceProps, 
+export default function EditFurnitureInstanceMenu({object, onEditComplete} : {
+        object : FurnitureInstanceProps, 
         onEditComplete : (id: string, updates: { name: string, position: [number, number, number] }) => void,
     }){
 

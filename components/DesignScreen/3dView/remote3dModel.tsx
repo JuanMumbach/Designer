@@ -2,7 +2,7 @@ import { Box, Gltf } from '@react-three/drei/native';
 import * as FileSystem from 'expo-file-system';
 import React, { Suspense, useEffect, useState } from 'react';
 import { Platform } from 'react-native';
-import { DesignObjectInstanceProps } from './DesignObjects'; // Asegúrate que la ruta sea correcta
+import { FurnitureInstanceProps } from './DesignObjects'; // Asegúrate que la ruta sea correcta
 
 /**
  * Hook personalizado para manejar la carga de activos remotos de forma
@@ -70,15 +70,15 @@ export function useDownload3dModel(remoteUrl: string, assetName: string = 'asset
 /**
  * Componente que envuelve el modelo 3D y maneja el estado de carga y error.
  */
-export function RemoteModelInstance({ obj, position, origin, dimensions, modelScale, rotation, onObjectInteraction }: { 
-    obj: DesignObjectInstanceProps, 
+export function FurnitureInstance({ obj, position, origin, dimensions, modelScale, rotation, onObjectInteraction }: { 
+    obj: FurnitureInstanceProps, 
     position: [number, number, number], 
     origin: [number, number, number],
     dimensions: [number, number, number],
     modelScale?: number,
     modelUrl: string,
     rotation?: number
-    onObjectInteraction: (object: DesignObjectInstanceProps) => void
+    onObjectInteraction: (object: FurnitureInstanceProps) => void
 }) {
     const url = obj.type.modelUrl;
     
@@ -88,7 +88,7 @@ export function RemoteModelInstance({ obj, position, origin, dimensions, modelSc
 
     useEffect(() => {
         if (Platform.OS === 'web') {
-            // Check if it's a desktop browser by looking for 'Mobi' in the user agent
+            // Check if it's a desktop browser
             if (!/Mobi|Android/i.test(navigator.userAgent)) {
                 setIsDesktop(true);
             }

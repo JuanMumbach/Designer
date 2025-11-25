@@ -1,16 +1,16 @@
 import { useEffect, useState } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 import Button from "../../Button";
-import { DesignObjectInstanceProps, DesignObjectProps, NewInstance } from "../3dView/DesignObjects";
+import { FurnitureInstanceProps, FurnitureProps, NewFurnitureInstance } from "../3dView/DesignObjects";
 
 
-export default function AddObjectMenu({
+export default function AddFurnitureInstanceMenu({
   newObjectType,
   onObjectAdded,
   closeMenu
 }: {
-  newObjectType: DesignObjectProps,
-  onObjectAdded: (newObject: DesignObjectInstanceProps) => void,
+  newObjectType: FurnitureProps,
+  onObjectAdded: (newObject: FurnitureInstanceProps) => void,
   closeMenu: () => void
 }) {
 
@@ -41,7 +41,7 @@ export default function AddObjectMenu({
       parseFloat(positionY || "0"),
       parseFloat(positionZ || "0")
     ];
-    const newObjectInstance = NewInstance(newObjectType, position);
+    const newObjectInstance = NewFurnitureInstance(newObjectType, position);
 
     // Apply form values
     newObjectInstance.name = name;

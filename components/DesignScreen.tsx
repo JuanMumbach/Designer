@@ -2,7 +2,7 @@ import Design3dView, { defaultCounterObjects, defaultCupboardObjects } from "@/c
 import View3dOverlay from "@/components/DesignScreen/View3dOverlay";
 import { useState } from "react";
 import { View } from "react-native";
-import { DesignObjectInstanceProps, DesignObjectType, NewInstance, objectTypes } from "./DesignScreen/3dView/DesignObjects";
+import { FurnitureInstanceProps, FurnitureType, NewFurnitureInstance, furnitureModels } from "./DesignScreen/3dView/DesignObjects";
 import { Room3dProps } from "./DesignScreen/3dView/Room3d";
 
 
@@ -15,33 +15,33 @@ const initialRoom3d: Room3dProps = {
 };
 
 
-defaultCounterObjects.push(NewInstance(objectTypes[0], [0.6, 0, 0]));
-defaultCounterObjects.push(NewInstance(objectTypes[1]));
-defaultCounterObjects.push(NewInstance(objectTypes[1]));
-defaultCounterObjects.push(NewInstance(objectTypes[0], [0.6, 0, 0]));
-defaultCupboardObjects.push(NewInstance(objectTypes[2]));
-defaultCupboardObjects.push(NewInstance(objectTypes[3]));
-defaultCupboardObjects.push(NewInstance(objectTypes[2]));
-defaultCupboardObjects.push(NewInstance(objectTypes[2]));
-defaultCupboardObjects.push(NewInstance(objectTypes[3], [0.6, 0, 0]));
+defaultCounterObjects.push(NewFurnitureInstance(furnitureModels[0], [0.6, 0, 0]));
+defaultCounterObjects.push(NewFurnitureInstance(furnitureModels[1]));
+defaultCounterObjects.push(NewFurnitureInstance(furnitureModels[1]));
+defaultCounterObjects.push(NewFurnitureInstance(furnitureModels[0], [0.6, 0, 0]));
+defaultCupboardObjects.push(NewFurnitureInstance(furnitureModels[2]));
+defaultCupboardObjects.push(NewFurnitureInstance(furnitureModels[3]));
+defaultCupboardObjects.push(NewFurnitureInstance(furnitureModels[2]));
+defaultCupboardObjects.push(NewFurnitureInstance(furnitureModels[2]));
+defaultCupboardObjects.push(NewFurnitureInstance(furnitureModels[3], [0.6, 0, 0]));
 
 export default function DesignScreen() {
   const [room3d, setRoom3d] = useState<Room3dProps>(initialRoom3d);
-  const [counterLineObjects, setCounterObjects] = useState<DesignObjectInstanceProps[]>(defaultCounterObjects);
-  const [cupboardLineObjects, setCupboardObjects] = useState<DesignObjectInstanceProps[]>(defaultCupboardObjects);
-  const [movingObject, setMovingObject] = useState<DesignObjectInstanceProps | undefined>(undefined);
+  const [counterLineObjects, setCounterObjects] = useState<FurnitureInstanceProps[]>(defaultCounterObjects);
+  const [cupboardLineObjects, setCupboardObjects] = useState<FurnitureInstanceProps[]>(defaultCupboardObjects);
+  const [movingObject, setMovingObject] = useState<FurnitureInstanceProps | undefined>(undefined);
 
-  const handleObjectInteraction = (object: DesignObjectInstanceProps) => {
+  const handleObjectInteraction = (object: FurnitureInstanceProps) => {
     console.log("Interacted with object:", object.id);
     setMovingObject(object);
   };
 
-  const handleObjectAdded = (newObject: DesignObjectInstanceProps) => {
-    if (newObject.type.type === DesignObjectType.Counter) {
+  const handleObjectAdded = (newObject: FurnitureInstanceProps) => {
+    if (newObject.type.type === FurnitureType.Counter) {
       setCounterObjects(prevObjects => [...prevObjects, newObject]);
     }
 
-    if (newObject.type.type === DesignObjectType.Cupboard) {
+    if (newObject.type.type === FurnitureType.Cupboard) {
       setCupboardObjects(prevObjects => [...prevObjects, newObject]);
     }
   };
@@ -50,7 +50,7 @@ export default function DesignScreen() {
   const handleObjectEdited = (id: string, updates: { name: string, position: [number, number, number] }) => {
 
     // Función de ayuda para encontrar y actualizar un objeto en un array de estado
-    const updateObjects = (prevObjects: DesignObjectInstanceProps[]) => {
+    const updateObjects = (prevObjects: FurnitureInstanceProps[]) => {
       // 1.1 Mapear el array para encontrar el objeto por ID
       return prevObjects.map(obj => {
         if (obj.id === id) {

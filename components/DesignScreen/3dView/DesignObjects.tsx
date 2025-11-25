@@ -1,10 +1,10 @@
 import React from 'react';
 import { generateUUID } from 'three/src/math/MathUtils.js';
-import { RemoteModelInstance } from './remote3dModel';
+import { FurnitureInstance } from './remote3dModel';
 
-export interface DesignObjectInstanceProps {
+export interface FurnitureInstanceProps {
     id: string;
-    type: DesignObjectProps;
+    type: FurnitureProps;
     name: string;
     position: [number, number, number];
     rotation: number;
@@ -12,15 +12,15 @@ export interface DesignObjectInstanceProps {
     color: string;
 }
 
-export enum DesignObjectType {
+export enum FurnitureType {
     Counter = "Counter",
     Cupboard = "Cupboard",
 }
 
-export interface DesignObjectProps {
+export interface FurnitureProps {
     id: string;
     name: string;
-    type: DesignObjectType;
+    type: FurnitureType;
     modelUrl: string;
     width: number;
     height: number;
@@ -28,7 +28,7 @@ export interface DesignObjectProps {
     variantOf?: string;
 }
 
-export function NewInstance(type: DesignObjectProps, position?: [number, number, number]): DesignObjectInstanceProps {
+export function NewFurnitureInstance(type: FurnitureProps, position?: [number, number, number]): FurnitureInstanceProps {
     return {
         id: generateUUID(),
         type: type,
@@ -41,10 +41,10 @@ export function NewInstance(type: DesignObjectProps, position?: [number, number,
 }
 
 
-export var objectTypes: DesignObjectProps[] = [
+export var furnitureModels: FurnitureProps[] = [
     { 
         id: generateUUID(), 
-        type: DesignObjectType.Counter, 
+        type: FurnitureType.Counter, 
         name: "Counter60",
         modelUrl: "https://firebasestorage.googleapis.com/v0/b/designer-models.firebasestorage.app/o/bajo60con2puertas.glb?alt=media&token=b0cfe920-1841-43dd-aa60-d05afa483417", 
         width: .6, 
@@ -53,7 +53,7 @@ export var objectTypes: DesignObjectProps[] = [
     },
     { 
         id: generateUUID(), 
-        type: DesignObjectType.Counter, 
+        type: FurnitureType.Counter, 
         name: "Counter60tallplinth",
         modelUrl: "https://firebasestorage.googleapis.com/v0/b/designer-models.firebasestorage.app/o/bajo60con2puertasZocalon.glb?alt=media&token=6ace8545-e3a5-4a8f-8b7b-51510dead445", 
         width: .6, 
@@ -62,7 +62,7 @@ export var objectTypes: DesignObjectProps[] = [
     },
     { 
         id: generateUUID(), 
-        type: DesignObjectType.Cupboard, 
+        type: FurnitureType.Cupboard, 
         name: "Cupboard60hdoors",
         modelUrl: "https://firebasestorage.googleapis.com/v0/b/designer-models.firebasestorage.app/o/alacena60con2puertas.glb?alt=media&token=573dfc44-90d6-4fb8-9389-6be1500c9dbd", 
         width: .6, 
@@ -71,7 +71,7 @@ export var objectTypes: DesignObjectProps[] = [
     },
     { 
         id: generateUUID(), 
-        type: DesignObjectType.Cupboard, 
+        type: FurnitureType.Cupboard, 
         name: "Cupboard60vdoors",
         modelUrl: "https://firebasestorage.googleapis.com/v0/b/designer-models.firebasestorage.app/o/alacena60con2puertasLevadizas.glb?alt=media&token=9d18bf97-138a-48cb-bc24-4e424fc33a6c", 
         width: .6, 
@@ -89,7 +89,7 @@ function getRandomColor() {
 }
 
 
-export default function DesignObjects({ objects, origin, onObjectInteraction }: { objects: DesignObjectInstanceProps[], origin: [number, number, number], onObjectInteraction: (object: DesignObjectInstanceProps) => void }) {
+export default function FurnitureInstantiator({ objects, origin, onObjectInteraction }: { objects: FurnitureInstanceProps[], origin: [number, number, number], onObjectInteraction: (object: FurnitureInstanceProps) => void }) {
 
     return (
         <>
@@ -101,7 +101,7 @@ export default function DesignObjects({ objects, origin, onObjectInteraction }: 
                     console.log("Rendering object:", obj.name, "at position:", currentPosition);
 
                     return (
-                            <RemoteModelInstance
+                            <FurnitureInstance
                                 key={obj.id}
                                 obj={obj}
                                 onObjectInteraction={onObjectInteraction}

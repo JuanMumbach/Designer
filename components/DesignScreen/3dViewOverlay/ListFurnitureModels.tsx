@@ -1,12 +1,12 @@
 import { Button, ScrollView, StyleSheet, Text, View } from "react-native";
-import { DesignObjectProps } from "../3dView/DesignObjects";
+import { FurnitureProps } from "../3dView/DesignObjects";
 
-export default function ListInstantiableObjects({
+export default function ListFurnitureModels({
   designObjectTypes,
   addObjectAction,
 }: {
-  designObjectTypes: DesignObjectProps[],
-  addObjectAction: (objectType: DesignObjectProps) => void;
+  designObjectTypes: FurnitureProps[],
+  addObjectAction: (objectType: FurnitureProps) => void;
 }){
     
     return (

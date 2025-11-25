@@ -1,20 +1,20 @@
 import React, { useState } from 'react';
-import { View, Button, StyleSheet, TextInput, Text } from 'react-native';
-import { DesignObjectInstanceProps, DesignObjectType } from '../3dView/DesignObjects';
+import { Button, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FurnitureInstanceProps, FurnitureType } from '../3dView/DesignObjects';
 
-interface MoveObjectMenuProps {
-    selectedObject: DesignObjectInstanceProps;
+interface MoveFurnitureInstanceMenuProps {
+    selectedObject: FurnitureInstanceProps;
     onMove: (newPosition: [number, number, number]) => void;
     onClose: () => void;
 }
 
-export default function MoveObjectMenu({ selectedObject, onMove, onClose }: MoveObjectMenuProps) {
+export default function MoveFurnitureInstanceMenu({ selectedObject, onMove, onClose }: MoveFurnitureInstanceMenuProps) {
     const [direction, setDirection] = useState<'left' | 'right'>('left');
     const [distance, setDistance] = useState('10');
 
     const handleMove = () => {
         const { position, rotation, type } = selectedObject;
-        if (type.type !== DesignObjectType.Counter && type.type !== DesignObjectType.Cupboard) {
+        if (type.type !== FurnitureType.Counter && type.type !== FurnitureType.Cupboard) {
             return;
         }
 

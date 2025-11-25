@@ -1,10 +1,10 @@
 import Button from "@/components/Button";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
-import { DesignObjectInstanceProps } from "../3dView/DesignObjects";
+import { FurnitureInstanceProps } from "../3dView/DesignObjects";
 
-export default function ObjectsManager({ designObjects, onObjectSelect }: { 
-    designObjects: DesignObjectInstanceProps[],
-    onObjectSelect: (object: DesignObjectInstanceProps) => void 
+export default function FurnitureInstancesManager({ furnitureInstances: designObjects, onFurnitureSelect: onObjectSelect }: { 
+    furnitureInstances: FurnitureInstanceProps[],
+    onFurnitureSelect: (object: FurnitureInstanceProps) => void 
 })
 {
     return (

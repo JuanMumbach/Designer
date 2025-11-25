@@ -2,7 +2,7 @@ import { OrbitControls } from '@react-three/drei/native';
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import React from 'react';
 import * as THREE from 'three';
-import DesignObjects, { DesignObjectInstanceProps } from "./3dView/DesignObjects";
+import FurnitureInstantiator, { FurnitureInstanceProps } from "./3dView/DesignObjects";
 import Room3d, { Room3dProps, RoomOrigin } from "./3dView/Room3d";
 
 const cameraControlsProps = {
@@ -41,12 +41,12 @@ const handleBoxClick = () => {
   }
 
 
-export const defaultCounterObjects: DesignObjectInstanceProps[] = [];
-export const defaultCupboardObjects: DesignObjectInstanceProps[] = [];
+export const defaultCounterObjects: FurnitureInstanceProps[] = [];
+export const defaultCupboardObjects: FurnitureInstanceProps[] = [];
 export const cupboardLineHeight : number = 1.5;
 
 
-export default function Design3dView({ room3d, counterObjects, cupboardObjects, onObjectInteraction}: {room3d: Room3dProps} & { counterObjects: DesignObjectInstanceProps[] } & { cupboardObjects: DesignObjectInstanceProps[] } & { onObjectInteraction: (object: DesignObjectInstanceProps) => void}) {
+export default function Design3dView({ room3d, counterObjects, cupboardObjects, onObjectInteraction}: {room3d: Room3dProps} & { counterObjects: FurnitureInstanceProps[] } & { cupboardObjects: FurnitureInstanceProps[] } & { onObjectInteraction: (object: FurnitureInstanceProps) => void}) {
 
   const cupboardOrigin : [number, number, number] = [RoomOrigin({room3d})[0], RoomOrigin({room3d})[1] + cupboardLineHeight, RoomOrigin({room3d})[2]];
 
@@ -60,12 +60,7 @@ export default function Design3dView({ room3d, counterObjects, cupboardObjects, 
         <ambientLight intensity={.25}/>
         <pointLight castShadow position={[0, 3, room3d.depth*.75]} intensity={(room3d.depth*room3d.width)*2} />
         <Room3d {...room3d}/>
-        <DesignObjects objects={counterObjects} origin={roomOrigin} onObjectInteraction={onObjectInteraction} />
-        <DesignObjects objects={cupboardObjects} origin={cupboardOrigin} onObjectInteraction={onObjectInteraction} />
-        <mesh position={roomOrigin}>
-        <sphereGeometry args={[.1, 16, 16]} />
-          <meshStandardMaterial color="lightblue" />
-        </mesh>
+        <FurnitureInstantiator objects={counterObjects} origin={roomOrigin} onObjectInteraction={onObjectInteraction} />
         <OrbitControls {...cameraControlsProps} />
         <fog attach="fog" args={["darkgray", 5, 20]} />
     </Canvas>
