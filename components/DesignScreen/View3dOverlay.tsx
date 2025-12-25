@@ -133,7 +133,7 @@ export default function View3dOverlay({ designObjects, room3dProps, setRoom3d , 
         (
           <View style={[styles.column, { backgroundColor: debugColors ? 'rgba(255, 0, 0, 0.25)' : 'transparent' }]}>
             {isRoomSettingsVisible && (
-              <RoomManager room3dProps={room3dProps} setRoom3d={setRoom3d}></RoomManager>
+              <RoomManager room3dProps={room3dProps} setRoom3d={setRoom3d} onClose={() => setIsRoomSettingsVisible(false)}></RoomManager>
             )}
             <Button label="Edit Room" onPress={() => toggleRoomSettings()} />
           </View>
@@ -147,12 +147,12 @@ export default function View3dOverlay({ designObjects, room3dProps, setRoom3d , 
           (
             (
               isObjectsManagerVisible && (
-                <FurnitureInstancesManager furnitureInstances={designObjects} onFurnitureSelect={handleEditObject} />
+                <FurnitureInstancesManager furnitureInstances={designObjects} onFurnitureSelect={handleEditObject} onClose={() => setIsObjectsManagerVisible(false)}/>
               )
             ) ||
             (
               isRoomSettingsVisible && (
-                <RoomManager room3dProps={room3dProps} setRoom3d={setRoom3d}></RoomManager>
+                <RoomManager room3dProps={room3dProps} setRoom3d={setRoom3d} onClose={() => setIsRoomSettingsVisible(false)}></RoomManager>
               )
             ) ||
             (
@@ -216,7 +216,7 @@ export default function View3dOverlay({ designObjects, room3dProps, setRoom3d , 
         (
           <View style={[styles.column, { backgroundColor: debugColors ? 'rgba(255, 0, 0, 0.25)' : 'transparent' }]}>
             {isObjectsManagerVisible && (
-              <FurnitureInstancesManager furnitureInstances={designObjects} onFurnitureSelect={handleEditObject}/>
+              <FurnitureInstancesManager furnitureInstances={designObjects} onFurnitureSelect={handleEditObject} onClose={() => setIsObjectsManagerVisible(false)}/>
             )}
             <Button label="Edit Objects" onPress={() => toggleObjectsManager()} />
           </View>
