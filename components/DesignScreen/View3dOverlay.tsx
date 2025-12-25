@@ -90,6 +90,42 @@ export default function View3dOverlay({ designObjects, room3dProps, setRoom3d , 
     }
   };
 
+  //wrappers functions for opening/closing menus
+  const toggleRoomSettings = () => {
+    const newState = !isRoomSettingsVisible;
+    setIsRoomSettingsVisible(newState);
+
+    if (newState) {
+      setIsListInstantiableObjectsVisible(false);
+      setIsObjectsManagerVisible(false);
+      setIsAddObjectMenuVisible(false);
+      setIsEditObjectMenuVisible(false);
+    }
+  };
+
+  const toggleAddObjectList = () => {
+    const newState = !isListInstantiableObjectsVisible;
+    setIsListInstantiableObjectsVisible(newState);
+
+    if (newState) {
+      setIsRoomSettingsVisible(false);
+      setIsObjectsManagerVisible(false);
+      setIsAddObjectMenuVisible(false);
+      setIsEditObjectMenuVisible(false);
+    }
+  };
+
+  const toggleObjectsManager = () => {
+    const newState = !isObjectsManagerVisible;
+    setIsObjectsManagerVisible(newState);
+
+    if (newState) {
+      setIsRoomSettingsVisible(false);
+      setIsListInstantiableObjectsVisible(false);
+      setIsAddObjectMenuVisible(false);
+      setIsEditObjectMenuVisible(false);
+    }
+  };
   return (
     <View style={styles.overlay}>
       {/*---------------------------------Menu lateral (Solo desktop)-------------------------------------*/}
@@ -99,7 +135,7 @@ export default function View3dOverlay({ designObjects, room3dProps, setRoom3d , 
             {isRoomSettingsVisible && (
               <RoomManager room3dProps={room3dProps} setRoom3d={setRoom3d}></RoomManager>
             )}
-            <Button label="Edit Room" onPress={() => setIsRoomSettingsVisible(!isRoomSettingsVisible)} />
+            <Button label="Edit Room" onPress={() => toggleRoomSettings()} />
           </View>
         )}
       
@@ -166,11 +202,11 @@ export default function View3dOverlay({ designObjects, room3dProps, setRoom3d , 
         {/*----------------------------------Botonera principal-----------------------------------------*/}
         <View style={[styles.mainControls, { backgroundColor: debugColors ? 'rgba(51, 255, 0, 0.25)' : 'transparent' }]}>
           {(width <= 768) &&
-            (<Button label="Edit Room" onPress={() => setIsRoomSettingsVisible(!isRoomSettingsVisible)} />)
+            (<Button label="Edit Room" onPress={() => toggleRoomSettings()} />)
           }
-          <Button label="Add Object" onPress={() => setIsListInstantiableObjectsVisible(!isListInstantiableObjectsVisible)} />
+          <Button label="New object" onPress={() => toggleAddObjectList()} />
           {(width <= 768) &&
-            (<Button label="Edit Objects" onPress={() => setIsObjectsManagerVisible(!isObjectsManagerVisible)} />)
+            (<Button label="Edit Objects" onPress={() => toggleObjectsManager()} />)
           }
         </View>
       </View>
@@ -182,7 +218,7 @@ export default function View3dOverlay({ designObjects, room3dProps, setRoom3d , 
             {isObjectsManagerVisible && (
               <FurnitureInstancesManager furnitureInstances={designObjects} onFurnitureSelect={handleEditObject}/>
             )}
-            <Button label="Edit Objects" onPress={() => setIsObjectsManagerVisible(!isObjectsManagerVisible)} />
+            <Button label="Edit Objects" onPress={() => toggleObjectsManager()} />
           </View>
         )}
     </View>
@@ -211,22 +247,31 @@ const styles = StyleSheet.create({
     pointerEvents: "box-none"
   },
   middleColumn: {
-    width: "auto",
-    justifyContent: 'flex-end',
+    width: "100%", // Aseguramos que ocupe el ancho disponible (antes era "auto")
+    justifyContent: 'center', // <--- CAMBIO CLAVE: Cambia 'flex-end' por 'center'
+    alignItems: 'center',     // <--- NUEVO: Para centrar horizontalmente los menús también
     padding: 10,
     height: '100%',
     flex: 1,
     pointerEvents: "box-none"
-  },
+},
   mainControls: {
-    height: "auto",
-    bottom: 0,
-    left: 0,
-    right: 0,
+    position: 'absolute', // Lo hacemos flotar sobre todo
+    bottom: 30, // Separado del borde inferior
+    alignSelf: 'center', // Centrado en la pantalla
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingBottom: 30,
-    pointerEvents: "box-none"
-  }, 
+    backgroundColor: 'white', // Fondo blanco para la barra
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 40, // Hacemos la barra redonda
+    // Sombra flotante importante
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4.65,
+    elevation: 8,
+    zIndex: 100, // Asegura que esté por encima de todo
+  },
 });

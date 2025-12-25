@@ -22,27 +22,34 @@ const w_height = Dimensions.get('window').height;
 
 const styles = StyleSheet.create({
   buttonContainer: {
-    width: w_width * 0.2,
-    height: w_height * 0.1,
-    marginHorizontal: 20,
+    // Quitamos el ancho fijo gigante. Dejamos que el botón decida su tamaño.
+    marginHorizontal: 8, 
+    marginVertical: 5,
     alignItems: "center",
     justifyContent: "center",
-    padding: 3,
   },
   button: {
-    borderRadius: 10,
-    width: "100%",
-    height: "100%",
+    borderRadius: 30, // Bordes muy redondos
+    paddingVertical: 12, // Relleno vertical
+    paddingHorizontal: 24, // Relleno horizontal
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
-    backgroundColor: "#3db8ffff",
-  },
-  buttonIcon: {
-    paddingRight: 8,
+    backgroundColor: "#2563eb", // Un azul más moderno (puedes usar tu #3db8ffff si prefieres)
+    // Sombras suaves para dar profundidad
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5, // Sombra para Android
   },
   buttonLabel: {
     color: "#fff",
-    fontSize: 16,
+    fontSize: 14,
+    fontWeight: "600", // Texto un poco más grueso
+    letterSpacing: 0.5,
   },
 });

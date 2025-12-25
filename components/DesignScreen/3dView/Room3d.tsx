@@ -49,17 +49,17 @@ function DesignRoom( _room3d : { room3d: Room3dProps }) {
                             {[wallThickness, 
                             room3d.height, 
                             room3d.depth+wallThickness]}>
-                        <meshStandardMaterial attach="material" color={"#914646"} />
+                        <meshStandardMaterial attach="material" color={"#a9a58f"} />
                     </Box>
                 )
             )}
 
             <Box position={[0, room3d.height/2, -.1]} args={[room3d.width, room3d.height, wallThickness]}>
-                <meshStandardMaterial attach="material" color={"#ffffff"} />
+                <meshStandardMaterial attach="material" color={"#a9a58f"} />
             </Box>
 
             <Box position={[0, -floorThickness/2, room3d.depth/2-wallThickness/2]} args={[room3d.width+wallThickness*2, floorThickness, room3d.depth+wallThickness]}>
-                <meshStandardMaterial attach="material" color={"#ffffff"} />
+                <meshStandardMaterial attach="material" color={"#e0e3e3"} />
             </Box>
 
             {(room3d.rightWall && 
@@ -73,7 +73,7 @@ function DesignRoom( _room3d : { room3d: Room3dProps }) {
                             {[wallThickness, 
                             room3d.height, 
                             room3d.depth+wallThickness]}>
-                        <meshStandardMaterial attach="material" color={"#ff7777"} />
+                        <meshStandardMaterial attach="material" color={"#a9a58f"} />
                     </Box>
                 )
             )}

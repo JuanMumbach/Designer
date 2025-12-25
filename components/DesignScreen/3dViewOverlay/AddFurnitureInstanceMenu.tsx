@@ -93,21 +93,37 @@ export default function AddFurnitureInstanceMenu({
 
 const styles = StyleSheet.create({
   container: {
-    padding: 20,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 8,
+    padding: 24,
+    backgroundColor: 'white', // Fondo blanco puro
+    borderRadius: 16,
+    // Sombra fuerte para que se note que está sobre el 3D
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 10,
+    margin: 20, // Un poco de aire alrededor
+    minWidth: 300, // Ancho mínimo para que no se vea apretado
+    marginBottom: 100,
   },
   label: {
-    marginTop: 10,
-    fontWeight: 'bold',
+    marginTop: 12,
+    marginBottom: 6,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#374151',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   input: {
-    height: 40,
-    borderColor: 'gray',
+    height: 44,
+    borderColor: '#e5e7eb',
     borderWidth: 1,
-    padding: 10,
-    marginTop: 5,
+    borderRadius: 8,
+    paddingHorizontal: 12,
     marginBottom: 10,
-    backgroundColor: '#fff',
+    backgroundColor: '#f9fafb',
+    fontSize: 14,
+    color: '#111827',
   }
 });
