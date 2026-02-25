@@ -91,6 +91,7 @@ export default function Design3dView({
             onObjectInteraction={onObjectInteraction} 
             onObjectEdited={onObjectEdited}
             movingObjectId={movingObject?.id}
+            room3d={room3d}
         />
         <OrbitControls {...cameraControlsProps} />
         <fog attach="fog" args={["darkgray", 5, 20]} />

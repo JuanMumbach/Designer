@@ -5,6 +5,7 @@ import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import * as THREE from 'three';
 import { FurnitureInstanceProps } from './DesignObjects';
+import { Room3dProps } from './Room3d';
 
 export function useDownload3dModel(remoteUrl: string, assetName: string = 'asset') {
     const [assetUri, setAssetUri] = useState<string | null>(null);
@@ -54,7 +55,7 @@ export function useDownload3dModel(remoteUrl: string, assetName: string = 'asset
 }
 
 export function FurnitureInstance({ 
-    obj, position, origin, dimensions, modelScale, rotation, onObjectInteraction, isSelected, onObjectEdited
+    obj, position, origin, dimensions, modelScale, rotation, onObjectInteraction, isSelected, onObjectEdited, room3d
 }: { 
     obj: FurnitureInstanceProps, 
     position: [number, number, number], 
@@ -65,7 +66,8 @@ export function FurnitureInstance({
     rotation?: number,
     onObjectInteraction: (object: FurnitureInstanceProps) => void,
     isSelected?: boolean,
-    onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number] }) => void
+    onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number] }) => void,
+    room3d: Room3dProps
 }) {
     const url = obj.type.modelUrl;
     const { localUri, isLoading, error } = useDownload3dModel(url, obj.id);
@@ -111,22 +113,6 @@ export function FurnitureInstance({
         origin[2] + position[2]
     ];
 
-    if (isLoading) {
-        return (
-            <Box key={obj.id} position={boxPosition} args={dimensions} >
-                <meshStandardMaterial attach="material" color="black" />
-            </Box>
-        );
-    }
-    
-    if (error || !localUri) {
-        return (
-            <Box key={obj.id} position={boxPosition} args={dimensions} >
-                <meshStandardMaterial attach="material" color="red" />
-            </Box>
-        );
-    }
-    
     const handlePointerDown = (e: any) => {
         e.stopPropagation();
         if (isDesktop) return;
@@ -172,6 +158,54 @@ export function FurnitureInstance({
         }
     };
 
+    const handleDragMove = (e: any) => {
+        e.stopPropagation();
+        if (!onObjectEdited) return;
+
+        const delta = e.point.clone().sub(dragStartPoint.current);
+        
+        const angle = obj.rotation || 0;
+        const moveAxis = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
+        const moveAmount = delta.dot(moveAxis);
+        
+        let newX = initialPosition.current[0] + moveAxis.x * moveAmount;
+        let newZ = initialPosition.current[2] + moveAxis.z * moveAmount;
+
+        const EPSILON = 0.1;
+        
+        if (Math.abs(angle) < EPSILON) {
+            newX = Math.max(0, Math.min(room3d.width - dimensions[0], newX));
+            newZ = initialPosition.current[2]; 
+        } else if (Math.abs(angle - Math.PI / 2) < EPSILON || Math.abs(angle + Math.PI / 2) < EPSILON) {
+            newZ = Math.max(0, Math.min(room3d.depth - dimensions[0], newZ));
+            newX = initialPosition.current[0]; 
+        }
+        
+        const newPosition: [number, number, number] = [
+            newX,
+            initialPosition.current[1],
+            newZ,
+        ];
+        
+        onObjectEdited(obj.id, { name: obj.name, position: newPosition });
+    };
+
+    if (isLoading) {
+        return (
+            <Box key={obj.id} position={boxPosition} args={dimensions} >
+                <meshStandardMaterial attach="material" color="black" />
+            </Box>
+        );
+    }
+    
+    if (error || !localUri) {
+        return (
+            <Box key={obj.id} position={boxPosition} args={dimensions} >
+                <meshStandardMaterial attach="material" color="red" />
+            </Box>
+        );
+    }
+
     const spritePosition: [number, number, number] = [
         boxPosition[0], 
         origin[1] - dimensions[2] / 2 - 0.1, 
@@ -211,7 +245,6 @@ export function FurnitureInstance({
                 >
                     <spriteMaterial 
                         map={dragIconTexture}
-
                         color="white" 
                         depthTest={false} 
                         transparent={true}
@@ -224,22 +257,7 @@ export function FurnitureInstance({
                     rotation={[-Math.PI / 2, 0, 0]}
                     position={[0, origin[1], 0]}
                     visible={false}
-                    onPointerMove={(e) => {
-                        e.stopPropagation();
-                        const delta = e.point.clone().sub(dragStartPoint.current);
-                        
-                        const angle = obj.rotation || 0;
-                        const moveAxis = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
-                        const moveAmount = delta.dot(moveAxis);
-                        
-                        const newPosition: [number, number, number] = [
-                            initialPosition.current[0] + moveAxis.x * moveAmount,
-                            initialPosition.current[1],
-                            initialPosition.current[2] + moveAxis.z * moveAmount,
-                        ];
-                        
-                        onObjectEdited(obj.id, { name: obj.name, position: newPosition });
-                    }}
+                    onPointerMove={handleDragMove}
                     onPointerUp={(e) => {
                         e.stopPropagation();
                         setIsDragging(false);

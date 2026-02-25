@@ -1,6 +1,7 @@
 import React from 'react';
 import { generateUUID } from 'three/src/math/MathUtils.js';
 import { FurnitureInstance } from './remote3dModel';
+import { Room3dProps } from './Room3d';
 
 export interface FurnitureInstanceProps {
     id: string;
@@ -94,13 +95,15 @@ export default function FurnitureInstantiator({
   origin, 
   onObjectInteraction,
   onObjectEdited,
-  movingObjectId // <-- Esta variable recibe el ID del objeto seleccionado
+  movingObjectId,
+  room3d
 }: { 
   objects: FurnitureInstanceProps[], 
   origin: [number, number, number], 
   onObjectInteraction: (object: FurnitureInstanceProps) => void,
   onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number] }) => void,
-  movingObjectId?: string // <-- Declaramos su tipo
+  movingObjectId?: string,
+  room3d: Room3dProps
 }) {
 
     return (
@@ -119,8 +122,9 @@ export default function FurnitureInstantiator({
                             modelUrl={obj.type.modelUrl}
                             modelScale={0.01}
                             rotation={obj.rotation}
-                            isSelected={obj.id === movingObjectId} // <-- AQUÍ se evalúa si este mueble es el seleccionado y le pasa true/false
+                            isSelected={obj.id === movingObjectId}
                             onObjectEdited={onObjectEdited}
+                            room3d={room3d}
                         />
                     )
             })}
