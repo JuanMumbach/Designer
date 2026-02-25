@@ -85,15 +85,20 @@ export default function DesignScreen() {
         alignItems: "center",
       }}
     >
-      <Design3dView {...{ room3d }} counterObjects={counterLineObjects} cupboardObjects={cupboardLineObjects} onObjectInteraction={handleObjectInteraction} onObjectEdited={handleObjectEdited}></Design3dView>
+      <Design3dView 
+        {...{ room3d }} 
+        counterObjects={counterLineObjects} 
+        cupboardObjects={cupboardLineObjects} 
+        onObjectInteraction={handleObjectInteraction} 
+        onObjectEdited={handleObjectEdited}
+        movingObject={movingObject}
+        setMovingObject={setMovingObject}
+      />
       <View3dOverlay
         room3dProps={room3d}
         setRoom3d={setRoom3d}
-        // Nota: designObjects solo se está usando para ObjectsManager, que debe mostrar ambos arrays. 
-        // Por simplicidad, aquí sigues pasando solo counterLineObjects.
         designObjects={counterLineObjects}
         onObjectAdded={handleObjectAdded}
-        // 2. PASAR LA NUEVA FUNCIÓN DE EDICIÓN AL OVERLAY
         onObjectEdited={handleObjectEdited}
         movingObject={movingObject}
         setMovingObject={setMovingObject}

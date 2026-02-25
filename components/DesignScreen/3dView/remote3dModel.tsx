@@ -1,4 +1,5 @@
-import { Box, Gltf } from '@react-three/drei/native';
+import { Box, Gltf, useTexture } from '@react-three/drei/native';
+import { Asset } from 'expo-asset';
 import * as FileSystem from 'expo-file-system';
 import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
@@ -73,6 +74,9 @@ export function FurnitureInstance({
     const [isDragging, setIsDragging] = useState(false);
     const dragStartPoint = useRef<THREE.Vector3>(new THREE.Vector3());
     const initialPosition = useRef<[number, number, number]>([0, 0, 0]);
+    
+    const markerAsset = Asset.fromModule(require('../../../assets/images/move-marker.png'));
+    const dragIconTexture = useTexture(markerAsset.uri);
 
     useEffect(() => {
         if (Platform.OS === 'web') {
@@ -124,8 +128,8 @@ export function FurnitureInstance({
     }
     
     const handlePointerDown = (e: any) => {
-        if (isDesktop) return;
         e.stopPropagation();
+        if (isDesktop) return;
         pointerDownPosition.current = { x: e.clientX, y: e.clientY };
         longPressTimer.current = setTimeout(() => {
             e.stopPropagation();
@@ -136,8 +140,8 @@ export function FurnitureInstance({
     };
 
     const handlePointerUp = (e: any) => {
-        if (isDesktop) return;
         e.stopPropagation();
+        if (isDesktop) return;
         if (longPressTimer.current) {
             clearTimeout(longPressTimer.current);
             longPressTimer.current = null;
@@ -146,8 +150,8 @@ export function FurnitureInstance({
     };
 
     const handlePointerMove = (e: any) => {
-        if (isDesktop || !pointerDownPosition.current) return;
         e.stopPropagation();
+        if (isDesktop || !pointerDownPosition.current) return;
         if (longPressTimer.current) {
             const deltaX = Math.abs(e.clientX - pointerDownPosition.current.x);
             const deltaY = Math.abs(e.clientY - pointerDownPosition.current.y);
@@ -170,8 +174,8 @@ export function FurnitureInstance({
 
     const spritePosition: [number, number, number] = [
         boxPosition[0], 
-        origin[1] - dimensions[2] / 2 - 0.1, 
-        boxPosition[2] + dimensions[2] / 2 + 0.3
+        origin[1] - dimensions[2] / 2 - 0.2, 
+        boxPosition[2] + dimensions[2] / 2 - 0.2
     ];
 
     return (
@@ -194,10 +198,10 @@ export function FurnitureInstance({
                 ></Gltf>
             </Suspense>
 
-            {(/*isSelected &&*/
+            {(isSelected &&
                 <sprite 
                     position={spritePosition} 
-                    scale={[0.3, 0.3, 1]}
+                    scale={[.75, .75, .75]}
                     onPointerDown={(e) => {
                         e.stopPropagation();
                         setIsDragging(true);
@@ -205,7 +209,13 @@ export function FurnitureInstance({
                         initialPosition.current = [...position];
                     }}
                 >
-                    <spriteMaterial color="#007AFF" depthTest={false} />
+                    <spriteMaterial 
+                        map={dragIconTexture}
+
+                        color="white" 
+                        depthTest={false} 
+                        transparent={true}
+                    />
                 </sprite>
             )}
 
