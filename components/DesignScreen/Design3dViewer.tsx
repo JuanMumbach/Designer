@@ -46,7 +46,24 @@ export const defaultCupboardObjects: FurnitureInstanceProps[] = [];
 export const cupboardLineHeight : number = 1.5;
 
 
-export default function Design3dView({ room3d, counterObjects, cupboardObjects, onObjectInteraction}: {room3d: Room3dProps} & { counterObjects: FurnitureInstanceProps[] } & { cupboardObjects: FurnitureInstanceProps[] } & { onObjectInteraction: (object: FurnitureInstanceProps) => void}) {
+export default function Design3dView({ 
+  room3d, 
+  counterObjects, 
+  cupboardObjects, 
+  onObjectInteraction,
+  onObjectEdited,
+  movingObject,
+  setMovingObject}: 
+  {
+  room3d: Room3dProps, 
+  counterObjects: FurnitureInstanceProps[], 
+  cupboardObjects: FurnitureInstanceProps[], 
+  onObjectInteraction: (object: FurnitureInstanceProps) => void,
+  onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number] }) => void,
+  movingObject?: FurnitureInstanceProps,
+  setMovingObject?: (object?: FurnitureInstanceProps) => void
+})
+{
 
   const cupboardOrigin : [number, number, number] = [RoomOrigin({room3d})[0], RoomOrigin({room3d})[1] + cupboardLineHeight, RoomOrigin({room3d})[2]];
 
@@ -55,12 +72,26 @@ export default function Design3dView({ room3d, counterObjects, cupboardObjects, 
   let roomOrigin = RoomOrigin({room3d});
   let rightCorner : [number, number, number] = [roomOrigin[0] + room3d.width, roomOrigin[1], roomOrigin[2]];
   return (
-    <Canvas shadows style={{ background: "darkgray" }} camera={{ position: [0, 3, 3] }}>
+    <Canvas 
+    shadows 
+    style={{ background: "darkgray" }} 
+    camera={{ position: [0, 3, 3] }} 
+    onPointerMissed={() => {
+        console.log("Canvas clicked. Deselecting objects.");
+        if (setMovingObject) setMovingObject(undefined);
+      }}
+    >
         <CameraController room3d={room3d}/>
         <ambientLight intensity={.25}/>
         <pointLight castShadow position={[0, 3, room3d.depth*.75]} intensity={(room3d.depth*room3d.width)*2} />
         <Room3d {...room3d}/>
-        <FurnitureInstantiator objects={counterObjects} origin={roomOrigin} onObjectInteraction={onObjectInteraction} />
+        <FurnitureInstantiator 
+            objects={counterObjects} 
+            origin={roomOrigin} 
+            onObjectInteraction={onObjectInteraction} 
+            onObjectEdited={onObjectEdited}
+            movingObjectId={movingObject?.id}
+        />
         <OrbitControls {...cameraControlsProps} />
         <fog attach="fog" args={["darkgray", 5, 20]} />
     </Canvas>

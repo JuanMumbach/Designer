@@ -1,15 +1,11 @@
 import { Box, Gltf } from '@react-three/drei/native';
 import * as FileSystem from 'expo-file-system';
-import React, { Suspense, useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
-import { FurnitureInstanceProps } from './DesignObjects'; // Asegúrate que la ruta sea correcta
+import * as THREE from 'three';
+import { FurnitureInstanceProps } from './DesignObjects';
 
-/**
- * Hook personalizado para manejar la carga de activos remotos de forma
- * optimizada para React Native (descarga local) y Web (URL directa).
- */
 export function useDownload3dModel(remoteUrl: string, assetName: string = 'asset') {
-    // Uso de "use" en el nombre para adherirse a las convenciones de Hooks
     const [assetUri, setAssetUri] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<Error | null>(null);
@@ -24,39 +20,28 @@ export function useDownload3dModel(remoteUrl: string, assetName: string = 'asset
             setIsLoading(true);
             setError(null);
 
-            // 1. Lógica para WEB
             if (Platform.OS === 'web') {
-                // En la Web, usamos la URL de red directamente
-                console.log("Cargando modelo directamente desde la red (Web).");
                 setAssetUri(remoteUrl);
                 setIsLoading(false);
-                return; // Salir después de configurar el URI y la carga
+                return;
             }
 
-            // 2. Lógica para NATIVO (iOS/Android): Descargar primero
             try {
-                // Genera una ruta de archivo local única
                 const filename = assetName + remoteUrl.substring(remoteUrl.lastIndexOf('.')); 
                 const localPath = FileSystem.documentDirectory + filename;
 
-                // Opcional: Verificar si el archivo ya existe localmente
                 const fileInfo = await FileSystem.getInfoAsync(localPath);
                 if (fileInfo.exists) {
-                    console.log("Modelo ya descargado. Usando caché local.");
                     setAssetUri(localPath);
-                    return; // Retorna si está en caché
+                    return;
                 }
 
-                // Descargar el archivo
-                console.log("Descargando modelo para uso local...");
                 const { uri } = await FileSystem.downloadAsync(remoteUrl, localPath);
                 setAssetUri(uri);
 
             } catch (err) {
-                console.error("Error al descargar el archivo en nativo:", err);
                 setError(err as Error);
             } finally {
-                // Se asegura que la carga termine en ambos casos (éxito o error nativo)
                 setIsLoading(false); 
             }
         };
@@ -67,38 +52,45 @@ export function useDownload3dModel(remoteUrl: string, assetName: string = 'asset
     return { localUri: assetUri, isLoading, error };
 }
 
-/**
- * Componente que envuelve el modelo 3D y maneja el estado de carga y error.
- */
-export function FurnitureInstance({ obj, position, origin, dimensions, modelScale, rotation, onObjectInteraction }: { 
+export function FurnitureInstance({ 
+    obj, position, origin, dimensions, modelScale, rotation, onObjectInteraction, isSelected, onObjectEdited
+}: { 
     obj: FurnitureInstanceProps, 
     position: [number, number, number], 
     origin: [number, number, number],
     dimensions: [number, number, number],
     modelScale?: number,
     modelUrl: string,
-    rotation?: number
-    onObjectInteraction: (object: FurnitureInstanceProps) => void
+    rotation?: number,
+    onObjectInteraction: (object: FurnitureInstanceProps) => void,
+    isSelected?: boolean,
+    onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number] }) => void
 }) {
     const url = obj.type.modelUrl;
-    
     const { localUri, isLoading, error } = useDownload3dModel(url, obj.id);
-
     const [isDesktop, setIsDesktop] = useState(false);
+
+    const [isDragging, setIsDragging] = useState(false);
+    const dragStartPoint = useRef<THREE.Vector3>(new THREE.Vector3());
+    const initialPosition = useRef<[number, number, number]>([0, 0, 0]);
 
     useEffect(() => {
         if (Platform.OS === 'web') {
-            // Check if it's a desktop browser
             if (!/Mobi|Android/i.test(navigator.userAgent)) {
                 setIsDesktop(true);
             }
         }
     }, []);
 
-    const longPressTimer = React.useRef<NodeJS.Timeout | null>(null);
-    const pointerDownPosition = React.useRef<{ x: number, y: number } | null>(null);
+    useEffect(() => {
+        console.log(`Object: ${obj.name} | isSelected: ${isSelected} | isDragging: ${isDragging}`);
+    }, [isSelected, isDragging, obj.name]);
 
-    const handleInteraction = React.useCallback(() => {
+    const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+    const pointerDownPosition = useRef<{ x: number, y: number } | null>(null);
+
+    const handleInteraction = React.useCallback((e?: any) => {
+        if (e) e.stopPropagation();
         console.log("Object interaction from remote3dModel");
         onObjectInteraction(obj);
     }, [obj, onObjectInteraction]);
@@ -108,7 +100,6 @@ export function FurnitureInstance({ obj, position, origin, dimensions, modelScal
         origin[1] + position[1] + dimensions[1] / 2,
         origin[2] + position[2] + dimensions[2] / 2
     ];
-
 
     const modelPosition: [number, number, number] = [
         origin[0] + position[0],
@@ -125,7 +116,6 @@ export function FurnitureInstance({ obj, position, origin, dimensions, modelScal
     }
     
     if (error || !localUri) {
-        console.error("No se pudo cargar el modelo:", error);
         return (
             <Box key={obj.id} position={boxPosition} args={dimensions} >
                 <meshStandardMaterial attach="material" color="red" />
@@ -139,7 +129,7 @@ export function FurnitureInstance({ obj, position, origin, dimensions, modelScal
         pointerDownPosition.current = { x: e.clientX, y: e.clientY };
         longPressTimer.current = setTimeout(() => {
             e.stopPropagation();
-            handleInteraction();
+            handleInteraction(e);
             longPressTimer.current = null;
             pointerDownPosition.current = null;
         }, 500);
@@ -177,20 +167,81 @@ export function FurnitureInstance({ obj, position, origin, dimensions, modelScal
             pointerDownPosition.current = null;
         }
     };
-    
+
+    const spritePosition: [number, number, number] = [
+        boxPosition[0], 
+        origin[1] - dimensions[2] / 2 - 0.1, 
+        boxPosition[2] + dimensions[2] / 2 + 0.3
+    ];
+
     return (
-        <Suspense key={obj.id} fallback={null}>
-            <Gltf 
-                src={localUri} // ✅ Se usa localUri para la ruta correcta (local o remota)
-                position={modelPosition}
-                rotation={[0, -Math.PI / 2 + (rotation || 0), 0]}
-                scale={modelScale || 1}
-                onDoubleClick={isDesktop ? handleInteraction : () => {}}
-                onPointerDown={handlePointerDown}
-                onPointerUp={handlePointerUp}
-                onPointerMove={handlePointerMove}
-                onPointerLeave={handlePointerLeave}
-            ></Gltf>
-        </Suspense>
+        <group>
+            <Suspense key={obj.id} fallback={null}>
+                <Gltf 
+                    src={localUri}
+                    position={modelPosition}
+                    rotation={[0, -Math.PI / 2 + (rotation || 0), 0]}
+                    scale={modelScale || 1}
+                    onClick={(e) => e.stopPropagation()}
+                    onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        if (isDesktop) handleInteraction(e);
+                    }}
+                    onPointerDown={handlePointerDown}
+                    onPointerUp={handlePointerUp}
+                    onPointerMove={handlePointerMove}
+                    onPointerLeave={handlePointerLeave}
+                ></Gltf>
+            </Suspense>
+
+            {(/*isSelected &&*/
+                <sprite 
+                    position={spritePosition} 
+                    scale={[0.3, 0.3, 1]}
+                    onPointerDown={(e) => {
+                        e.stopPropagation();
+                        setIsDragging(true);
+                        dragStartPoint.current.copy(e.point);
+                        initialPosition.current = [...position];
+                    }}
+                >
+                    <spriteMaterial color="#007AFF" depthTest={false} />
+                </sprite>
+            )}
+
+            {isDragging && onObjectEdited && (
+                <mesh
+                    rotation={[-Math.PI / 2, 0, 0]}
+                    position={[0, origin[1], 0]}
+                    visible={false}
+                    onPointerMove={(e) => {
+                        e.stopPropagation();
+                        const delta = e.point.clone().sub(dragStartPoint.current);
+                        
+                        const angle = obj.rotation || 0;
+                        const moveAxis = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
+                        const moveAmount = delta.dot(moveAxis);
+                        
+                        const newPosition: [number, number, number] = [
+                            initialPosition.current[0] + moveAxis.x * moveAmount,
+                            initialPosition.current[1],
+                            initialPosition.current[2] + moveAxis.z * moveAmount,
+                        ];
+                        
+                        onObjectEdited(obj.id, { name: obj.name, position: newPosition });
+                    }}
+                    onPointerUp={(e) => {
+                        e.stopPropagation();
+                        setIsDragging(false);
+                    }}
+                    onPointerOut={(e) => {
+                        e.stopPropagation();
+                        setIsDragging(false);
+                    }}
+                >
+                    <planeGeometry args={[100, 100]} />
+                </mesh>
+            )}
+        </group>
     );
 }

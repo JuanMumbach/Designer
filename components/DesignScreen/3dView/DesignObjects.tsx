@@ -89,31 +89,41 @@ function getRandomColor() {
 }
 
 
-export default function FurnitureInstantiator({ objects, origin, onObjectInteraction }: { objects: FurnitureInstanceProps[], origin: [number, number, number], onObjectInteraction: (object: FurnitureInstanceProps) => void }) {
+export default function FurnitureInstantiator({ 
+  objects, 
+  origin, 
+  onObjectInteraction,
+  onObjectEdited,
+  movingObjectId // <-- Esta variable recibe el ID del objeto seleccionado
+}: { 
+  objects: FurnitureInstanceProps[], 
+  origin: [number, number, number], 
+  onObjectInteraction: (object: FurnitureInstanceProps) => void,
+  onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number] }) => void,
+  movingObjectId?: string // <-- Declaramos su tipo
+}) {
 
     return (
         <>
-            {
-
-                objects.map((obj) => {
-                    let currentPosition : [number, number, number] = obj.position; // Posición de inicio del objeto
-                    
-                    console.log("Rendering object:", obj.name, "at position:", currentPosition);
-
-                    return (
-                            <FurnitureInstance
-                                key={obj.id}
-                                obj={obj}
-                                onObjectInteraction={onObjectInteraction}
-                                position={currentPosition}
-                                origin={origin}
-                                dimensions={obj.dimensions}
-                                modelUrl={obj.type.modelUrl}
-                                modelScale={0.01}
-                                rotation={obj.rotation}
-                            />
-                        )
-                })}
+            {objects.map((obj) => {
+                let currentPosition : [number, number, number] = obj.position; 
+                
+                return (
+                        <FurnitureInstance
+                            key={obj.id}
+                            obj={obj}
+                            onObjectInteraction={onObjectInteraction}
+                            position={currentPosition}
+                            origin={origin}
+                            dimensions={obj.dimensions}
+                            modelUrl={obj.type.modelUrl}
+                            modelScale={0.01}
+                            rotation={obj.rotation}
+                            isSelected={obj.id === movingObjectId} // <-- AQUÍ se evalúa si este mueble es el seleccionado y le pasa true/false
+                            onObjectEdited={onObjectEdited}
+                        />
+                    )
+            })}
         </>
     );
 }

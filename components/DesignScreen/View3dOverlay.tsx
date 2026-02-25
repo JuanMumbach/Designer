@@ -7,7 +7,6 @@ import AddFurnitureInstanceMenu from "./3dViewOverlay/AddFurnitureInstanceMenu";
 import EditFurnitureInstanceMenu from "./3dViewOverlay/EditFurnitureInstanceMenu";
 import FurnitureInstancesManager from "./3dViewOverlay/FurnitureInstancesManager";
 import ListFurnitureModels from "./3dViewOverlay/ListFurnitureModels";
-import MoveFurnitureInstanceMenu from "./3dViewOverlay/MoveFurnitureInstanceMenu";
 import RoomManager from "./3dViewOverlay/RoomManager";
 
 const debugColors = false;
@@ -189,14 +188,6 @@ export default function View3dOverlay({ designObjects, room3dProps, setRoom3d , 
                 />
             )
           )
-        )}
-
-        {movingObject && (
-          <MoveFurnitureInstanceMenu
-            selectedObject={movingObject}
-            onMove={handleObjectMoveAndClose}
-            onClose={() => setMovingObject(undefined)}
-          />
         )}
 
         {/*----------------------------------Botonera principal-----------------------------------------*/}
