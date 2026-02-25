@@ -174,8 +174,8 @@ export function FurnitureInstance({
 
     const spritePosition: [number, number, number] = [
         boxPosition[0], 
-        origin[1] - dimensions[2] / 2 - 0.2, 
-        boxPosition[2] + dimensions[2] / 2 - 0.2
+        origin[1] - dimensions[2] / 2 - 0.1, 
+        boxPosition[2] + dimensions[2] / 2 + 0.1
     ];
 
     return (
