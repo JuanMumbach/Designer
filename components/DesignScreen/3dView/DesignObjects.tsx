@@ -101,7 +101,7 @@ export default function FurnitureInstantiator({
   objects: FurnitureInstanceProps[], 
   origin: [number, number, number], 
   onObjectInteraction: (object: FurnitureInstanceProps) => void,
-  onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number] }) => void,
+  onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number], rotation?: number }) => void,
   movingObjectId?: string,
   room3d: Room3dProps
 }) {

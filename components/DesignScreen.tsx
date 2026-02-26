@@ -15,15 +15,15 @@ const initialRoom3d: Room3dProps = {
 };
 
 
-defaultCounterObjects.push(NewFurnitureInstance(furnitureModels[0], [0.6, 0, 0]));
-defaultCounterObjects.push(NewFurnitureInstance(furnitureModels[1]));
-defaultCounterObjects.push(NewFurnitureInstance(furnitureModels[1]));
-defaultCounterObjects.push(NewFurnitureInstance(furnitureModels[0], [0.6, 0, 0]));
-defaultCupboardObjects.push(NewFurnitureInstance(furnitureModels[2]));
-defaultCupboardObjects.push(NewFurnitureInstance(furnitureModels[3]));
-defaultCupboardObjects.push(NewFurnitureInstance(furnitureModels[2]));
-defaultCupboardObjects.push(NewFurnitureInstance(furnitureModels[2]));
-defaultCupboardObjects.push(NewFurnitureInstance(furnitureModels[3], [0.6, 0, 0]));
+defaultCounterObjects.push(NewFurnitureInstance(furnitureModels[0], [0, 0, 0]));
+defaultCounterObjects.push(NewFurnitureInstance(furnitureModels[0], [1, 0, 0]));
+defaultCounterObjects.push(NewFurnitureInstance(furnitureModels[0], [1.6, 0, 0]));
+defaultCounterObjects.push(NewFurnitureInstance(furnitureModels[0], [2.2, 0, 0]));
+defaultCupboardObjects.push(NewFurnitureInstance(furnitureModels[3], [0, 1.6, 0]));
+defaultCupboardObjects.push(NewFurnitureInstance(furnitureModels[2], [1.2, 1.6, 0]));
+defaultCupboardObjects.push(NewFurnitureInstance(furnitureModels[3], [1.8, 1.6, 0]));
+defaultCupboardObjects.push(NewFurnitureInstance(furnitureModels[2], [2.4, 1.6, 0]));
+defaultCupboardObjects.push(NewFurnitureInstance(furnitureModels[2], [3, 1.6, 0]));
 
 export default function DesignScreen() {
   const [room3d, setRoom3d] = useState<Room3dProps>(initialRoom3d);
@@ -46,33 +46,28 @@ export default function DesignScreen() {
     }
   };
 
-  // 1. NUEVA FUNCIÓN PARA EDITAR OBJETOS
-  const handleObjectEdited = (id: string, updates: { name: string, position: [number, number, number] }) => {
 
-    // Función de ayuda para encontrar y actualizar un objeto en un array de estado
+const handleObjectEdited = (id: string, updates: { name: string, position: [number, number, number], rotation?: number }) => {
+
     const updateObjects = (prevObjects: FurnitureInstanceProps[]) => {
-      // 1.1 Mapear el array para encontrar el objeto por ID
       return prevObjects.map(obj => {
         if (obj.id === id) {
-          // 1.2 Actualizar el objeto de forma inmutable
           return {
             ...obj,
             name: updates.name,
             position: updates.position,
-            // Opcional: actualizar otras propiedades si las estás editando
+            ...(updates.rotation !== undefined && { rotation: updates.rotation })
           };
         }
-        return obj; // Devolver los objetos no modificados
+        return obj;
       });
     };
 
-    // 1.3 Comprobar en qué array existe el objeto y aplicar la actualización
     const isCounterObject = counterLineObjects.some(obj => obj.id === id);
 
     if (isCounterObject) {
       setCounterObjects(updateObjects);
     } else {
-      // Si no está en Counter, asumimos que está en Cupboard (se puede mejorar la lógica de búsqueda)
       setCupboardObjects(updateObjects);
     }
   };

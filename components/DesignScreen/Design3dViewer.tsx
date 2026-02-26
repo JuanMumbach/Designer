@@ -59,7 +59,7 @@ export default function Design3dView({
   counterObjects: FurnitureInstanceProps[], 
   cupboardObjects: FurnitureInstanceProps[], 
   onObjectInteraction: (object: FurnitureInstanceProps) => void,
-  onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number] }) => void,
+  onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number], rotation?: number }) => void,
   movingObject?: FurnitureInstanceProps,
   setMovingObject?: (object?: FurnitureInstanceProps) => void
 })
@@ -87,6 +87,14 @@ export default function Design3dView({
         <Room3d {...room3d}/>
         <FurnitureInstantiator 
             objects={counterObjects} 
+            origin={roomOrigin} 
+            onObjectInteraction={onObjectInteraction} 
+            onObjectEdited={onObjectEdited}
+            movingObjectId={movingObject?.id}
+            room3d={room3d}
+        />
+        <FurnitureInstantiator 
+            objects={cupboardObjects} 
             origin={roomOrigin} 
             onObjectInteraction={onObjectInteraction} 
             onObjectEdited={onObjectEdited}

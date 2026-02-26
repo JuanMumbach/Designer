@@ -17,7 +17,7 @@ interface View3dOverlayProps {
   room3dProps: Room3dProps;
   setRoom3d: React.Dispatch<React.SetStateAction<Room3dProps>>;
   onObjectAdded: (newObject: FurnitureInstanceProps) => void;
-  onObjectEdited: (id: string, updates: { name: string, position: [number, number, number] }) => void;
+  onObjectEdited: (id: string, updates: { name: string, position: [number, number, number], rotation?: number }) => void;
   movingObject?: FurnitureInstanceProps;
   setMovingObject: (object?: FurnitureInstanceProps) => void;
 }

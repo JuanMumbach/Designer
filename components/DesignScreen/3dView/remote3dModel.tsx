@@ -7,6 +7,8 @@ import * as THREE from 'three';
 import { FurnitureInstanceProps } from './DesignObjects';
 import { Room3dProps } from './Room3d';
 
+let globalIsDragging = false;
+
 export function useDownload3dModel(remoteUrl: string, assetName: string = 'asset') {
     const [assetUri, setAssetUri] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -29,7 +31,7 @@ export function useDownload3dModel(remoteUrl: string, assetName: string = 'asset
             }
 
             try {
-                const filename = assetName + remoteUrl.substring(remoteUrl.lastIndexOf('.')); 
+                const filename = assetName + remoteUrl.substring(remoteUrl.lastIndexOf('.'));
                 const localPath = FileSystem.documentDirectory + filename;
 
                 const fileInfo = await FileSystem.getInfoAsync(localPath);
@@ -44,7 +46,7 @@ export function useDownload3dModel(remoteUrl: string, assetName: string = 'asset
             } catch (err) {
                 setError(err as Error);
             } finally {
-                setIsLoading(false); 
+                setIsLoading(false);
             }
         };
 
@@ -54,11 +56,11 @@ export function useDownload3dModel(remoteUrl: string, assetName: string = 'asset
     return { localUri: assetUri, isLoading, error };
 }
 
-export function FurnitureInstance({ 
+export function FurnitureInstance({
     obj, position, origin, dimensions, modelScale, rotation, onObjectInteraction, isSelected, onObjectEdited, room3d
-}: { 
-    obj: FurnitureInstanceProps, 
-    position: [number, number, number], 
+}: {
+    obj: FurnitureInstanceProps,
+    position: [number, number, number],
     origin: [number, number, number],
     dimensions: [number, number, number],
     modelScale?: number,
@@ -66,7 +68,7 @@ export function FurnitureInstance({
     rotation?: number,
     onObjectInteraction: (object: FurnitureInstanceProps) => void,
     isSelected?: boolean,
-    onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number] }) => void,
+    onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number], rotation?: number }) => void,
     room3d: Room3dProps
 }) {
     const url = obj.type.modelUrl;
@@ -76,7 +78,7 @@ export function FurnitureInstance({
     const [isDragging, setIsDragging] = useState(false);
     const dragStartPoint = useRef<THREE.Vector3>(new THREE.Vector3());
     const initialPosition = useRef<[number, number, number]>([0, 0, 0]);
-    
+
     const markerAsset = Asset.fromModule(require('../../../assets/images/move-marker.png'));
     const dragIconTexture = useTexture(markerAsset.uri);
 
@@ -85,12 +87,18 @@ export function FurnitureInstance({
             if (!/Mobi|Android/i.test(navigator.userAgent)) {
                 setIsDesktop(true);
             }
+            
+            const handleGlobalMouseUp = () => {
+                if (isDragging) {setIsDragging(false);globalIsDragging = false;}
+            };
+            window.addEventListener('pointerup', handleGlobalMouseUp);
+            window.addEventListener('pointercancel', handleGlobalMouseUp);
+            return () => {
+                window.removeEventListener('pointerup', handleGlobalMouseUp);
+                window.removeEventListener('pointercancel', handleGlobalMouseUp);
+            };
         }
-    }, []);
-
-    useEffect(() => {
-        console.log(`Object: ${obj.name} | isSelected: ${isSelected} | isDragging: ${isDragging}`);
-    }, [isSelected, isDragging, obj.name]);
+    }, [isDragging]);
 
     const longPressTimer = useRef<NodeJS.Timeout | null>(null);
     const pointerDownPosition = useRef<{ x: number, y: number } | null>(null);
@@ -163,31 +171,78 @@ export function FurnitureInstance({
         if (!onObjectEdited) return;
 
         const delta = e.point.clone().sub(dragStartPoint.current);
-        
-        const angle = obj.rotation || 0;
-        const moveAxis = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
-        const moveAmount = delta.dot(moveAxis);
-        
-        let newX = initialPosition.current[0] + moveAxis.x * moveAmount;
-        let newZ = initialPosition.current[2] + moveAxis.z * moveAmount;
 
+        const MARGIN = 1;
         const EPSILON = 0.1;
-        
+        let angle = obj.rotation || 0;
+
+        let targetX = initialPosition.current[0] + delta.x;
+        let targetZ = initialPosition.current[2] + delta.z;
+
+        // Se usa la posición absoluta para el chequeo de colisiones con los márgenes
+        let mouseX = e.point.x - origin[0];
+        let mouseZ = e.point.z - origin[2];
+
+        let newX = position[0];
+        let newZ = position[2];
+        let newRot = rotation || 0;
+
+        let halfWidth = dimensions[0] / 2;
+
+        // Si está en la pared principal
         if (Math.abs(angle) < EPSILON) {
-            newX = Math.max(0, Math.min(room3d.width - dimensions[0], newX));
-            newZ = initialPosition.current[2]; 
-        } else if (Math.abs(angle - Math.PI / 2) < EPSILON || Math.abs(angle + Math.PI / 2) < EPSILON) {
-            newZ = Math.max(0, Math.min(room3d.depth - dimensions[0], newZ));
-            newX = initialPosition.current[0]; 
+            if (room3d.leftWall && targetX < -MARGIN) {
+                newRot = Math.PI / 2;
+                newX = 0; // CORREGIDO: Mantiene el mueble pegado a la pared sin atravesarla
+                newZ = Math.max(dimensions[0], Math.min(room3d.depth, mouseZ + halfWidth));
+
+                dragStartPoint.current.copy(e.point);
+                initialPosition.current = [newX, initialPosition.current[1], newZ];
+            }
+            else if (room3d.rightWall && targetX > room3d.width - dimensions[0] + MARGIN) {
+                newRot = -Math.PI / 2;
+                newX = room3d.width;
+                newZ = Math.max(0, Math.min(room3d.depth - dimensions[0], mouseZ - halfWidth));
+
+                dragStartPoint.current.copy(e.point);
+                initialPosition.current = [newX, initialPosition.current[1], newZ];
+            } else {
+                newX = Math.max(0, Math.min(room3d.width - dimensions[0], targetX));
+                newZ = 0;
+            }
+
+        // Si está en la pared izquierda
+        } else if (Math.abs(angle - Math.PI / 2) < EPSILON) {
+            // CORREGIDO: La transición vuelve a la pared central cuando Z se acerca a la esquina
+            if (targetZ < dimensions[0] - MARGIN) {
+                newRot = 0;
+                newX = 0;
+                newZ = 0;
+
+                dragStartPoint.current.copy(e.point);
+                initialPosition.current = [newX, initialPosition.current[1], newZ];
+            } else {
+                // CORREGIDO: El límite mínimo de Z ahora es el ancho del mueble para que no sobresalga del origen
+                newZ = Math.max(dimensions[0], Math.min(room3d.depth, targetZ));
+                newX = 0; 
+            }
+            
+        // Si está en la pared derecha
+        } else if (Math.abs(angle + Math.PI / 2) < EPSILON) {
+            if (targetZ < -MARGIN) {
+                newRot = 0;
+                newX = room3d.width - dimensions[0];
+                newZ = 0;
+
+                dragStartPoint.current.copy(e.point);
+                initialPosition.current = [newX, initialPosition.current[1], newZ];
+            } else {
+                newZ = Math.max(0, Math.min(room3d.depth - dimensions[0], targetZ));
+                newX = room3d.width; 
+            }
         }
-        
-        const newPosition: [number, number, number] = [
-            newX,
-            initialPosition.current[1],
-            newZ,
-        ];
-        
-        onObjectEdited(obj.id, { name: obj.name, position: newPosition });
+
+        onObjectEdited(obj.id, { name: obj.name, position: [newX, initialPosition.current[1], newZ], rotation: newRot });
     };
 
     if (isLoading) {
@@ -197,7 +252,7 @@ export function FurnitureInstance({
             </Box>
         );
     }
-    
+
     if (error || !localUri) {
         return (
             <Box key={obj.id} position={boxPosition} args={dimensions} >
@@ -207,67 +262,93 @@ export function FurnitureInstance({
     }
 
     const spritePosition: [number, number, number] = [
-        boxPosition[0], 
-        origin[1] - dimensions[2] / 2 - 0.1, 
+        boxPosition[0],
+        origin[1] - dimensions[2] / 2 - 0.1,
         boxPosition[2] + dimensions[2] / 2 + 0.1
     ];
 
+    const currentAngle = rotation || 0;
+
+    // Matemática para rotar el desplazamiento del centro del plano invisible
+    const planeOffsetX = (dimensions[0] / 2) * Math.cos(currentAngle) + (dimensions[2] / 2) * Math.sin(currentAngle);
+    const planeOffsetZ = -(dimensions[0] / 2) * Math.sin(currentAngle) + (dimensions[2] / 2) * Math.cos(currentAngle);
+
     return (
         <group>
-            <Suspense key={obj.id} fallback={null}>
-                <Gltf 
-                    src={localUri}
-                    position={modelPosition}
-                    rotation={[0, -Math.PI / 2 + (rotation || 0), 0]}
-                    scale={modelScale || 1}
-                    onClick={(e) => e.stopPropagation()}
-                    onDoubleClick={(e) => {
-                        e.stopPropagation();
-                        if (isDesktop) handleInteraction(e);
-                    }}
-                    onPointerDown={handlePointerDown}
-                    onPointerUp={handlePointerUp}
-                    onPointerMove={handlePointerMove}
-                    onPointerLeave={handlePointerLeave}
-                ></Gltf>
-            </Suspense>
-
-            {(isSelected &&
-                <sprite 
-                    position={spritePosition} 
-                    scale={[.75, .75, .75]}
-                    onPointerDown={(e) => {
-                        e.stopPropagation();
-                        setIsDragging(true);
-                        dragStartPoint.current.copy(e.point);
-                        initialPosition.current = [...position];
-                    }}
-                >
-                    <spriteMaterial 
-                        map={dragIconTexture}
-                        color="white" 
-                        depthTest={false} 
-                        transparent={true}
+            <group position={modelPosition} rotation={[0, rotation || 0, 0]}>
+                <Suspense fallback={null}>
+                    <Gltf
+                        src={localUri}
+                        rotation={[0, -Math.PI / 2, 0]}
+                        scale={modelScale || 1}
+                        // Si CUALQUIER objeto se está moviendo, este objeto deja pasar el evento
+                        onClick={(e) => {
+                            if (globalIsDragging) return;
+                            e.stopPropagation();
+                        }}
+                        onDoubleClick={(e) => {
+                            if (globalIsDragging) return;
+                            e.stopPropagation();
+                            if (isDesktop) handleInteraction(e);
+                        }}
+                        onPointerDown={(e) => {
+                            if (globalIsDragging) return;
+                            handlePointerDown(e);
+                        }}
+                        onPointerUp={(e) => {
+                            if (globalIsDragging) return;
+                            handlePointerUp(e);
+                        }}
+                        onPointerMove={(e) => {
+                            if (globalIsDragging) return;
+                            handlePointerMove(e);
+                        }}
+                        onPointerLeave={(e) => {
+                            if (globalIsDragging) return;
+                            handlePointerLeave(e);
+                        }}
                     />
-                </sprite>
-            )}
+                </Suspense>
+
+                {(isSelected &&
+                    <sprite
+                        position={[dimensions[0] / 2, -0.2, dimensions[2] + 0.2]}
+                        scale={[.75, .75, .75]}
+                        // Mantenemos el sprite tal como lo tenías originalmente para evitar bugs visuales
+                        onPointerDown={(e) => {
+                            e.stopPropagation();
+                            setIsDragging(true);
+                            globalIsDragging = true;
+                            dragStartPoint.current.copy(e.point);
+                            initialPosition.current = [...position];
+                        }}
+                    >
+                        <spriteMaterial
+                            map={dragIconTexture}
+                            color="white"
+                            depthTest={false}
+                            transparent={true}
+                        />
+                    </sprite>
+                )}
+            </group>
 
             {isDragging && onObjectEdited && (
                 <mesh
-                    rotation={[-Math.PI / 2, 0, 0]}
-                    position={[0, origin[1], 0]}
-                    visible={false}
+                    rotation={[0, currentAngle, 0]}
+                    position={[
+                        origin[0] + initialPosition.current[0] + planeOffsetX,
+                        origin[1],
+                        origin[2] + initialPosition.current[2] + planeOffsetZ
+                    ]}
+                    visible={false} 
                     onPointerMove={handleDragMove}
                     onPointerUp={(e) => {
                         e.stopPropagation();
                         setIsDragging(false);
                     }}
-                    onPointerOut={(e) => {
-                        e.stopPropagation();
-                        setIsDragging(false);
-                    }}
                 >
-                    <planeGeometry args={[100, 100]} />
+                    <planeGeometry args={[1000, 1000]} />
                 </mesh>
             )}
         </group>
