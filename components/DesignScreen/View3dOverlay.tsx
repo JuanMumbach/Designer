@@ -239,13 +239,15 @@ const styles = StyleSheet.create({
   },
   middleColumn: {
     width: "100%", // Aseguramos que ocupe el ancho disponible (antes era "auto")
-    justifyContent: 'center', // <--- CAMBIO CLAVE: Cambia 'flex-end' por 'center'
-    alignItems: 'center',     // <--- NUEVO: Para centrar horizontalmente los menús también
-    padding: 10,
+    justifyContent: 'flex-end',   // Coloca los modales justo arriba de la barra principal
+    alignItems: 'center',         // Centra horizontalmente los menús también
+    paddingHorizontal: 10,
+    paddingTop: 10,
+    paddingBottom: 120,           // Reserva espacio visual para la barra inferior mainControls
     height: '100%',
     flex: 1,
     pointerEvents: "box-none"
-},
+  },
   mainControls: {
     position: 'absolute', // Lo hacemos flotar sobre todo
     bottom: 30, // Separado del borde inferior

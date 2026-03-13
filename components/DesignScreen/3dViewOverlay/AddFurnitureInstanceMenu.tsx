@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { StyleSheet, Text, TextInput, View } from "react-native";
+import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import Button from "../../Button";
 import { FurnitureInstanceProps, FurnitureProps, NewFurnitureInstance } from "../3dView/DesignObjects";
 
@@ -55,45 +55,57 @@ export default function AddFurnitureInstanceMenu({
 
   return (
     <View style={styles.container}>
-      <Text>Object Type: {newObjectType.name}</Text>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+      >
+        <Text>Object Type: {newObjectType.name}</Text>
 
-      <Text style={styles.label}>Name</Text>
-      <TextInput style={styles.input} onChangeText={onChangeName} value={name} placeholder={newObjectType.name} />
+        <Text style={styles.label}>Name</Text>
+        <TextInput
+          style={styles.input}
+          onChangeText={onChangeName}
+          value={name}
+          placeholder={newObjectType.name}
+        />
 
-      <Text style={styles.label}>Position X</Text>
-      <TextInput style={styles.input}
-        onChangeText={onChangePositionX}
-        value={positionX}
-        keyboardType="numeric"
-      />
-      <Text style={styles.label}>Position Y</Text>
-      <TextInput style={styles.input}
-        onChangeText={onChangePositionY}
-        value={positionY}
-        keyboardType="numeric"
-      />
-      <Text style={styles.label}>Position Z</Text>
-      <TextInput style={styles.input}
-        onChangeText={onChangePositionZ}
-        value={positionZ}
-        keyboardType="numeric"
-      />
+        <Text style={styles.label}>Position X</Text>
+        <TextInput
+          style={styles.input}
+          onChangeText={onChangePositionX}
+          value={positionX}
+          keyboardType="numeric"
+        />
+        <Text style={styles.label}>Position Y</Text>
+        <TextInput
+          style={styles.input}
+          onChangeText={onChangePositionY}
+          value={positionY}
+          keyboardType="numeric"
+        />
+        <Text style={styles.label}>Position Z</Text>
+        <TextInput
+          style={styles.input}
+          onChangeText={onChangePositionZ}
+          value={positionZ}
+          keyboardType="numeric"
+        />
 
+        <Text>Width: {width}</Text>
+        <Text>Height: {height}</Text>
+        <Text>Depth: {depth}</Text>
 
-      <Text>Width: {width}</Text>
-      <Text>Height: {height}</Text>
-      <Text>Depth: {depth}</Text>
-
-
-
-      <Button label="Add Object" onPress={handleAddObject} />
+        <Button label="Add Object" onPress={handleAddObject} />
+      </ScrollView>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
   container: {
-    padding: 24,
+    width: 300, // Match RoomManager card sizing
+    maxHeight: '70%', // Limit overall card height; inner content scrolls
+    minHeight: 260,   // Give the card a comfortable minimum height to reduce empty space above
     backgroundColor: 'white', // Fondo blanco puro
     borderRadius: 16,
     // Sombra fuerte para que se note que está sobre el 3D
@@ -102,9 +114,16 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 10,
     elevation: 10,
-    margin: 20, // Un poco de aire alrededor
-    minWidth: 300, // Ancho mínimo para que no se vea apretado
-    marginBottom: 100,
+    overflow: 'hidden', // Mantiene esquinas redondeadas mientras se hace scroll interno
+    // Sin margen extra; el posicionamiento lo maneja View3dOverlay.middleColumn
+    // El espacio inferior para la barra principal se maneja en View3dOverlay.middleColumn
+  },
+  scroll: {
+    paddingHorizontal: 24,
+    paddingVertical: 24,
+  },
+  scrollContent: {
+    paddingBottom: 8,
   },
   label: {
     marginTop: 12,

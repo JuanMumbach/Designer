@@ -52,18 +52,18 @@ export default function FurnitureInstancesManager({
 
 const styles = StyleSheet.create({
     container: {
-        width: '90%', 
-        maxWidth: 450, // Un poco más ancho para que quepa la info
-        maxHeight: '70%', // Limitamos la altura
+        width: 300, // Match RoomManager card sizing
+        maxHeight: '70%', // Limit overall card height; inner list scrolls
         backgroundColor: 'white',
         borderRadius: 16,
-        padding: 20,
+        padding: 24,
         // Sombra flotante
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.2,
         shadowRadius: 10,
         elevation: 10,
+        overflow: 'hidden',
     },
     headerTitle: {
         fontSize: 20,

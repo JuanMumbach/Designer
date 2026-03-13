@@ -27,12 +27,16 @@ export default function ListFurnitureModels({
 
 const styles = StyleSheet.create({
     container: {
-      width: '100%',
-      maxWidth: 500,
-      maxHeight: '70%',
+      width: 300, // Match RoomManager card sizing
       backgroundColor: '#f9fafb', // Fondo gris suave del panel
       borderRadius: 16,
       padding: 12,
+      // Sombra elegante (similar a RoomManager)
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.2,
+      shadowRadius: 10,
+      elevation: 10,
     },
     element: {
         flexDirection: 'row', // <--- CLAVE: Pone los elementos uno al lado del otro

@@ -82,7 +82,7 @@ const styles = StyleSheet.create({
     elevation: 10,
     margin: 20, // Un poco de aire alrededor
     minWidth: 300, // Ancho mínimo para que no se vea apretado
-    marginBottom: 100,
+    // El espacio inferior para la barra principal se maneja en View3dOverlay.middleColumn
   },
   label: {
     marginTop: 12,
