@@ -1,6 +1,6 @@
 import { OrbitControls } from '@react-three/drei/native';
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import * as THREE from 'three';
 import FurnitureInstantiator, { FurnitureInstanceProps } from "./3dView/DesignObjects";
 import Room3d, { Room3dProps, RoomOrigin } from "./3dView/Room3d";
@@ -54,7 +54,8 @@ export default function Design3dView({
   onObjectEdited,
   movingObject,
   setMovingObject,
-  magnetEnabled}:
+  magnetEnabled,
+  onDragStateChange}:
   {
   room3d: Room3dProps,
   counterObjects: FurnitureInstanceProps[],
@@ -63,9 +64,24 @@ export default function Design3dView({
   onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number], rotation?: number }) => void,
   movingObject?: FurnitureInstanceProps,
   setMovingObject?: (object?: FurnitureInstanceProps) => void,
-  magnetEnabled: boolean
+  magnetEnabled: boolean,
+  onDragStateChange?: (isDragging: boolean) => void
 })
 {
+  const isDraggingCounter = useRef(0);
+  const isDraggingCounterboard = useRef(0);
+  const [, forceUpdate] = useState(0);
+
+  const handleDragStateChange = (which: 'counter' | 'cupboard', isDragging: boolean) => {
+    if (which === 'counter') {
+      isDraggingCounter.current += isDragging ? 1 : -1;
+    } else {
+      isDraggingCounterboard.current += isDragging ? 1 : -1;
+    }
+    const isAnyDragging = isDraggingCounter.current > 0 || isDraggingCounterboard.current > 0;
+    if (onDragStateChange) onDragStateChange(isAnyDragging);
+    forceUpdate(n => n + 1);
+  };
 
   const cupboardOrigin : [number, number, number] = [RoomOrigin({room3d})[0], RoomOrigin({room3d})[1] + cupboardLineHeight, RoomOrigin({room3d})[2]];
 
@@ -97,18 +113,20 @@ export default function Design3dView({
             room3d={room3d}
             magnetEnabled={magnetEnabled}
             allObjects={allObjects}
+            onDragStateChange={(isDragging) => handleDragStateChange('counter', isDragging)}
         />
         <FurnitureInstantiator
             objects={cupboardObjects}
-            origin={roomOrigin}
+            origin={cupboardOrigin}
             onObjectInteraction={onObjectInteraction}
             onObjectEdited={onObjectEdited}
             movingObjectId={movingObject?.id}
             room3d={room3d}
             magnetEnabled={magnetEnabled}
             allObjects={allObjects}
+            onDragStateChange={(isDragging) => handleDragStateChange('cupboard', isDragging)}
         />
-        <OrbitControls {...cameraControlsProps} />
+        <OrbitControls {...cameraControlsProps} enabled={isDraggingCounter.current === 0 && isDraggingCounterboard.current === 0} />
         <fog attach="fog" args={["darkgray", 5, 20]} />
     </Canvas>
   );

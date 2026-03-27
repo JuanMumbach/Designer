@@ -98,7 +98,8 @@ export default function FurnitureInstantiator({
   movingObjectId,
   room3d,
   magnetEnabled,
-  allObjects
+  allObjects,
+  onDragStateChange
 }: {
   objects: FurnitureInstanceProps[],
   origin: [number, number, number],
@@ -107,7 +108,8 @@ export default function FurnitureInstantiator({
   movingObjectId?: string,
   room3d: Room3dProps,
   magnetEnabled: boolean,
-  allObjects: FurnitureInstanceProps[]
+  allObjects: FurnitureInstanceProps[],
+  onDragStateChange?: (isDragging: boolean) => void
 }) {
 
     return (
@@ -131,6 +133,7 @@ export default function FurnitureInstantiator({
                             room3d={room3d}
                             magnetEnabled={magnetEnabled}
                             allObjects={allObjects}
+                            onDragStateChange={onDragStateChange}
                         />
                     )
             })}

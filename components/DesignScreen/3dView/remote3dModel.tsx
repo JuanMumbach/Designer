@@ -57,7 +57,7 @@ export function useDownload3dModel(remoteUrl: string, assetName: string = 'asset
 }
 
 export function FurnitureInstance({
-    obj, position, origin, dimensions, modelScale, rotation, onObjectInteraction, isSelected, onObjectEdited, room3d, magnetEnabled, allObjects
+    obj, position, origin, dimensions, modelScale, rotation, onObjectInteraction, isSelected, onObjectEdited, room3d, magnetEnabled, allObjects, onDragStateChange
 }: {
     obj: FurnitureInstanceProps,
     position: [number, number, number],
@@ -71,7 +71,8 @@ export function FurnitureInstance({
     onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number], rotation?: number }) => void,
     room3d: Room3dProps,
     magnetEnabled: boolean,
-    allObjects: FurnitureInstanceProps[]
+    allObjects: FurnitureInstanceProps[],
+    onDragStateChange?: (isDragging: boolean) => void
 }) {
     const url = obj.type.modelUrl;
     const { localUri, isLoading, error } = useDownload3dModel(url, obj.id);
@@ -433,6 +434,7 @@ export function FurnitureInstance({
                             globalIsDragging = true;
                             dragStartPoint.current.copy(e.point);
                             initialPosition.current = [...position];
+                            if (onDragStateChange) onDragStateChange(true);
                         }}
                     >
                         <spriteMaterial
@@ -458,6 +460,8 @@ export function FurnitureInstance({
                     onPointerUp={(e) => {
                         e.stopPropagation();
                         setIsDragging(false);
+                        globalIsDragging = false;
+                        if (onDragStateChange) onDragStateChange(false);
                     }}
                 >
                     <planeGeometry args={[1000, 1000]} />

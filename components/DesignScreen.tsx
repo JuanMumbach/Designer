@@ -31,6 +31,7 @@ export default function DesignScreen() {
   const [cupboardLineObjects, setCupboardObjects] = useState<FurnitureInstanceProps[]>(defaultCupboardObjects);
   const [movingObject, setMovingObject] = useState<FurnitureInstanceProps | undefined>(undefined);
   const [magnetEnabled, setMagnetEnabled] = useState<boolean>(false);
+  const [isDraggingObject, setIsDraggingObject] = useState(false);
 
   const handleObjectInteraction = (object: FurnitureInstanceProps) => {
     console.log("Interacted with object:", object.id);
@@ -90,6 +91,7 @@ const handleObjectEdited = (id: string, updates: { name: string, position: [numb
         movingObject={movingObject}
         setMovingObject={setMovingObject}
         magnetEnabled={magnetEnabled}
+        onDragStateChange={setIsDraggingObject}
       />
       <View3dOverlay
         room3dProps={room3d}
