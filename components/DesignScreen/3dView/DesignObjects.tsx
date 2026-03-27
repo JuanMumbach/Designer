@@ -90,20 +90,24 @@ function getRandomColor() {
 }
 
 
-export default function FurnitureInstantiator({ 
-  objects, 
-  origin, 
+export default function FurnitureInstantiator({
+  objects,
+  origin,
   onObjectInteraction,
   onObjectEdited,
   movingObjectId,
-  room3d
-}: { 
-  objects: FurnitureInstanceProps[], 
-  origin: [number, number, number], 
+  room3d,
+  magnetEnabled,
+  allObjects
+}: {
+  objects: FurnitureInstanceProps[],
+  origin: [number, number, number],
   onObjectInteraction: (object: FurnitureInstanceProps) => void,
   onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number], rotation?: number }) => void,
   movingObjectId?: string,
-  room3d: Room3dProps
+  room3d: Room3dProps,
+  magnetEnabled: boolean,
+  allObjects: FurnitureInstanceProps[]
 }) {
 
     return (
@@ -125,6 +129,8 @@ export default function FurnitureInstantiator({
                             isSelected={obj.id === movingObjectId}
                             onObjectEdited={onObjectEdited}
                             room3d={room3d}
+                            magnetEnabled={magnetEnabled}
+                            allObjects={allObjects}
                         />
                     )
             })}

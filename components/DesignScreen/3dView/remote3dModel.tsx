@@ -57,7 +57,7 @@ export function useDownload3dModel(remoteUrl: string, assetName: string = 'asset
 }
 
 export function FurnitureInstance({
-    obj, position, origin, dimensions, modelScale, rotation, onObjectInteraction, isSelected, onObjectEdited, room3d
+    obj, position, origin, dimensions, modelScale, rotation, onObjectInteraction, isSelected, onObjectEdited, room3d, magnetEnabled, allObjects
 }: {
     obj: FurnitureInstanceProps,
     position: [number, number, number],
@@ -69,7 +69,9 @@ export function FurnitureInstance({
     onObjectInteraction: (object: FurnitureInstanceProps) => void,
     isSelected?: boolean,
     onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number], rotation?: number }) => void,
-    room3d: Room3dProps
+    room3d: Room3dProps,
+    magnetEnabled: boolean,
+    allObjects: FurnitureInstanceProps[]
 }) {
     const url = obj.type.modelUrl;
     const { localUri, isLoading, error } = useDownload3dModel(url, obj.id);
@@ -239,6 +241,116 @@ export function FurnitureInstance({
             } else {
                 newZ = Math.max(0, Math.min(room3d.depth - dimensions[0], targetZ));
                 newX = room3d.width; 
+            }
+        }
+
+        // Magnet snap logic
+        if (magnetEnabled && allObjects.length > 1) {
+            const MAGNET_THRESHOLD = 0.10; // 10cm snap distance
+            const currentAngle = newRot;
+            const EPSILON_MAG = 0.1;
+
+            // Filter other objects with the same rotation (same wall)
+            const candidates = allObjects.filter(other => {
+                if (other.id === obj.id) return false;
+                const otherAngle = other.rotation || 0;
+                return Math.abs(otherAngle - currentAngle) < EPSILON_MAG;
+            });
+
+            if (candidates.length > 0) {
+                // Front wall: snap on X axis
+                if (Math.abs(currentAngle) < EPSILON_MAG) {
+                    const draggedLeft = newX;
+                    const draggedRight = newX + dimensions[0];
+
+                    let bestSnap: number | null = null;
+                    let bestDist = MAGNET_THRESHOLD;
+
+                    for (const other of candidates) {
+                        const otherLeft = other.position[0];
+                        const otherRight = other.position[0] + other.dimensions[0];
+
+                        // Dragged right edge near other's left edge
+                        let dist = Math.abs(draggedRight - otherLeft);
+                        if (dist < bestDist) {
+                            bestDist = dist;
+                            bestSnap = otherLeft - dimensions[0];
+                        }
+
+                        // Dragged left edge near other's right edge
+                        dist = Math.abs(draggedLeft - otherRight);
+                        if (dist < bestDist) {
+                            bestDist = dist;
+                            bestSnap = otherRight;
+                        }
+                    }
+
+                    if (bestSnap !== null) {
+                        newX = Math.max(0, Math.min(room3d.width - dimensions[0], bestSnap));
+                    }
+                }
+                // Left wall (rotation ≈ π/2): snap on Z axis
+                else if (Math.abs(currentAngle - Math.PI / 2) < EPSILON_MAG) {
+                    const draggedFront = newZ;
+                    const draggedBack = newZ + dimensions[0];
+
+                    let bestSnap: number | null = null;
+                    let bestDist = MAGNET_THRESHOLD;
+
+                    for (const other of candidates) {
+                        const otherFront = other.position[2];
+                        const otherBack = other.position[2] + other.dimensions[0];
+
+                        // Dragged back edge near other's front edge
+                        let dist = Math.abs(draggedBack - otherFront);
+                        if (dist < bestDist) {
+                            bestDist = dist;
+                            bestSnap = otherFront - dimensions[0];
+                        }
+
+                        // Dragged front edge near other's back edge
+                        dist = Math.abs(draggedFront - otherBack);
+                        if (dist < bestDist) {
+                            bestDist = dist;
+                            bestSnap = otherBack;
+                        }
+                    }
+
+                    if (bestSnap !== null) {
+                        newZ = Math.max(dimensions[0], Math.min(room3d.depth, bestSnap));
+                    }
+                }
+                // Right wall (rotation ≈ -π/2): snap on Z axis
+                else if (Math.abs(currentAngle + Math.PI / 2) < EPSILON_MAG) {
+                    const draggedFront = newZ;
+                    const draggedBack = newZ + dimensions[0];
+
+                    let bestSnap: number | null = null;
+                    let bestDist = MAGNET_THRESHOLD;
+
+                    for (const other of candidates) {
+                        const otherFront = other.position[2];
+                        const otherBack = other.position[2] + other.dimensions[0];
+
+                        // Dragged back edge near other's front edge
+                        let dist = Math.abs(draggedBack - otherFront);
+                        if (dist < bestDist) {
+                            bestDist = dist;
+                            bestSnap = otherFront - dimensions[0];
+                        }
+
+                        // Dragged front edge near other's back edge
+                        dist = Math.abs(draggedFront - otherBack);
+                        if (dist < bestDist) {
+                            bestDist = dist;
+                            bestSnap = otherBack;
+                        }
+                    }
+
+                    if (bestSnap !== null) {
+                        newZ = Math.max(0, Math.min(room3d.depth - dimensions[0], bestSnap));
+                    }
+                }
             }
         }
 

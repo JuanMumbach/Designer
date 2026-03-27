@@ -30,6 +30,7 @@ export default function DesignScreen() {
   const [counterLineObjects, setCounterObjects] = useState<FurnitureInstanceProps[]>(defaultCounterObjects);
   const [cupboardLineObjects, setCupboardObjects] = useState<FurnitureInstanceProps[]>(defaultCupboardObjects);
   const [movingObject, setMovingObject] = useState<FurnitureInstanceProps | undefined>(undefined);
+  const [magnetEnabled, setMagnetEnabled] = useState<boolean>(false);
 
   const handleObjectInteraction = (object: FurnitureInstanceProps) => {
     console.log("Interacted with object:", object.id);
@@ -80,14 +81,15 @@ const handleObjectEdited = (id: string, updates: { name: string, position: [numb
         alignItems: "center",
       }}
     >
-      <Design3dView 
-        {...{ room3d }} 
-        counterObjects={counterLineObjects} 
-        cupboardObjects={cupboardLineObjects} 
-        onObjectInteraction={handleObjectInteraction} 
+      <Design3dView
+        {...{ room3d }}
+        counterObjects={counterLineObjects}
+        cupboardObjects={cupboardLineObjects}
+        onObjectInteraction={handleObjectInteraction}
         onObjectEdited={handleObjectEdited}
         movingObject={movingObject}
         setMovingObject={setMovingObject}
+        magnetEnabled={magnetEnabled}
       />
       <View3dOverlay
         room3dProps={room3d}
@@ -97,6 +99,8 @@ const handleObjectEdited = (id: string, updates: { name: string, position: [numb
         onObjectEdited={handleObjectEdited}
         movingObject={movingObject}
         setMovingObject={setMovingObject}
+        magnetEnabled={magnetEnabled}
+        setMagnetEnabled={setMagnetEnabled}
       >
       </View3dOverlay>
     </View>

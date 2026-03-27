@@ -20,6 +20,8 @@ interface View3dOverlayProps {
   onObjectEdited: (id: string, updates: { name: string, position: [number, number, number], rotation?: number }) => void;
   movingObject?: FurnitureInstanceProps;
   setMovingObject: (object?: FurnitureInstanceProps) => void;
+  magnetEnabled: boolean;
+  setMagnetEnabled: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 function useWindowDimensions() {
@@ -42,7 +44,7 @@ function useWindowDimensions() {
 
 
 
-export default function View3dOverlay({ designObjects, room3dProps, setRoom3d , onObjectAdded, onObjectEdited, movingObject, setMovingObject} : View3dOverlayProps) {
+export default function View3dOverlay({ designObjects, room3dProps, setRoom3d , onObjectAdded, onObjectEdited, movingObject, setMovingObject, magnetEnabled, setMagnetEnabled} : View3dOverlayProps) {
 
   const { width } = useWindowDimensions();
   const [isObjectsManagerVisible, setIsObjectsManagerVisible] = useState(false);
@@ -131,6 +133,9 @@ export default function View3dOverlay({ designObjects, room3dProps, setRoom3d , 
       {(width > 768) &&
         (
           <View style={[styles.column, { backgroundColor: debugColors ? 'rgba(255, 0, 0, 0.25)' : 'transparent' }]}>
+            <View style={[styles.topBar, { backgroundColor: debugColors ? 'rgba(255, 255, 0, 0.25)' : 'white' }]}>
+              <Button label={magnetEnabled ? "Magnet ON" : "Magnet OFF"} onPress={() => setMagnetEnabled(prev => !prev)} />
+            </View>
             {isRoomSettingsVisible && (
               <RoomManager room3dProps={room3dProps} setRoom3d={setRoom3d} onClose={() => setIsRoomSettingsVisible(false)}></RoomManager>
             )}
@@ -200,6 +205,13 @@ export default function View3dOverlay({ designObjects, room3dProps, setRoom3d , 
             (<Button label="Edit Objects" onPress={() => toggleObjectsManager()} />)
           }
         </View>
+
+        {/* Magnet toggle (mobile: top-left of middle column) */}
+        {(width <= 768) &&
+          <View style={[styles.topBar, { backgroundColor: debugColors ? 'rgba(255, 255, 0, 0.25)' : 'white' }]}>
+            <Button label={magnetEnabled ? "Magnet ON" : "Magnet OFF"} onPress={() => setMagnetEnabled(prev => !prev)} />
+          </View>
+        }
       </View>
       
       {/*---------------------------------Menu lateral (Solo desktop)-------------------------------------*/}
@@ -266,5 +278,20 @@ const styles = StyleSheet.create({
     shadowRadius: 4.65,
     elevation: 8,
     zIndex: 100, // Asegura que esté por encima de todo
+  },
+  topBar: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    flexDirection: 'row',
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+    borderRadius: 30,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 5,
+    zIndex: 100,
   },
 });
