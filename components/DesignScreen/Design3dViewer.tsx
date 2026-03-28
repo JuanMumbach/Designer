@@ -117,7 +117,7 @@ export default function Design3dView({
         />
         <FurnitureInstantiator
             objects={cupboardObjects}
-            origin={cupboardOrigin}
+            origin={roomOrigin}
             onObjectInteraction={onObjectInteraction}
             onObjectEdited={onObjectEdited}
             movingObjectId={movingObject?.id}
