@@ -268,6 +268,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingTop: 60,
     paddingBottom: 20,
+    pointerEvents: "box-none",
   },
   mainControls: {
     flexDirection: 'row',
