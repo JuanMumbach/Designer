@@ -96,7 +96,7 @@ const handleObjectEdited = (id: string, updates: { name: string, position: [numb
       <View3dOverlay
         room3dProps={room3d}
         setRoom3d={setRoom3d}
-        designObjects={counterLineObjects}
+        designObjects={ [...counterLineObjects, ...cupboardLineObjects] }
         onObjectAdded={handleObjectAdded}
         onObjectEdited={handleObjectEdited}
         movingObject={movingObject}

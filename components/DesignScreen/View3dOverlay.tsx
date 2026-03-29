@@ -146,54 +146,57 @@ export default function View3dOverlay({ designObjects, room3dProps, setRoom3d , 
       {/*-------------------------------------Columna central------------------------------------------*/}
       <View style={[styles.middleColumn, { backgroundColor: debugColors ? 'rgba(4, 0, 255, 0.25)' : 'transparent' }]}>
         
-        {/*Renderizar menus laterales en el centro si es mobile*/}
-        {(width <= 768) &&
-          (
+        {/*Area de contenido para modales o espacio libre */}
+        <View style={[styles.modalArea, { backgroundColor: debugColors ? 'rgba(255, 165, 0, 0.25)' : 'transparent' }]}>
+          {/*Renderizar menus laterales en el centro si es mobile*/}
+          {(width <= 768) &&
             (
-              isObjectsManagerVisible && (
-                <FurnitureInstancesManager furnitureInstances={designObjects} onFurnitureSelect={handleEditObject} onClose={() => setIsObjectsManagerVisible(false)}/>
-              )
-            ) ||
-            (
-              isRoomSettingsVisible && (
-                <RoomManager room3dProps={room3dProps} setRoom3d={setRoom3d} onClose={() => setIsRoomSettingsVisible(false)}></RoomManager>
-              )
-            ) ||
-            (
-              isListInstantiableObjectsVisible && (
-                <ListFurnitureModels designObjectTypes={furnitureModels} addObjectAction={showAddObjectMenu} />
-              )
-            ) ||
-            (
-              isAddObjectMenuVisible && (<AddFurnitureInstanceMenu newObjectType={newObjectTypeState} onObjectAdded={onObjectAdded} closeMenu={() => setIsAddObjectMenuVisible(false)}/>)
-            ) ||
-            (
-                isEditObjectMenuVisible && selectedObjectState && (
-                    <EditFurnitureInstanceMenu 
-                        object={selectedObjectState} 
-                        onEditComplete={handleObjectEditAndClose} // Usa el wrapper que cierra el menú
-                    />
+              (
+                isObjectsManagerVisible && (
+                  <FurnitureInstancesManager furnitureInstances={designObjects} onFurnitureSelect={handleEditObject} onClose={() => setIsObjectsManagerVisible(false)}/>
                 )
+              ) ||
+              (
+                isRoomSettingsVisible && (
+                  <RoomManager room3dProps={room3dProps} setRoom3d={setRoom3d} onClose={() => setIsRoomSettingsVisible(false)}></RoomManager>
+                )
+              ) ||
+              (
+                isListInstantiableObjectsVisible && (
+                  <ListFurnitureModels designObjectTypes={furnitureModels} addObjectAction={showAddObjectMenu} />
+                )
+              ) ||
+              (
+                isAddObjectMenuVisible && (<AddFurnitureInstanceMenu newObjectType={newObjectTypeState} onObjectAdded={onObjectAdded} closeMenu={() => setIsAddObjectMenuVisible(false)}/>)
+              ) ||
+              (
+                  isEditObjectMenuVisible && selectedObjectState && (
+                      <EditFurnitureInstanceMenu 
+                          object={selectedObjectState} 
+                          onEditComplete={handleObjectEditAndClose}
+                      />
+                  )
+              )
             )
-          )
-        }
+          }
 
-        {/*------------------------Renderiza menus centrales version Desktop-----------------------------*/}
-        {((width > 768) &&
-        (
-          (isListInstantiableObjectsVisible && (<ListFurnitureModels designObjectTypes={furnitureModels} addObjectAction={showAddObjectMenu} />))
-          ||
-          (isAddObjectMenuVisible && (<AddFurnitureInstanceMenu newObjectType={newObjectTypeState} onObjectAdded={onObjectAdded} closeMenu={() => setIsAddObjectMenuVisible(false)}/>))
-        ) ||
-        (
-            isEditObjectMenuVisible && selectedObjectState && (
-                <EditFurnitureInstanceMenu 
-                    object={selectedObjectState} 
-                    onEditComplete={handleObjectEditAndClose}
-                />
+          {/*------------------------Renderiza menus centrales version Desktop-----------------------------*/}
+          {((width > 768) &&
+          (
+            (isListInstantiableObjectsVisible && (<ListFurnitureModels designObjectTypes={furnitureModels} addObjectAction={showAddObjectMenu} />))
+            ||
+            (isAddObjectMenuVisible && (<AddFurnitureInstanceMenu newObjectType={newObjectTypeState} onObjectAdded={onObjectAdded} closeMenu={() => setIsAddObjectMenuVisible(false)}/>))
+          ) ||
+          (
+              isEditObjectMenuVisible && selectedObjectState && (
+                  <EditFurnitureInstanceMenu 
+                      object={selectedObjectState} 
+                      onEditComplete={handleObjectEditAndClose}
+                  />
+              )
             )
-          )
-        )}
+          )}
+        </View>
 
         {/*----------------------------------Botonera principal-----------------------------------------*/}
         <View style={[styles.mainControls, { backgroundColor: debugColors ? 'rgba(51, 255, 0, 0.25)' : 'transparent' }]}>
@@ -250,34 +253,37 @@ const styles = StyleSheet.create({
     pointerEvents: "box-none"
   },
   middleColumn: {
-    width: "100%", // Aseguramos que ocupe el ancho disponible (antes era "auto")
-    justifyContent: 'flex-end',   // Coloca los modales justo arriba de la barra principal
-    alignItems: 'center',         // Centra horizontalmente los menús también
-    paddingHorizontal: 10,
-    paddingTop: 10,
-    paddingBottom: 120,           // Reserva espacio visual para la barra inferior mainControls
+    width: "100%",
     height: '100%',
     flex: 1,
+    flexDirection: 'column',
+    alignItems: 'center',
     pointerEvents: "box-none"
   },
+  modalArea: {
+    flex: 1,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    paddingTop: 60,
+    paddingBottom: 20,
+  },
   mainControls: {
-    position: 'absolute', // Lo hacemos flotar sobre todo
-    bottom: 30, // Separado del borde inferior
-    alignSelf: 'center', // Centrado en la pantalla
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'white', // Fondo blanco para la barra
+    backgroundColor: 'white',
     paddingVertical: 10,
     paddingHorizontal: 20,
-    borderRadius: 40, // Hacemos la barra redonda
-    // Sombra flotante importante
+    borderRadius: 40,
+    marginBottom: 30,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 4.65,
     elevation: 8,
-    zIndex: 100, // Asegura que esté por encima de todo
+    zIndex: 100,
   },
   topBar: {
     position: 'absolute',

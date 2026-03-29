@@ -1,6 +1,6 @@
 import Button from "@/components/Button";
 import { useEffect, useState } from "react";
-import { StyleSheet, Text, TextInput, View } from "react-native";
+import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { FurnitureInstanceProps } from "../3dView/DesignObjects";
 
 export default function EditFurnitureInstanceMenu({object, onEditComplete} : {
@@ -44,6 +44,10 @@ export default function EditFurnitureInstanceMenu({object, onEditComplete} : {
 
     return (
     <View style={styles.container}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+      >
         <TextInput style={styles.input} onChangeText={onChangeName} value={name} placeholder={object.name} />
         <Text>Type: {object.type.name}</Text>
         <Text style={styles.label}>Position X</Text>
@@ -65,24 +69,31 @@ export default function EditFurnitureInstanceMenu({object, onEditComplete} : {
                     keyboardType="numeric"
                 />
         <Button label="Save Changes" onPress={handleSave} />
+      </ScrollView>
     </View>
     );
 };
 
 const styles = StyleSheet.create({
   container: {
-    padding: 24,
-    backgroundColor: 'white', // Fondo blanco puro
+    width: 300,
+    maxHeight: '100%',
+    backgroundColor: 'white',
     borderRadius: 16,
-    // Sombra fuerte para que se note que está sobre el 3D
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.25,
     shadowRadius: 10,
     elevation: 10,
-    margin: 20, // Un poco de aire alrededor
-    minWidth: 300, // Ancho mínimo para que no se vea apretado
-    // El espacio inferior para la barra principal se maneja en View3dOverlay.middleColumn
+    overflow: 'hidden',
+  },
+  scroll: {
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingVertical: 24,
+  },
+  scrollContent: {
+    paddingBottom: 8,
   },
   label: {
     marginTop: 12,
