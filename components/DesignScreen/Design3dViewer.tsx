@@ -52,6 +52,7 @@ export default function Design3dView({
   cupboardObjects,
   onObjectInteraction,
   onObjectEdited,
+  onObjectDeleted,
   movingObject,
   setMovingObject,
   magnetEnabled,
@@ -62,6 +63,7 @@ export default function Design3dView({
   cupboardObjects: FurnitureInstanceProps[],
   onObjectInteraction: (object: FurnitureInstanceProps) => void,
   onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number], rotation?: number }) => void,
+  onObjectDeleted?: (id: string) => void,
   movingObject?: FurnitureInstanceProps,
   setMovingObject?: (object?: FurnitureInstanceProps) => void,
   magnetEnabled: boolean,
@@ -109,6 +111,7 @@ export default function Design3dView({
             origin={roomOrigin}
             onObjectInteraction={onObjectInteraction}
             onObjectEdited={onObjectEdited}
+            onObjectDeleted={onObjectDeleted}
             movingObjectId={movingObject?.id}
             room3d={room3d}
             magnetEnabled={magnetEnabled}
@@ -120,6 +123,7 @@ export default function Design3dView({
             origin={roomOrigin}
             onObjectInteraction={onObjectInteraction}
             onObjectEdited={onObjectEdited}
+            onObjectDeleted={onObjectDeleted}
             movingObjectId={movingObject?.id}
             room3d={room3d}
             magnetEnabled={magnetEnabled}

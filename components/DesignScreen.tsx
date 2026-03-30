@@ -49,7 +49,7 @@ export default function DesignScreen() {
   };
 
 
-const handleObjectEdited = (id: string, updates: { name: string, position: [number, number, number], rotation?: number }) => {
+  const handleObjectEdited = (id: string, updates: { name: string, position: [number, number, number], rotation?: number }) => {
 
     const updateObjects = (prevObjects: FurnitureInstanceProps[]) => {
       return prevObjects.map(obj => {
@@ -74,6 +74,18 @@ const handleObjectEdited = (id: string, updates: { name: string, position: [numb
     }
   };
 
+  const handleObjectDeleted = (id: string) => {
+    const isCounterObject = counterLineObjects.some(obj => obj.id === id);
+    if (isCounterObject) {
+      setCounterObjects(prev => prev.filter(obj => obj.id !== id));
+    } else {
+      setCupboardObjects(prev => prev.filter(obj => obj.id !== id));
+    }
+    if (movingObject?.id === id) {
+      setMovingObject(undefined);
+    }
+  };
+
   return (
     <View
       style={{
@@ -88,6 +100,7 @@ const handleObjectEdited = (id: string, updates: { name: string, position: [numb
         cupboardObjects={cupboardLineObjects}
         onObjectInteraction={handleObjectInteraction}
         onObjectEdited={handleObjectEdited}
+        onObjectDeleted={handleObjectDeleted}
         movingObject={movingObject}
         setMovingObject={setMovingObject}
         magnetEnabled={magnetEnabled}
@@ -99,6 +112,7 @@ const handleObjectEdited = (id: string, updates: { name: string, position: [numb
         designObjects={ [...counterLineObjects, ...cupboardLineObjects] }
         onObjectAdded={handleObjectAdded}
         onObjectEdited={handleObjectEdited}
+        onObjectDeleted={handleObjectDeleted}
         movingObject={movingObject}
         setMovingObject={setMovingObject}
         magnetEnabled={magnetEnabled}

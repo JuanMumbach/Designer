@@ -1,11 +1,12 @@
 import Button from "@/components/Button";
 import { useEffect, useState } from "react";
-import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { FurnitureInstanceProps } from "../3dView/DesignObjects";
 
-export default function EditFurnitureInstanceMenu({object, onEditComplete} : {
+export default function EditFurnitureInstanceMenu({object, onEditComplete, onDelete} : {
         object : FurnitureInstanceProps, 
         onEditComplete : (id: string, updates: { name: string, position: [number, number, number] }) => void,
+        onDelete? : (id: string) => void,
     }){
 
     const [name, onChangeName] = useState(object.name);
@@ -42,6 +43,15 @@ export default function EditFurnitureInstanceMenu({object, onEditComplete} : {
         if (!isNaN(aNumber)) onChangePositionZ(aNumber);
     };
 
+    const handleDelete = () => {
+        Alert.alert('Delete Object', 'Are you sure you want to delete this object?', [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Delete', style: 'destructive', onPress: () => {
+                if (onDelete) onDelete(object.id);
+            }},
+        ]);
+    };
+
     return (
     <View style={styles.container}>
       <ScrollView
@@ -69,6 +79,9 @@ export default function EditFurnitureInstanceMenu({object, onEditComplete} : {
                     keyboardType="numeric"
                 />
         <Button label="Save Changes" onPress={handleSave} />
+        <Pressable style={styles.deleteButton} onPress={handleDelete}>
+            <Text style={styles.deleteButtonLabel}>Delete Object</Text>
+        </Pressable>
       </ScrollView>
     </View>
     );
@@ -114,5 +127,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#f9fafb',
     fontSize: 14,
     color: '#111827',
+  },
+  deleteButton: {
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 16,
+    backgroundColor: '#dc2626',
+  },
+  deleteButtonLabel: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   }
 });

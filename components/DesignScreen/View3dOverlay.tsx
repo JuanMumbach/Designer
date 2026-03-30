@@ -18,6 +18,7 @@ interface View3dOverlayProps {
   setRoom3d: React.Dispatch<React.SetStateAction<Room3dProps>>;
   onObjectAdded: (newObject: FurnitureInstanceProps) => void;
   onObjectEdited: (id: string, updates: { name: string, position: [number, number, number], rotation?: number }) => void;
+  onObjectDeleted: (id: string) => void;
   movingObject?: FurnitureInstanceProps;
   setMovingObject: (object?: FurnitureInstanceProps) => void;
   magnetEnabled: boolean;
@@ -44,7 +45,7 @@ function useWindowDimensions() {
 
 
 
-export default function View3dOverlay({ designObjects, room3dProps, setRoom3d , onObjectAdded, onObjectEdited, movingObject, setMovingObject, magnetEnabled, setMagnetEnabled} : View3dOverlayProps) {
+export default function View3dOverlay({ designObjects, room3dProps, setRoom3d , onObjectAdded, onObjectEdited, onObjectDeleted, movingObject, setMovingObject, magnetEnabled, setMagnetEnabled} : View3dOverlayProps) {
 
   const { width } = useWindowDimensions();
   const [isObjectsManagerVisible, setIsObjectsManagerVisible] = useState(false);
@@ -82,6 +83,11 @@ export default function View3dOverlay({ designObjects, room3dProps, setRoom3d , 
 
   const handleObjectEditAndClose = (id: string, updates: { name: string, position: [number, number, number] }) => {
       onObjectEdited(id, updates);
+      closeEditMenu();
+  };
+
+  const handleObjectDeleteAndClose = (id: string) => {
+      onObjectDeleted(id);
       closeEditMenu();
   };
 
@@ -174,6 +180,7 @@ export default function View3dOverlay({ designObjects, room3dProps, setRoom3d , 
                       <EditFurnitureInstanceMenu 
                           object={selectedObjectState} 
                           onEditComplete={handleObjectEditAndClose}
+                          onDelete={handleObjectDeleteAndClose}
                       />
                   )
               )
@@ -192,6 +199,7 @@ export default function View3dOverlay({ designObjects, room3dProps, setRoom3d , 
                   <EditFurnitureInstanceMenu 
                       object={selectedObjectState} 
                       onEditComplete={handleObjectEditAndClose}
+                      onDelete={handleObjectDeleteAndClose}
                   />
               )
             )

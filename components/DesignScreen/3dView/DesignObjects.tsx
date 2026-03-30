@@ -95,6 +95,7 @@ export default function FurnitureInstantiator({
   origin,
   onObjectInteraction,
   onObjectEdited,
+  onObjectDeleted,
   movingObjectId,
   room3d,
   magnetEnabled,
@@ -105,6 +106,7 @@ export default function FurnitureInstantiator({
   origin: [number, number, number],
   onObjectInteraction: (object: FurnitureInstanceProps) => void,
   onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number], rotation?: number }) => void,
+  onObjectDeleted?: (id: string) => void,
   movingObjectId?: string,
   room3d: Room3dProps,
   magnetEnabled: boolean,
@@ -130,6 +132,7 @@ export default function FurnitureInstantiator({
                             rotation={obj.rotation}
                             isSelected={obj.id === movingObjectId}
                             onObjectEdited={onObjectEdited}
+                            onObjectDeleted={onObjectDeleted}
                             room3d={room3d}
                             magnetEnabled={magnetEnabled}
                             allObjects={allObjects}

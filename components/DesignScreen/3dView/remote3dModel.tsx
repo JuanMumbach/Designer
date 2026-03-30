@@ -2,7 +2,7 @@ import { Box, Gltf, useTexture } from '@react-three/drei/native';
 import { Asset } from 'expo-asset';
 import * as FileSystem from 'expo-file-system';
 import React, { Suspense, useEffect, useRef, useState } from 'react';
-import { Platform } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import * as THREE from 'three';
 import { FurnitureInstanceProps } from './DesignObjects';
 import { Room3dProps } from './Room3d';
@@ -57,7 +57,7 @@ export function useDownload3dModel(remoteUrl: string, assetName: string = 'asset
 }
 
 export function FurnitureInstance({
-    obj, position, origin, dimensions, modelScale, rotation, onObjectInteraction, isSelected, onObjectEdited, room3d, magnetEnabled, allObjects, onDragStateChange
+    obj, position, origin, dimensions, modelScale, rotation, onObjectInteraction, isSelected, onObjectEdited, onObjectDeleted, room3d, magnetEnabled, allObjects, onDragStateChange
 }: {
     obj: FurnitureInstanceProps,
     position: [number, number, number],
@@ -69,6 +69,7 @@ export function FurnitureInstance({
     onObjectInteraction: (object: FurnitureInstanceProps) => void,
     isSelected?: boolean,
     onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number], rotation?: number }) => void,
+    onObjectDeleted?: (id: string) => void,
     room3d: Room3dProps,
     magnetEnabled: boolean,
     allObjects: FurnitureInstanceProps[],
@@ -84,6 +85,10 @@ export function FurnitureInstance({
 
     const markerAsset = Asset.fromModule(require('../../../assets/images/move-marker.png'));
     const dragIconTexture = useTexture(markerAsset.uri);
+
+    const deleteAsset = Asset.fromModule(require('../../../assets/images/delete-icon.png'));
+    const deleteIconTexture = useTexture(deleteAsset.uri);
+
 
     useEffect(() => {
         if (Platform.OS === 'web') {
@@ -424,26 +429,53 @@ export function FurnitureInstance({
                 </Suspense>
 
                 {(isSelected &&
-                    <sprite
-                        position={[dimensions[0] / 2, -0.2, dimensions[2] + 0.2]}
-                        scale={[.75, .75, .75]}
-                        // Mantenemos el sprite tal como lo tenías originalmente para evitar bugs visuales
-                        onPointerDown={(e) => {
-                            e.stopPropagation();
-                            setIsDragging(true);
-                            globalIsDragging = true;
-                            dragStartPoint.current.copy(e.point);
-                            initialPosition.current = [...position];
-                            if (onDragStateChange) onDragStateChange(true);
-                        }}
-                    >
-                        <spriteMaterial
-                            map={dragIconTexture}
-                            color="white"
-                            depthTest={false}
-                            transparent={true}
-                        />
-                    </sprite>
+                    <group>
+                        <sprite
+                            position={[dimensions[0] / 2, -0.2, dimensions[2] + 0.2]}
+                            scale={[.75, .75, .75]}
+                            onPointerDown={(e) => {
+                                e.stopPropagation();
+                                setIsDragging(true);
+                                globalIsDragging = true;
+                                dragStartPoint.current.copy(e.point);
+                                initialPosition.current = [...position];
+                                if (onDragStateChange) onDragStateChange(true);
+                            }}
+                        >
+                            <spriteMaterial
+                                map={dragIconTexture}
+                                color="white"
+                                depthTest={false}
+                                transparent={true}
+                            />
+                        </sprite>
+                        <sprite
+                            position={[dimensions[0] - 0.1, dimensions[1] + 0.2, 0]}
+                            scale={[0.2, 0.2, 0.2]}
+                            onPointerDown={(e) => {
+                                e.stopPropagation();
+                                if (Platform.OS === 'web') {
+                                    if (window.confirm('Are you sure you want to delete this object?')) {
+                                        if (onObjectDeleted) onObjectDeleted(obj.id);
+                                    }
+                                } else {
+                                    Alert.alert('Delete Object', 'Are you sure you want to delete this object?', [
+                                        { text: 'Cancel', style: 'cancel' },
+                                        { text: 'Delete', style: 'destructive', onPress: () => {
+                                            if (onObjectDeleted) onObjectDeleted(obj.id);
+                                        }},
+                                    ]);
+                                }
+                            }}
+                        >
+                            <spriteMaterial
+                                map={deleteIconTexture}
+                                color="#ffffffff"
+                                depthTest={false}
+                                transparent={true}
+                            />
+                        </sprite>
+                    </group>
                 )}
             </group>
 
