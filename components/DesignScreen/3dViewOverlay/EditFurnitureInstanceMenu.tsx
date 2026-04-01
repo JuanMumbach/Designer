@@ -1,6 +1,6 @@
 import Button from "@/components/Button";
 import { useEffect, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { FurnitureInstanceProps } from "../3dView/DesignObjects";
 
 export default function EditFurnitureInstanceMenu({object, onEditComplete, onDelete} : {
@@ -44,12 +44,18 @@ export default function EditFurnitureInstanceMenu({object, onEditComplete, onDel
     };
 
     const handleDelete = () => {
-        Alert.alert('Delete Object', 'Are you sure you want to delete this object?', [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Delete', style: 'destructive', onPress: () => {
+        if (Platform.OS === 'web') {
+            if (window.confirm('Are you sure you want to delete this object?')) {
                 if (onDelete) onDelete(object.id);
-            }},
-        ]);
+            }
+        } else {
+            Alert.alert('Delete Object', 'Are you sure you want to delete this object?', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Delete', style: 'destructive', onPress: () => {
+                    if (onDelete) onDelete(object.id);
+                }},
+            ]);
+        }
     };
 
     return (
