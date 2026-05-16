@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Dimensions, ScaledSize, StyleSheet, View } from "react-native";
 import Button from "../Button";
-import { FurnitureInstanceProps, FurnitureProps, furnitureModels } from "./3dView/DesignObjects";
+import { FurnitureInstanceProps, FurnitureProps } from "./3dView/DesignObjects";
 import { Room3dProps } from "./3dView/Room3d";
 import AddFurnitureInstanceMenu from "./3dViewOverlay/AddFurnitureInstanceMenu";
 import EditFurnitureInstanceMenu from "./3dViewOverlay/EditFurnitureInstanceMenu";
@@ -12,6 +12,7 @@ import RoomManager from "./3dViewOverlay/RoomManager";
 const debugColors = false;
 
 interface View3dOverlayProps {
+  furnitureModels: FurnitureProps[];
   designObjects: FurnitureInstanceProps[];
   // Añadir room3dProps (valores actuales) y setRoom3d (función de actualización)
   room3dProps: Room3dProps;
@@ -45,7 +46,7 @@ function useWindowDimensions() {
 
 
 
-export default function View3dOverlay({ designObjects, room3dProps, setRoom3d , onObjectAdded, onObjectEdited, onObjectDeleted, movingObject, setMovingObject, magnetEnabled, setMagnetEnabled} : View3dOverlayProps) {
+export default function View3dOverlay({ furnitureModels, designObjects, room3dProps, setRoom3d , onObjectAdded, onObjectEdited, onObjectDeleted, movingObject, setMovingObject, magnetEnabled, setMagnetEnabled} : View3dOverlayProps) {
 
   const { width } = useWindowDimensions();
   const [isObjectsManagerVisible, setIsObjectsManagerVisible] = useState(false);
@@ -53,7 +54,13 @@ export default function View3dOverlay({ designObjects, room3dProps, setRoom3d , 
   const [isRoomSettingsVisible, setIsRoomSettingsVisible] = useState(false);
   const [isAddObjectMenuVisible, setIsAddObjectMenuVisible] = useState(false);
   
-  const [newObjectTypeState, setNewObjectTypeState] = useState(furnitureModels[0]);
+  const [newObjectTypeState, setNewObjectTypeState] = useState<FurnitureProps | undefined>(undefined);
+
+  useEffect(() => {
+    if (furnitureModels.length > 0 && !newObjectTypeState) {
+      setNewObjectTypeState(furnitureModels[0]);
+    }
+  }, [furnitureModels, newObjectTypeState]);
   
   const [isEditObjectMenuVisible, setIsEditObjectMenuVisible] = useState(false);
   const [selectedObjectState, setSelectedObjectState] = useState<FurnitureInstanceProps | undefined>(undefined);
@@ -173,7 +180,7 @@ export default function View3dOverlay({ designObjects, room3dProps, setRoom3d , 
                 )
               ) ||
               (
-                isAddObjectMenuVisible && (<AddFurnitureInstanceMenu newObjectType={newObjectTypeState} onObjectAdded={onObjectAdded} closeMenu={() => setIsAddObjectMenuVisible(false)}/>)
+                isAddObjectMenuVisible && newObjectTypeState && (<AddFurnitureInstanceMenu newObjectType={newObjectTypeState} onObjectAdded={onObjectAdded} closeMenu={() => setIsAddObjectMenuVisible(false)}/>)
               ) ||
               (
                   isEditObjectMenuVisible && selectedObjectState && (
@@ -192,7 +199,7 @@ export default function View3dOverlay({ designObjects, room3dProps, setRoom3d , 
           (
             (isListInstantiableObjectsVisible && (<ListFurnitureModels designObjectTypes={furnitureModels} addObjectAction={showAddObjectMenu} />))
             ||
-            (isAddObjectMenuVisible && (<AddFurnitureInstanceMenu newObjectType={newObjectTypeState} onObjectAdded={onObjectAdded} closeMenu={() => setIsAddObjectMenuVisible(false)}/>))
+            (isAddObjectMenuVisible && newObjectTypeState && (<AddFurnitureInstanceMenu newObjectType={newObjectTypeState} onObjectAdded={onObjectAdded} closeMenu={() => setIsAddObjectMenuVisible(false)}/>))
           ) ||
           (
               isEditObjectMenuVisible && selectedObjectState && (

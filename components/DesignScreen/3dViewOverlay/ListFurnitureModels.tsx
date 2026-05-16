@@ -9,6 +9,13 @@ export default function ListFurnitureModels({
   designObjectTypes: FurnitureProps[],
   addObjectAction: (objectType: FurnitureProps) => void;
 }){
+    if (designObjectTypes.length === 0) {
+        return (
+            <View style={styles.container}>
+                <Text style={styles.emptyText}>No furniture models available.</Text>
+            </View>
+        );
+    }
     
     return (
         <ScrollView style={styles.container}>
@@ -66,5 +73,11 @@ const styles = StyleSheet.create({
     details: {
         fontSize: 12,
         color: '#6b7280',
+    },
+    emptyText: {
+        fontSize: 14,
+        color: '#6b7280',
+        textAlign: 'center',
+        padding: 20,
     }
 });
