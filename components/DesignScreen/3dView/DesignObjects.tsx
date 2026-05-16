@@ -27,6 +27,7 @@ export interface FurnitureProps {
     height: number;
     depth: number;
     variantOf?: string;
+    categoryId?: string;
 }
 
 export function NewFurnitureInstance(type: FurnitureProps, position?: [number, number, number]): FurnitureInstanceProps {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { FurnitureProps, FurnitureType } from '../components/DesignScreen/3dView/DesignObjects';
-import { fetchAllObjectModels, fetchObjectVersion, ObjectModel } from './api';
+import { fetchAllCategories, fetchAllObjectModels, fetchObjectVersion, ObjectModel, ObjectCategory } from './api';
 
 function mapCategoryNameToFurnitureType(categoryName: string | undefined): FurnitureType {
   if (!categoryName) return FurnitureType.Counter;
@@ -14,6 +14,7 @@ function mapCategoryNameToFurnitureType(categoryName: string | undefined): Furni
 
 export function useFurnitureModels() {
   const [furnitureModels, setFurnitureModels] = useState<FurnitureProps[]>([]);
+  const [categories, setCategories] = useState<ObjectCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -26,6 +27,17 @@ export function useFurnitureModels() {
         setError(null);
 
         const objectModels: ObjectModel[] = await fetchAllObjectModels();
+
+        let categoriesData: ObjectCategory[] = [];
+        try {
+          categoriesData = await fetchAllCategories();
+        } catch (catErr) {
+          console.warn('Failed to fetch categories:', catErr);
+        }
+
+        if (isMounted) {
+          setCategories(categoriesData);
+        }
 
         const furniturePropsArray: FurnitureProps[] = [];
 
@@ -42,6 +54,7 @@ export function useFurnitureModels() {
                 width: version.sizeX,
                 height: version.sizeY,
                 depth: version.sizeZ,
+                categoryId: model.categoryId || undefined,
               });
             }
           } catch (versionError) {
@@ -70,5 +83,5 @@ export function useFurnitureModels() {
     };
   }, []);
 
-  return { furnitureModels, isLoading, error };
+  return { furnitureModels, categories, isLoading, error };
 }

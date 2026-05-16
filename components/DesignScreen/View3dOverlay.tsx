@@ -4,17 +4,18 @@ import Button from "../Button";
 import { FurnitureInstanceProps, FurnitureProps } from "./3dView/DesignObjects";
 import { Room3dProps } from "./3dView/Room3d";
 import AddFurnitureInstanceMenu from "./3dViewOverlay/AddFurnitureInstanceMenu";
+import CategoryBrowser from "./3dViewOverlay/CategoryBrowser";
 import EditFurnitureInstanceMenu from "./3dViewOverlay/EditFurnitureInstanceMenu";
 import FurnitureInstancesManager from "./3dViewOverlay/FurnitureInstancesManager";
-import ListFurnitureModels from "./3dViewOverlay/ListFurnitureModels";
 import RoomManager from "./3dViewOverlay/RoomManager";
+import { ObjectCategory } from "../../services/api";
 
 const debugColors = false;
 
 interface View3dOverlayProps {
   furnitureModels: FurnitureProps[];
+  categories: ObjectCategory[];
   designObjects: FurnitureInstanceProps[];
-  // Añadir room3dProps (valores actuales) y setRoom3d (función de actualización)
   room3dProps: Room3dProps;
   setRoom3d: React.Dispatch<React.SetStateAction<Room3dProps>>;
   onObjectAdded: (newObject: FurnitureInstanceProps) => void;
@@ -46,7 +47,7 @@ function useWindowDimensions() {
 
 
 
-export default function View3dOverlay({ furnitureModels, designObjects, room3dProps, setRoom3d , onObjectAdded, onObjectEdited, onObjectDeleted, movingObject, setMovingObject, magnetEnabled, setMagnetEnabled} : View3dOverlayProps) {
+export default function View3dOverlay({ furnitureModels, categories, designObjects, room3dProps, setRoom3d , onObjectAdded, onObjectEdited, onObjectDeleted, movingObject, setMovingObject, magnetEnabled, setMagnetEnabled} : View3dOverlayProps) {
 
   const { width } = useWindowDimensions();
   const [isObjectsManagerVisible, setIsObjectsManagerVisible] = useState(false);
@@ -176,7 +177,7 @@ export default function View3dOverlay({ furnitureModels, designObjects, room3dPr
               ) ||
               (
                 isListInstantiableObjectsVisible && (
-                  <ListFurnitureModels designObjectTypes={furnitureModels} addObjectAction={showAddObjectMenu} />
+                  <CategoryBrowser furnitureModels={furnitureModels} categories={categories} addObjectAction={showAddObjectMenu} />
                 )
               ) ||
               (
@@ -197,7 +198,7 @@ export default function View3dOverlay({ furnitureModels, designObjects, room3dPr
           {/*------------------------Renderiza menus centrales version Desktop-----------------------------*/}
           {((width > 768) &&
           (
-            (isListInstantiableObjectsVisible && (<ListFurnitureModels designObjectTypes={furnitureModels} addObjectAction={showAddObjectMenu} />))
+            (isListInstantiableObjectsVisible && (<CategoryBrowser furnitureModels={furnitureModels} categories={categories} addObjectAction={showAddObjectMenu} />))
             ||
             (isAddObjectMenuVisible && newObjectTypeState && (<AddFurnitureInstanceMenu newObjectType={newObjectTypeState} onObjectAdded={onObjectAdded} closeMenu={() => setIsAddObjectMenuVisible(false)}/>))
           ) ||

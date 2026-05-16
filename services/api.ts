@@ -46,3 +46,11 @@ export async function fetchObjectVersion(objectId: string): Promise<ObjectVersio
   }
   return response.json();
 }
+
+export async function fetchAllCategories(): Promise<ObjectCategory[]> {
+  const response = await fetch(`${API_BASE_URL}/api/ObjectCategory`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch categories: ${response.status}`);
+  }
+  return response.json();
+}

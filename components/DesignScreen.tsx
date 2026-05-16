@@ -16,7 +16,7 @@ const initialRoom3d: Room3dProps = {
 };
 
 export default function DesignScreen() {
-  const { furnitureModels, isLoading, error } = useFurnitureModels();
+  const { furnitureModels, categories, isLoading, error } = useFurnitureModels();
   const [room3d, setRoom3d] = useState<Room3dProps>(initialRoom3d);
   const [counterLineObjects, setCounterObjects] = useState<FurnitureInstanceProps[]>([]);
   const [cupboardLineObjects, setCupboardObjects] = useState<FurnitureInstanceProps[]>([]);
@@ -147,6 +147,7 @@ export default function DesignScreen() {
       />
       <View3dOverlay
         furnitureModels={furnitureModels}
+        categories={categories}
         room3dProps={room3d}
         setRoom3d={setRoom3d}
         designObjects={ [...counterLineObjects, ...cupboardLineObjects] }
