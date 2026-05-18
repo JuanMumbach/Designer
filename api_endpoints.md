@@ -138,6 +138,7 @@
   "object": "ObjectModel | null",
   "version": "int",
   "fileURL": "string",
+  "objectProperties": "string",
   "sizeX": "float",
   "sizeY": "float",
   "sizeZ": "float",

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import Button from "../../Button";
-import { FurnitureInstanceProps, FurnitureProps, NewFurnitureInstance } from "../3dView/DesignObjects";
+import { DesignObject, ObjectTemplate, createDesignObject } from "../3dView/DesignObjects";
 
 
 export default function AddFurnitureInstanceMenu({
@@ -9,8 +9,8 @@ export default function AddFurnitureInstanceMenu({
   onObjectAdded,
   closeMenu
 }: {
-  newObjectType: FurnitureProps,
-  onObjectAdded: (newObject: FurnitureInstanceProps) => void,
+  newObjectType: ObjectTemplate,
+  onObjectAdded: (newObject: DesignObject) => void,
   closeMenu: () => void
 }) {
 
@@ -41,15 +41,12 @@ export default function AddFurnitureInstanceMenu({
       parseFloat(positionY || "0"),
       parseFloat(positionZ || "0")
     ];
-    const newObjectInstance = NewFurnitureInstance(newObjectType, position);
+    const newObjectInstance = createDesignObject(newObjectType, position);
 
-    // Apply form values
     newObjectInstance.name = name;
 
-    // 1. ADD OBJECT: Call the function passed from DesignScreen to update the state
     onObjectAdded(newObjectInstance);
 
-    // 2. CLOSE MENU: Call the function passed from View3dOverlay
     closeMenu();
   };
 
@@ -103,20 +100,17 @@ export default function AddFurnitureInstanceMenu({
 
 const styles = StyleSheet.create({
   container: {
-    width: 300, // Match RoomManager card sizing
-    maxHeight: '70%', // Limit overall card height; inner content scrolls
-    minHeight: 260,   // Give the card a comfortable minimum height to reduce empty space above
-    backgroundColor: 'white', // Fondo blanco puro
+    width: 300,
+    maxHeight: '70%',
+    minHeight: 260,
+    backgroundColor: 'white',
     borderRadius: 16,
-    // Sombra fuerte para que se note que está sobre el 3D
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.25,
     shadowRadius: 10,
     elevation: 10,
-    overflow: 'hidden', // Mantiene esquinas redondeadas mientras se hace scroll interno
-    // Sin margen extra; el posicionamiento lo maneja View3dOverlay.middleColumn
-    // El espacio inferior para la barra principal se maneja en View3dOverlay.middleColumn
+    overflow: 'hidden',
   },
   scroll: {
     paddingHorizontal: 24,

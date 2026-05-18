@@ -1,84 +1,81 @@
 import React from 'react';
 import { generateUUID } from 'three/src/math/MathUtils.js';
-import { FurnitureInstance } from './remote3dModel';
+import { DesignObject3D } from './remote3dModel';
 import { Room3dProps } from './Room3d';
+import { ObjectProperties } from '../../../services/api';
 
-export interface FurnitureInstanceProps {
-    id: string;
-    type: FurnitureProps;
-    name: string;
-    position: [number, number, number];
-    rotation: number;
-    dimensions: [number, number, number];
-    color: string;
-}
-
-export enum FurnitureType {
-    Counter = "Counter",
-    Cupboard = "Cupboard",
-}
-
-export interface FurnitureProps {
+export interface ObjectTemplate {
     id: string;
     name: string;
-    type: FurnitureType;
     modelUrl: string;
     width: number;
     height: number;
     depth: number;
     variantOf?: string;
     categoryId?: string;
+    objectProperties?: ObjectProperties;
 }
 
-export function NewFurnitureInstance(type: FurnitureProps, position?: [number, number, number]): FurnitureInstanceProps {
+export interface DesignObject {
+    id: string;
+    name: string;
+    position: [number, number, number];
+    rotation: number;
+    dimensions: [number, number, number];
+    color: string;
+    modelUrl: string;
+    objectProperties?: ObjectProperties;
+}
+
+export function createDesignObject(template: ObjectTemplate, position?: [number, number, number]): DesignObject {
     return {
         id: generateUUID(),
-        type: type,
-        name: type.name,
-        position: position ? position : [0, 0, 0],
+        name: template.name,
+        position: position ?? [0, 0, 0],
         rotation: 0,
-        dimensions: [type.width, type.height, type.depth],
+        dimensions: [template.width, template.height, template.depth],
         color: getRandomColor(),
+        modelUrl: template.modelUrl,
+        objectProperties: template.objectProperties,
     };
 }
 
-
-export var furnitureModels: FurnitureProps[] = [
-    { 
-        id: generateUUID(), 
-        type: FurnitureType.Counter, 
+export let objectTemplates: ObjectTemplate[] = [
+    {
+        id: generateUUID(),
         name: "Counter60",
-        modelUrl: "https://firebasestorage.googleapis.com/v0/b/designer-models.firebasestorage.app/o/bajo60con2puertas.glb?alt=media&token=b0cfe920-1841-43dd-aa60-d05afa483417", 
-        width: .6, 
-        height: .9, 
-        depth: .6 
+        modelUrl: "https://firebasestorage.googleapis.com/v0/b/designer-models.firebasestorage.app/o/bajo60con2puertas.glb?alt=media&token=b0cfe920-1841-43dd-aa60-d05afa483417",
+        width: .6,
+        height: .9,
+        depth: .6,
+        objectProperties: { movingBehaviour: 'counter' }
     },
-    { 
-        id: generateUUID(), 
-        type: FurnitureType.Counter, 
+    {
+        id: generateUUID(),
         name: "Counter60tallplinth",
-        modelUrl: "https://firebasestorage.googleapis.com/v0/b/designer-models.firebasestorage.app/o/bajo60con2puertasZocalon.glb?alt=media&token=6ace8545-e3a5-4a8f-8b7b-51510dead445", 
-        width: .6, 
-        height: .9, 
-        depth: .6 
+        modelUrl: "https://firebasestorage.googleapis.com/v0/b/designer-models.firebasestorage.app/o/bajo60con2puertasZocalon.glb?alt=media&token=6ace8545-e3a5-4a8f-8b7b-51510dead445",
+        width: .6,
+        height: .9,
+        depth: .6,
+        objectProperties: { movingBehaviour: 'counter' }
     },
-    { 
-        id: generateUUID(), 
-        type: FurnitureType.Cupboard, 
+    {
+        id: generateUUID(),
         name: "Cupboard60hdoors",
-        modelUrl: "https://firebasestorage.googleapis.com/v0/b/designer-models.firebasestorage.app/o/alacena60con2puertas.glb?alt=media&token=573dfc44-90d6-4fb8-9389-6be1500c9dbd", 
-        width: .6, 
-        height: .6, 
-        depth: .3 
+        modelUrl: "https://firebasestorage.googleapis.com/v0/b/designer-models.firebasestorage.app/o/alacena60con2puertas.glb?alt=media&token=573dfc44-90d6-4fb8-9389-6be1500c9dbd",
+        width: .6,
+        height: .6,
+        depth: .3,
+        objectProperties: { movingBehaviour: 'cupboard', height: 1.6 }
     },
-    { 
-        id: generateUUID(), 
-        type: FurnitureType.Cupboard, 
+    {
+        id: generateUUID(),
         name: "Cupboard60vdoors",
-        modelUrl: "https://firebasestorage.googleapis.com/v0/b/designer-models.firebasestorage.app/o/alacena60con2puertasLevadizas.glb?alt=media&token=9d18bf97-138a-48cb-bc24-4e424fc33a6c", 
-        width: .6, 
-        height: .6, 
-        depth: .3
+        modelUrl: "https://firebasestorage.googleapis.com/v0/b/designer-models.firebasestorage.app/o/alacena60con2puertasLevadizas.glb?alt=media&token=9d18bf97-138a-48cb-bc24-4e424fc33a6c",
+        width: .6,
+        height: .6,
+        depth: .3,
+        objectProperties: { movingBehaviour: 'cupboard', height: 1.6 }
     }
 ];
 
@@ -90,8 +87,7 @@ function getRandomColor() {
     return "#ffffff";
 }
 
-
-export default function FurnitureInstantiator({
+export default function DesignObjectsRenderer({
   objects,
   origin,
   onObjectInteraction,
@@ -103,32 +99,32 @@ export default function FurnitureInstantiator({
   allObjects,
   onDragStateChange
 }: {
-  objects: FurnitureInstanceProps[],
+  objects: DesignObject[],
   origin: [number, number, number],
-  onObjectInteraction: (object: FurnitureInstanceProps) => void,
+  onObjectInteraction: (object: DesignObject) => void,
   onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number], rotation?: number }) => void,
   onObjectDeleted?: (id: string) => void,
   movingObjectId?: string,
   room3d: Room3dProps,
   magnetEnabled: boolean,
-  allObjects: FurnitureInstanceProps[],
+  allObjects: DesignObject[],
   onDragStateChange?: (isDragging: boolean) => void
 }) {
 
     return (
         <>
             {objects.map((obj) => {
-                let currentPosition : [number, number, number] = obj.position; 
-                
+                let currentPosition : [number, number, number] = obj.position;
+
                 return (
-                        <FurnitureInstance
+                        <DesignObject3D
                             key={obj.id}
                             obj={obj}
                             onObjectInteraction={onObjectInteraction}
                             position={currentPosition}
                             origin={origin}
                             dimensions={obj.dimensions}
-                            modelUrl={obj.type.modelUrl}
+                            modelUrl={obj.modelUrl}
                             modelScale={0.01}
                             rotation={obj.rotation}
                             isSelected={obj.id === movingObjectId}

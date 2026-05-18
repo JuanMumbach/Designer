@@ -2,19 +2,15 @@ import { OrbitControls } from '@react-three/drei/native';
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import React, { useRef, useState } from 'react';
 import * as THREE from 'three';
-import FurnitureInstantiator, { FurnitureInstanceProps } from "./3dView/DesignObjects";
+import DesignObjectsRenderer, { DesignObject } from "./3dView/DesignObjects";
 import Room3d, { Room3dProps, RoomOrigin } from "./3dView/Room3d";
 
 const cameraControlsProps = {
     mouseButtons: {
-      //LEFT: THREE.MOUSE.ROTATE,    
-      MIDDLE: THREE.MOUSE.ROTATE,  
-      //RIGHT: THREE.MOUSE.PAN       
+      MIDDLE: THREE.MOUSE.ROTATE,
     },
     touches: {
-      ONE: THREE.TOUCH.ROTATE,    
-      //TWO: THREE.TOUCH.DOLLY,
-      //THREE: THREE.TOUCH.PAN
+      ONE: THREE.TOUCH.ROTATE,
     },
     enableDamping: false,
     minAzimuthAngle: -Math.PI / 4,
@@ -26,7 +22,6 @@ const cameraControlsProps = {
 
 function CameraController({room3d}: {room3d : Room3dProps}) {
   const { camera } = useThree();
-
 
   useFrame(() => {
     camera.lookAt(0, 1.5, room3d.depth / 2);
@@ -40,16 +35,9 @@ const handleBoxClick = () => {
     console.log("Box clicked!");
   }
 
-
-export const defaultCounterObjects: FurnitureInstanceProps[] = [];
-export const defaultCupboardObjects: FurnitureInstanceProps[] = [];
-export const cupboardLineHeight : number = 1.5;
-
-
 export default function Design3dView({
   room3d,
-  counterObjects,
-  cupboardObjects,
+  designObjects,
   onObjectInteraction,
   onObjectEdited,
   onObjectDeleted,
@@ -59,44 +47,32 @@ export default function Design3dView({
   onDragStateChange}:
   {
   room3d: Room3dProps,
-  counterObjects: FurnitureInstanceProps[],
-  cupboardObjects: FurnitureInstanceProps[],
-  onObjectInteraction: (object: FurnitureInstanceProps) => void,
+  designObjects: DesignObject[],
+  onObjectInteraction: (object: DesignObject) => void,
   onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number], rotation?: number }) => void,
   onObjectDeleted?: (id: string) => void,
-  movingObject?: FurnitureInstanceProps,
-  setMovingObject?: (object?: FurnitureInstanceProps) => void,
+  movingObject?: DesignObject,
+  setMovingObject?: (object?: DesignObject) => void,
   magnetEnabled: boolean,
   onDragStateChange?: (isDragging: boolean) => void
 })
 {
-  const isDraggingCounter = useRef(0);
-  const isDraggingCounterboard = useRef(0);
+  const isDragging = useRef(0);
   const [, forceUpdate] = useState(0);
 
-  const handleDragStateChange = (which: 'counter' | 'cupboard', isDragging: boolean) => {
-    if (which === 'counter') {
-      isDraggingCounter.current += isDragging ? 1 : -1;
-    } else {
-      isDraggingCounterboard.current += isDragging ? 1 : -1;
-    }
-    const isAnyDragging = isDraggingCounter.current > 0 || isDraggingCounterboard.current > 0;
-    if (onDragStateChange) onDragStateChange(isAnyDragging);
+  const handleDragStateChange = (dragging: boolean) => {
+    isDragging.current += dragging ? 1 : -1;
+    if (onDragStateChange) onDragStateChange(isDragging.current > 0);
     forceUpdate(n => n + 1);
   };
 
-  const cupboardOrigin : [number, number, number] = [RoomOrigin({room3d})[0], RoomOrigin({room3d})[1] + cupboardLineHeight, RoomOrigin({room3d})[2]];
-
-
-  console.log("Design3dView render, myDesignObjects:", counterObjects);
+  console.log("Design3dView render, designObjects:", designObjects);
   let roomOrigin = RoomOrigin({room3d});
-  let rightCorner : [number, number, number] = [roomOrigin[0] + room3d.width, roomOrigin[1], roomOrigin[2]];
-  const allObjects = [...counterObjects, ...cupboardObjects];
   return (
-    <Canvas 
-    shadows 
-    style={{ background: "darkgray" }} 
-    camera={{ position: [0, 3, 3] }} 
+    <Canvas
+    shadows
+    style={{ background: "darkgray" }}
+    camera={{ position: [0, 3, 3] }}
     onPointerMissed={() => {
         console.log("Canvas clicked. Deselecting objects.");
         if (setMovingObject) setMovingObject(undefined);
@@ -106,8 +82,8 @@ export default function Design3dView({
         <ambientLight intensity={.25}/>
         <pointLight castShadow position={[0, 3, room3d.depth*.75]} intensity={(room3d.depth*room3d.width)*2} />
         <Room3d {...room3d}/>
-        <FurnitureInstantiator
-            objects={counterObjects}
+        <DesignObjectsRenderer
+            objects={designObjects}
             origin={roomOrigin}
             onObjectInteraction={onObjectInteraction}
             onObjectEdited={onObjectEdited}
@@ -115,22 +91,10 @@ export default function Design3dView({
             movingObjectId={movingObject?.id}
             room3d={room3d}
             magnetEnabled={magnetEnabled}
-            allObjects={allObjects}
-            onDragStateChange={(isDragging) => handleDragStateChange('counter', isDragging)}
+            allObjects={designObjects}
+            onDragStateChange={handleDragStateChange}
         />
-        <FurnitureInstantiator
-            objects={cupboardObjects}
-            origin={roomOrigin}
-            onObjectInteraction={onObjectInteraction}
-            onObjectEdited={onObjectEdited}
-            onObjectDeleted={onObjectDeleted}
-            movingObjectId={movingObject?.id}
-            room3d={room3d}
-            magnetEnabled={magnetEnabled}
-            allObjects={allObjects}
-            onDragStateChange={(isDragging) => handleDragStateChange('cupboard', isDragging)}
-        />
-        <OrbitControls {...cameraControlsProps} enabled={isDraggingCounter.current === 0 && isDraggingCounterboard.current === 0} />
+        <OrbitControls {...cameraControlsProps} enabled={isDragging.current === 0} />
         <fog attach="fog" args={["darkgray", 5, 20]} />
     </Canvas>
   );

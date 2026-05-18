@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import Button from "../../Button";
-import { FurnitureProps } from "../3dView/DesignObjects";
+import { ObjectTemplate } from "../3dView/DesignObjects";
 import { ObjectCategory } from "../../../services/api";
 
 interface CategoryBrowserProps {
-  furnitureModels: FurnitureProps[];
+  objectTemplates: ObjectTemplate[];
   categories: ObjectCategory[];
-  addObjectAction: (objectType: FurnitureProps) => void;
+  addObjectAction: (objectType: ObjectTemplate) => void;
 }
 
 interface CategoryItemProps {
@@ -25,7 +25,7 @@ function CategoryItem({ category, onPress }: CategoryItemProps) {
 }
 
 interface ObjectItemProps {
-  object: FurnitureProps;
+  object: ObjectTemplate;
   onSelect: () => void;
 }
 
@@ -61,7 +61,7 @@ function getBreadcrumbPath(
 }
 
 export default function CategoryBrowser({
-  furnitureModels,
+  objectTemplates,
   categories,
   addObjectAction,
 }: CategoryBrowserProps) {
@@ -72,10 +72,10 @@ export default function CategoryBrowser({
   const currentSubcategories = categories.filter(
     c => c.parentCategoryId === currentCategoryId
   );
-  const objectsInCurrentCategory = furnitureModels.filter(
+  const objectsInCurrentCategory = objectTemplates.filter(
     m => m.categoryId === currentCategoryId
   );
-  const uncategorizedObjects = furnitureModels.filter(m => !m.categoryId);
+  const uncategorizedObjects = objectTemplates.filter(m => !m.categoryId);
 
   const handleCategoryPress = (category: ObjectCategory) => {
     setCategoryStack(prev => [...prev, category.id]);
@@ -105,14 +105,14 @@ export default function CategoryBrowser({
           <Text style={styles.breadcrumb}>Root</Text>
         </View>
         <ScrollView style={styles.scrollView}>
-          {furnitureModels.map(obj => (
+          {objectTemplates.map(obj => (
             <ObjectItem
               key={obj.id}
               object={obj}
               onSelect={() => addObjectAction(obj)}
             />
           ))}
-          {furnitureModels.length === 0 && (
+          {objectTemplates.length === 0 && (
             <Text style={styles.emptyText}>No furniture models available.</Text>
           )}
         </ScrollView>

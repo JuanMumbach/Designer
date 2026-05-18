@@ -1,10 +1,10 @@
 import Button from "@/components/Button";
 import { useEffect, useState } from "react";
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { FurnitureInstanceProps } from "../3dView/DesignObjects";
+import { DesignObject } from "../3dView/DesignObjects";
 
 export default function EditFurnitureInstanceMenu({object, onEditComplete, onDelete} : {
-        object : FurnitureInstanceProps, 
+        object : DesignObject,
         onEditComplete : (id: string, updates: { name: string, position: [number, number, number] }) => void,
         onDelete? : (id: string) => void,
     }){
@@ -13,10 +13,10 @@ export default function EditFurnitureInstanceMenu({object, onEditComplete, onDel
     const [positionX, onChangePositionX] = useState(object.position?.[0] ?? 0);
     const [positionY, onChangePositionY] = useState(object.position?.[1] ?? 0);
     const [positionZ, onChangePositionZ] = useState(object.position?.[2] ?? 0);
-    
+
     const handleSave = () => {
-        onEditComplete(object.id, { 
-            name: name, 
+        onEditComplete(object.id, {
+            name: name,
             position: [positionX, positionY, positionZ]
         });
     };
@@ -27,19 +27,19 @@ export default function EditFurnitureInstanceMenu({object, onEditComplete, onDel
         onChangePositionY(object.position?.[1] ?? 0);
         onChangePositionZ(object.position?.[2] ?? 0);
       }, [object]);
-    
+
     const handlePositionXChange = (text: string) => {
-        var aNumber : number = parseFloat(text);
+        let aNumber : number = parseFloat(text);
         if (!isNaN(aNumber)) onChangePositionX(aNumber);
     };
 
     const handlePositionYChange = (text: string) => {
-        var aNumber : number = parseFloat(text);
+        let aNumber : number = parseFloat(text);
         if (!isNaN(aNumber)) onChangePositionY(aNumber);
     };
 
     const handlePositionZChange = (text: string) => {
-        var aNumber : number = parseFloat(text);
+        let aNumber : number = parseFloat(text);
         if (!isNaN(aNumber)) onChangePositionZ(aNumber);
     };
 
@@ -65,7 +65,7 @@ export default function EditFurnitureInstanceMenu({object, onEditComplete, onDel
         contentContainerStyle={styles.scrollContent}
       >
         <TextInput style={styles.input} onChangeText={onChangeName} value={name} placeholder={object.name} />
-        <Text>Type: {object.type.name}</Text>
+        <Text>Type: {object.name}</Text>
         <Text style={styles.label}>Position X</Text>
               <TextInput style={styles.input}
                 onChangeText={handlePositionXChange}

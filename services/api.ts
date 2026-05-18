@@ -18,6 +18,10 @@ export interface ObjectCategory {
   parentCategoryId: string | null;
   parentCategory: unknown | null;
 }
+export interface ObjectProperties {
+  movingBehaviour?: 'counter' | 'cupboard' | 'free';
+  height?: number;
+}
 
 export interface ObjectVersion {
   objectId: string;
@@ -29,6 +33,7 @@ export interface ObjectVersion {
   sizeZ: number;
   creatorId: string;
   creator: unknown | null;
+  objectProperties?: ObjectProperties;
 }
 
 export async function fetchAllObjectModels(): Promise<ObjectModel[]> {

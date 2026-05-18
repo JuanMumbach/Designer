@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Dimensions, ScaledSize, StyleSheet, View } from "react-native";
 import Button from "../Button";
-import { FurnitureInstanceProps, FurnitureProps } from "./3dView/DesignObjects";
+import { DesignObject, ObjectTemplate } from "./3dView/DesignObjects";
 import { Room3dProps } from "./3dView/Room3d";
 import AddFurnitureInstanceMenu from "./3dViewOverlay/AddFurnitureInstanceMenu";
 import CategoryBrowser from "./3dViewOverlay/CategoryBrowser";
@@ -13,16 +13,16 @@ import { ObjectCategory } from "../../services/api";
 const debugColors = false;
 
 interface View3dOverlayProps {
-  furnitureModels: FurnitureProps[];
+  objectTemplates: ObjectTemplate[];
   categories: ObjectCategory[];
-  designObjects: FurnitureInstanceProps[];
+  designObjects: DesignObject[];
   room3dProps: Room3dProps;
   setRoom3d: React.Dispatch<React.SetStateAction<Room3dProps>>;
-  onObjectAdded: (newObject: FurnitureInstanceProps) => void;
+  onObjectAdded: (newObject: DesignObject) => void;
   onObjectEdited: (id: string, updates: { name: string, position: [number, number, number], rotation?: number }) => void;
   onObjectDeleted: (id: string) => void;
-  movingObject?: FurnitureInstanceProps;
-  setMovingObject: (object?: FurnitureInstanceProps) => void;
+  movingObject?: DesignObject;
+  setMovingObject: (object?: DesignObject) => void;
   magnetEnabled: boolean;
   setMagnetEnabled: React.Dispatch<React.SetStateAction<boolean>>;
 }
@@ -47,46 +47,46 @@ function useWindowDimensions() {
 
 
 
-export default function View3dOverlay({ furnitureModels, categories, designObjects, room3dProps, setRoom3d , onObjectAdded, onObjectEdited, onObjectDeleted, movingObject, setMovingObject, magnetEnabled, setMagnetEnabled} : View3dOverlayProps) {
+export default function View3dOverlay({ objectTemplates, categories, designObjects, room3dProps, setRoom3d , onObjectAdded, onObjectEdited, onObjectDeleted, movingObject, setMovingObject, magnetEnabled, setMagnetEnabled} : View3dOverlayProps) {
 
   const { width } = useWindowDimensions();
   const [isObjectsManagerVisible, setIsObjectsManagerVisible] = useState(false);
   const [isListInstantiableObjectsVisible, setIsListInstantiableObjectsVisible] = useState(false);
   const [isRoomSettingsVisible, setIsRoomSettingsVisible] = useState(false);
   const [isAddObjectMenuVisible, setIsAddObjectMenuVisible] = useState(false);
-  
-  const [newObjectTypeState, setNewObjectTypeState] = useState<FurnitureProps | undefined>(undefined);
+
+  const [newObjectTypeState, setNewObjectTypeState] = useState<ObjectTemplate | undefined>(undefined);
 
   useEffect(() => {
-    if (furnitureModels.length > 0 && !newObjectTypeState) {
-      setNewObjectTypeState(furnitureModels[0]);
+    if (objectTemplates.length > 0 && !newObjectTypeState) {
+      setNewObjectTypeState(objectTemplates[0]);
     }
-  }, [furnitureModels, newObjectTypeState]);
-  
-  const [isEditObjectMenuVisible, setIsEditObjectMenuVisible] = useState(false);
-  const [selectedObjectState, setSelectedObjectState] = useState<FurnitureInstanceProps | undefined>(undefined);
+  }, [objectTemplates, newObjectTypeState]);
 
-  const showAddObjectMenu = (objectType: FurnitureProps) => {
-    setIsEditObjectMenuVisible(false); 
+  const [isEditObjectMenuVisible, setIsEditObjectMenuVisible] = useState(false);
+  const [selectedObjectState, setSelectedObjectState] = useState<DesignObject | undefined>(undefined);
+
+  const showAddObjectMenu = (objectType: ObjectTemplate) => {
+    setIsEditObjectMenuVisible(false);
     setIsObjectsManagerVisible(false);
-    setIsListInstantiableObjectsVisible(false); 
-    setNewObjectTypeState(objectType); 
-    setIsAddObjectMenuVisible(true); 
+    setIsListInstantiableObjectsVisible(false);
+    setNewObjectTypeState(objectType);
+    setIsAddObjectMenuVisible(true);
   }
-  
-  const handleEditObject = (object: FurnitureInstanceProps) => {
+
+  const handleEditObject = (object: DesignObject) => {
     setIsAddObjectMenuVisible(false);
     setIsListInstantiableObjectsVisible(false);
     setIsRoomSettingsVisible(false);
-    setIsObjectsManagerVisible(false); // Ocultar el ObjectsManager al abrir el editor
-    
+    setIsObjectsManagerVisible(false);
+
     setSelectedObjectState(object);
     setIsEditObjectMenuVisible(true);
   };
 
   const closeEditMenu = () => {
       setIsEditObjectMenuVisible(false);
-      setSelectedObjectState(undefined); // Limpiar el objeto seleccionado
+      setSelectedObjectState(undefined);
   };
 
   const handleObjectEditAndClose = (id: string, updates: { name: string, position: [number, number, number] }) => {
@@ -105,7 +105,6 @@ export default function View3dOverlay({ furnitureModels, categories, designObjec
     }
   };
 
-  //wrappers functions for opening/closing menus
   const toggleRoomSettings = () => {
     const newState = !isRoomSettingsVisible;
     setIsRoomSettingsVisible(newState);
@@ -156,10 +155,10 @@ export default function View3dOverlay({ furnitureModels, categories, designObjec
             <Button label="Edit Room" onPress={() => toggleRoomSettings()} />
           </View>
         )}
-      
+
       {/*-------------------------------------Columna central------------------------------------------*/}
       <View style={[styles.middleColumn, { backgroundColor: debugColors ? 'rgba(4, 0, 255, 0.25)' : 'transparent' }]}>
-        
+
         {/*Area de contenido para modales o espacio libre */}
         <View style={[styles.modalArea, { backgroundColor: debugColors ? 'rgba(255, 165, 0, 0.25)' : 'transparent' }]}>
           {/*Renderizar menus laterales en el centro si es mobile*/}
@@ -177,7 +176,7 @@ export default function View3dOverlay({ furnitureModels, categories, designObjec
               ) ||
               (
                 isListInstantiableObjectsVisible && (
-                  <CategoryBrowser furnitureModels={furnitureModels} categories={categories} addObjectAction={showAddObjectMenu} />
+                  <CategoryBrowser objectTemplates={objectTemplates} categories={categories} addObjectAction={showAddObjectMenu} />
                 )
               ) ||
               (
@@ -185,8 +184,8 @@ export default function View3dOverlay({ furnitureModels, categories, designObjec
               ) ||
               (
                   isEditObjectMenuVisible && selectedObjectState && (
-                      <EditFurnitureInstanceMenu 
-                          object={selectedObjectState} 
+                      <EditFurnitureInstanceMenu
+                          object={selectedObjectState}
                           onEditComplete={handleObjectEditAndClose}
                           onDelete={handleObjectDeleteAndClose}
                       />
@@ -198,14 +197,14 @@ export default function View3dOverlay({ furnitureModels, categories, designObjec
           {/*------------------------Renderiza menus centrales version Desktop-----------------------------*/}
           {((width > 768) &&
           (
-            (isListInstantiableObjectsVisible && (<CategoryBrowser furnitureModels={furnitureModels} categories={categories} addObjectAction={showAddObjectMenu} />))
+            (isListInstantiableObjectsVisible && (<CategoryBrowser objectTemplates={objectTemplates} categories={categories} addObjectAction={showAddObjectMenu} />))
             ||
             (isAddObjectMenuVisible && newObjectTypeState && (<AddFurnitureInstanceMenu newObjectType={newObjectTypeState} onObjectAdded={onObjectAdded} closeMenu={() => setIsAddObjectMenuVisible(false)}/>))
           ) ||
           (
               isEditObjectMenuVisible && selectedObjectState && (
-                  <EditFurnitureInstanceMenu 
-                      object={selectedObjectState} 
+                  <EditFurnitureInstanceMenu
+                      object={selectedObjectState}
                       onEditComplete={handleObjectEditAndClose}
                       onDelete={handleObjectDeleteAndClose}
                   />
@@ -232,7 +231,7 @@ export default function View3dOverlay({ furnitureModels, categories, designObjec
           </View>
         }
       </View>
-      
+
       {/*---------------------------------Menu lateral (Solo desktop)-------------------------------------*/}
       {(width > 768) &&
         (

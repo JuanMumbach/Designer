@@ -4,8 +4,9 @@ import * as FileSystem from 'expo-file-system';
 import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { Alert, Platform } from 'react-native';
 import * as THREE from 'three';
-import { FurnitureInstanceProps } from './DesignObjects';
+import { DesignObject } from './DesignObjects';
 import { Room3dProps } from './Room3d';
+import { MoveContext, computeDragMove } from './moveBehaviours';
 
 let globalIsDragging = false;
 
@@ -56,26 +57,25 @@ export function useDownload3dModel(remoteUrl: string, assetName: string = 'asset
     return { localUri: assetUri, isLoading, error };
 }
 
-export function FurnitureInstance({
+export function DesignObject3D({
     obj, position, origin, dimensions, modelScale, rotation, onObjectInteraction, isSelected, onObjectEdited, onObjectDeleted, room3d, magnetEnabled, allObjects, onDragStateChange
 }: {
-    obj: FurnitureInstanceProps,
+    obj: DesignObject,
     position: [number, number, number],
     origin: [number, number, number],
     dimensions: [number, number, number],
     modelScale?: number,
-    modelUrl: string,
     rotation?: number,
-    onObjectInteraction: (object: FurnitureInstanceProps) => void,
+    onObjectInteraction: (object: DesignObject) => void,
     isSelected?: boolean,
     onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number], rotation?: number }) => void,
     onObjectDeleted?: (id: string) => void,
     room3d: Room3dProps,
     magnetEnabled: boolean,
-    allObjects: FurnitureInstanceProps[],
+    allObjects: DesignObject[],
     onDragStateChange?: (isDragging: boolean) => void
 }) {
-    const url = obj.type.modelUrl;
+    const url = obj.modelUrl;
     const { localUri, isLoading, error } = useDownload3dModel(url, obj.id);
     const [isDesktop, setIsDesktop] = useState(false);
 
@@ -95,7 +95,7 @@ export function FurnitureInstance({
             if (!/Mobi|Android/i.test(navigator.userAgent)) {
                 setIsDesktop(true);
             }
-            
+
             const handleGlobalMouseUp = () => {
                 if (isDragging) {setIsDragging(false);globalIsDragging = false;}
             };
@@ -179,188 +179,33 @@ export function FurnitureInstance({
         if (!onObjectEdited) return;
 
         const delta = e.point.clone().sub(dragStartPoint.current);
+        const mouseX = e.point.x - origin[0];
+        const mouseZ = e.point.z - origin[2];
 
-        const MARGIN = 1;
-        const EPSILON = 0.1;
-        let angle = obj.rotation || 0;
+        const ctx: MoveContext = {
+            objectId: obj.id,
+            origin,
+            initialPosition: [...initialPosition.current],
+            objectRotation: rotation || 0,
+            objectDimensions: dimensions,
+            objectProperties: obj.objectProperties,
+            room3d,
+            magnetEnabled,
+            allObjects,
+        };
 
-        let targetX = initialPosition.current[0] + delta.x;
-        let targetZ = initialPosition.current[2] + delta.z;
+        const result = computeDragMove(ctx, delta.x, delta.z, mouseX, mouseZ);
 
-        // Se usa la posición absoluta para el chequeo de colisiones con los márgenes
-        let mouseX = e.point.x - origin[0];
-        let mouseZ = e.point.z - origin[2];
-
-        let newX = position[0];
-        let newZ = position[2];
-        let newRot = rotation || 0;
-
-        let halfWidth = dimensions[0] / 2;
-
-        // Si está en la pared principal
-        if (Math.abs(angle) < EPSILON) {
-            if (room3d.leftWall && targetX < -MARGIN) {
-                newRot = Math.PI / 2;
-                newX = 0; // CORREGIDO: Mantiene el mueble pegado a la pared sin atravesarla
-                newZ = Math.max(dimensions[0], Math.min(room3d.depth, mouseZ + halfWidth));
-
-                dragStartPoint.current.copy(e.point);
-                initialPosition.current = [newX, initialPosition.current[1], newZ];
-            }
-            else if (room3d.rightWall && targetX > room3d.width - dimensions[0] + MARGIN) {
-                newRot = -Math.PI / 2;
-                newX = room3d.width;
-                newZ = Math.max(0, Math.min(room3d.depth - dimensions[0], mouseZ - halfWidth));
-
-                dragStartPoint.current.copy(e.point);
-                initialPosition.current = [newX, initialPosition.current[1], newZ];
-            } else {
-                newX = Math.max(0, Math.min(room3d.width - dimensions[0], targetX));
-                newZ = 0;
-            }
-
-        // Si está en la pared izquierda
-        } else if (Math.abs(angle - Math.PI / 2) < EPSILON) {
-            // CORREGIDO: La transición vuelve a la pared central cuando Z se acerca a la esquina
-            if (targetZ < dimensions[0] - MARGIN) {
-                newRot = 0;
-                newX = 0;
-                newZ = 0;
-
-                dragStartPoint.current.copy(e.point);
-                initialPosition.current = [newX, initialPosition.current[1], newZ];
-            } else {
-                // CORREGIDO: El límite mínimo de Z ahora es el ancho del mueble para que no sobresalga del origen
-                newZ = Math.max(dimensions[0], Math.min(room3d.depth, targetZ));
-                newX = 0; 
-            }
-            
-        // Si está en la pared derecha
-        } else if (Math.abs(angle + Math.PI / 2) < EPSILON) {
-            if (targetZ < -MARGIN) {
-                newRot = 0;
-                newX = room3d.width - dimensions[0];
-                newZ = 0;
-
-                dragStartPoint.current.copy(e.point);
-                initialPosition.current = [newX, initialPosition.current[1], newZ];
-            } else {
-                newZ = Math.max(0, Math.min(room3d.depth - dimensions[0], targetZ));
-                newX = room3d.width; 
-            }
+        if (result.resetDragPoint) {
+            dragStartPoint.current.copy(e.point);
+            initialPosition.current = [result.newX, result.newY, result.newZ];
         }
 
-        // Magnet snap logic
-        if (magnetEnabled && allObjects.length > 1) {
-            const MAGNET_THRESHOLD = 0.10; // 10cm snap distance
-            const currentAngle = newRot;
-            const EPSILON_MAG = 0.1;
-
-            // Filter other objects with the same rotation (same wall)
-            const candidates = allObjects.filter(other => {
-                if (other.id === obj.id) return false;
-                const otherAngle = other.rotation || 0;
-                return Math.abs(otherAngle - currentAngle) < EPSILON_MAG;
-            });
-
-            if (candidates.length > 0) {
-                // Front wall: snap on X axis
-                if (Math.abs(currentAngle) < EPSILON_MAG) {
-                    const draggedLeft = newX;
-                    const draggedRight = newX + dimensions[0];
-
-                    let bestSnap: number | null = null;
-                    let bestDist = MAGNET_THRESHOLD;
-
-                    for (const other of candidates) {
-                        const otherLeft = other.position[0];
-                        const otherRight = other.position[0] + other.dimensions[0];
-
-                        // Dragged right edge near other's left edge
-                        let dist = Math.abs(draggedRight - otherLeft);
-                        if (dist < bestDist) {
-                            bestDist = dist;
-                            bestSnap = otherLeft - dimensions[0];
-                        }
-
-                        // Dragged left edge near other's right edge
-                        dist = Math.abs(draggedLeft - otherRight);
-                        if (dist < bestDist) {
-                            bestDist = dist;
-                            bestSnap = otherRight;
-                        }
-                    }
-
-                    if (bestSnap !== null) {
-                        newX = Math.max(0, Math.min(room3d.width - dimensions[0], bestSnap));
-                    }
-                }
-                // Left wall (rotation ≈ π/2): snap on Z axis
-                else if (Math.abs(currentAngle - Math.PI / 2) < EPSILON_MAG) {
-                    const draggedFront = newZ;
-                    const draggedBack = newZ + dimensions[0];
-
-                    let bestSnap: number | null = null;
-                    let bestDist = MAGNET_THRESHOLD;
-
-                    for (const other of candidates) {
-                        const otherFront = other.position[2];
-                        const otherBack = other.position[2] + other.dimensions[0];
-
-                        // Dragged back edge near other's front edge
-                        let dist = Math.abs(draggedBack - otherFront);
-                        if (dist < bestDist) {
-                            bestDist = dist;
-                            bestSnap = otherFront - dimensions[0];
-                        }
-
-                        // Dragged front edge near other's back edge
-                        dist = Math.abs(draggedFront - otherBack);
-                        if (dist < bestDist) {
-                            bestDist = dist;
-                            bestSnap = otherBack;
-                        }
-                    }
-
-                    if (bestSnap !== null) {
-                        newZ = Math.max(dimensions[0], Math.min(room3d.depth, bestSnap));
-                    }
-                }
-                // Right wall (rotation ≈ -π/2): snap on Z axis
-                else if (Math.abs(currentAngle + Math.PI / 2) < EPSILON_MAG) {
-                    const draggedFront = newZ;
-                    const draggedBack = newZ + dimensions[0];
-
-                    let bestSnap: number | null = null;
-                    let bestDist = MAGNET_THRESHOLD;
-
-                    for (const other of candidates) {
-                        const otherFront = other.position[2];
-                        const otherBack = other.position[2] + other.dimensions[0];
-
-                        // Dragged back edge near other's front edge
-                        let dist = Math.abs(draggedBack - otherFront);
-                        if (dist < bestDist) {
-                            bestDist = dist;
-                            bestSnap = otherFront - dimensions[0];
-                        }
-
-                        // Dragged front edge near other's back edge
-                        dist = Math.abs(draggedFront - otherBack);
-                        if (dist < bestDist) {
-                            bestDist = dist;
-                            bestSnap = otherBack;
-                        }
-                    }
-
-                    if (bestSnap !== null) {
-                        newZ = Math.max(0, Math.min(room3d.depth - dimensions[0], bestSnap));
-                    }
-                }
-            }
-        }
-
-        onObjectEdited(obj.id, { name: obj.name, position: [newX, initialPosition.current[1], newZ], rotation: newRot });
+        onObjectEdited(obj.id, {
+            name: obj.name,
+            position: [result.newX, result.newY, result.newZ],
+            rotation: result.newRot,
+        });
     };
 
     if (isLoading) {
@@ -379,17 +224,28 @@ export function FurnitureInstance({
         );
     }
 
-    const spritePosition: [number, number, number] = [
-        boxPosition[0],
-        origin[1] - dimensions[2] / 2 - 0.1,
-        boxPosition[2] + dimensions[2] / 2 + 0.1
-    ];
-
     const currentAngle = rotation || 0;
+    const movingBehaviour = obj.objectProperties?.movingBehaviour;
+    const isFreeMode = movingBehaviour !== 'counter' && movingBehaviour !== 'cupboard';
 
-    // Matemática para rotar el desplazamiento del centro del plano invisible
     const planeOffsetX = (dimensions[0] / 2) * Math.cos(currentAngle) + (dimensions[2] / 2) * Math.sin(currentAngle);
     const planeOffsetZ = -(dimensions[0] / 2) * Math.sin(currentAngle) + (dimensions[2] / 2) * Math.cos(currentAngle);
+
+    const meshRotation: [number, number, number] = isFreeMode
+        ? [-Math.PI / 2, 0, 0]
+        : [0, currentAngle, 0];
+
+    const meshPosition: [number, number, number] = isFreeMode
+        ? [
+              origin[0] + initialPosition.current[0] + dimensions[0] / 2,
+              origin[1],
+              origin[2] + initialPosition.current[2] + dimensions[2] / 2
+          ]
+        : [
+              origin[0] + initialPosition.current[0] + planeOffsetX,
+              origin[1],
+              origin[2] + initialPosition.current[2] + planeOffsetZ
+          ];
 
     return (
         <group>
@@ -399,7 +255,6 @@ export function FurnitureInstance({
                         src={localUri}
                         rotation={[0, -Math.PI / 2, 0]}
                         scale={modelScale || 1}
-                        // Si CUALQUIER objeto se está moviendo, este objeto deja pasar el evento
                         onClick={(e) => {
                             if (globalIsDragging) return;
                             e.stopPropagation();
@@ -481,13 +336,9 @@ export function FurnitureInstance({
 
             {isDragging && onObjectEdited && (
                 <mesh
-                    rotation={[0, currentAngle, 0]}
-                    position={[
-                        origin[0] + initialPosition.current[0] + planeOffsetX,
-                        origin[1],
-                        origin[2] + initialPosition.current[2] + planeOffsetZ
-                    ]}
-                    visible={false} 
+                    rotation={meshRotation}
+                    position={meshPosition}
+                    visible={false}
                     onPointerMove={handleDragMove}
                     onPointerUp={(e) => {
                         e.stopPropagation();

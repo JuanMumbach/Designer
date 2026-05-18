@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { Button, StyleSheet, Text, TextInput, View } from 'react-native';
-import { FurnitureInstanceProps, FurnitureType } from '../3dView/DesignObjects';
+import { DesignObject } from '../3dView/DesignObjects';
 
 interface MoveFurnitureInstanceMenuProps {
-    selectedObject: FurnitureInstanceProps;
+    selectedObject: DesignObject;
     onMove: (newPosition: [number, number, number]) => void;
     onClose: () => void;
 }
@@ -13,14 +13,11 @@ export default function MoveFurnitureInstanceMenu({ selectedObject, onMove, onCl
     const [distance, setDistance] = useState('10');
 
     const handleMove = () => {
-        const { position, rotation, type } = selectedObject;
-        if (type.type !== FurnitureType.Counter && type.type !== FurnitureType.Cupboard) {
-            return;
-        }
+        const { position, rotation } = selectedObject;
 
         const newPosition: [number, number, number] = [...position];
         const angle = rotation;
-        const moveDistance = parseFloat(distance) / 100; // Convert cm to meters
+        const moveDistance = parseFloat(distance) / 100;
 
         if (direction === 'left') {
             newPosition[0] -= moveDistance * Math.cos(angle);
