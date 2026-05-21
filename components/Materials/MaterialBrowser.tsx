@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Alert,
   Platform,
@@ -17,9 +17,11 @@ import {
   deleteMaterialCategory,
   MaterialCategory,
   MaterialMeta,
+  MaterialData,
   renameMaterial,
   categorizeMaterial,
   createMaterialVersion,
+  fetchMaterialVersion,
   updateMaterialCategory,
 } from '../../services/api';
 import MaterialEditor, { MaterialFormData } from './MaterialEditor';
@@ -55,17 +57,36 @@ export default function MaterialBrowser({
     null
   );
   const [categoryStack, setCategoryStack] = useState<string[]>([]);
-  const [editingMaterial, setEditingMaterial] = useState<MaterialMeta | null>(
-    null
-  );
-  const [showCreator, setShowCreator] = useState(false);
-  const [showCategoryManager, setShowCategoryManager] = useState(false);
+   const [editingMaterial, setEditingMaterial] = useState<MaterialMeta | null>(null);
+   const [editingMaterialData, setEditingMaterialData] = useState<MaterialData | null>(null);
+   const [editingDataFailed, setEditingDataFailed] = useState(false);
+   const [showCreator, setShowCreator] = useState(false);
+   const [showCategoryManager, setShowCategoryManager] = useState(false);
 
-  // ── Category manager state ──
-  const [newCatName, setNewCatName] = useState('');
-  const [newCatParent, setNewCatParent] = useState('');
-  const [editingCatId, setEditingCatId] = useState<string | null>(null);
-  const [editingCatName, setEditingCatName] = useState('');
+   // ── Category manager state ──
+   const [newCatName, setNewCatName] = useState('');
+   const [newCatParent, setNewCatParent] = useState('');
+   const [editingCatId, setEditingCatId] = useState<string | null>(null);
+   const [editingCatName, setEditingCatName] = useState('');
+
+   // Fetch material version data when editing a material
+   useEffect(() => {
+     if (editingMaterial) {
+       setEditingDataFailed(false);
+       fetchMaterialVersion(editingMaterial.id, editingMaterial.lastVersion)
+         .then(data => {
+           setEditingMaterialData(data);
+           setEditingDataFailed(false);
+         })
+         .catch(err => {
+           console.warn('Failed to fetch material version data:', err);
+           setEditingDataFailed(true);
+         });
+     } else {
+       setEditingMaterialData(null);
+       setEditingDataFailed(false);
+     }
+   }, [editingMaterial]);
 
   const rootCategories = categories.filter(
     (c) => c.parentCategoryId === null
@@ -192,25 +213,43 @@ export default function MaterialBrowser({
 
   // ── Render ──
 
-  if (editingMaterial || showCreator) {
-    return (
-      <MaterialEditor
-        isEdit={!!editingMaterial}
-        initial={
-          editingMaterial
-            ? { name: editingMaterial.name, categoryId: editingMaterial.categoryId ?? '' }
-            : undefined
-        }
-        categories={categories}
-        onSave={handleSaveMaterial}
-        onDelete={editingMaterial ? handleDeleteMaterial : undefined}
-        onClose={() => {
-          setEditingMaterial(null);
-          setShowCreator(false);
-        }}
-      />
-    );
-  }
+   if (editingMaterial || showCreator) {
+     // Wait for version data to load before rendering the edit form
+     if (editingMaterial && !editingMaterialData && !editingDataFailed) {
+       return (
+         <View style={styles.loadingContainer}>
+           <Text style={styles.loadingText}>Loading material data…</Text>
+         </View>
+       );
+     }
+     return (
+       <MaterialEditor
+         isEdit={!!editingMaterial}
+         initial={
+           editingMaterial
+             ? {
+                 name: editingMaterial.name,
+                 creatorId: editingMaterial.creatorId,
+                 categoryId: editingMaterial.categoryId ?? '',
+                 fileURL: editingMaterialData?.fileURL ?? '',
+                 scaleU: editingMaterialData?.scaleU?.toString() ?? '1',
+                 scaleV: editingMaterialData?.scaleV?.toString() ?? '1',
+                 materialProperties: editingMaterialData?.materialProperties ?? '',
+               }
+             : undefined
+         }
+         categories={categories}
+         onSave={handleSaveMaterial}
+         onDelete={editingMaterial ? handleDeleteMaterial : undefined}
+         onClose={() => {
+           setEditingMaterial(null);
+           setEditingMaterialData(null);
+           setEditingDataFailed(false);
+           setShowCreator(false);
+         }}
+       />
+     );
+   }
 
   if (showCategoryManager) {
     const deletableCats = categories.filter((c) => {
@@ -654,9 +693,27 @@ const styles = StyleSheet.create({
   deleteSmallButton: {
     backgroundColor: '#fecaca',
   },
-  smallButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#374151',
-  },
-});
+   smallButtonText: {
+     fontSize: 12,
+     fontWeight: '600',
+     color: '#374151',
+   },
+   loadingContainer: {
+     width: 340,
+     maxHeight: '85%',
+     backgroundColor: 'white',
+     borderRadius: 16,
+     shadowColor: '#000',
+     shadowOffset: { width: 0, height: 10 },
+     shadowOpacity: 0.25,
+     shadowRadius: 10,
+     elevation: 10,
+     justifyContent: 'center',
+     alignItems: 'center',
+     padding: 40,
+   },
+   loadingText: {
+     fontSize: 14,
+     color: '#6b7280',
+   },
+ });

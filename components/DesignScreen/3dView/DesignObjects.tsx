@@ -16,6 +16,14 @@ export interface ObjectTemplate {
     objectProperties?: ObjectProperties;
 }
 
+export interface TextureOverride {
+    meshName: string;
+    materialId: string;
+    fileURL: string;
+    scaleU: number;
+    scaleV: number;
+}
+
 export interface DesignObject {
     id: string;
     name: string;
@@ -25,6 +33,8 @@ export interface DesignObject {
     color: string;
     modelUrl: string;
     objectProperties?: ObjectProperties;
+    textureOverrides?: TextureOverride[];
+    meshNames?: string[];
 }
 
 export function createDesignObject(template: ObjectTemplate, position?: [number, number, number]): DesignObject {
@@ -98,7 +108,8 @@ export default function DesignObjectsRenderer({
   room3d,
   magnetEnabled,
   allObjects,
-  onDragStateChange
+  onDragStateChange,
+  onMeshesDiscovered
 }: {
   objects: DesignObject[],
   origin: [number, number, number],
@@ -110,7 +121,8 @@ export default function DesignObjectsRenderer({
   room3d: Room3dProps,
   magnetEnabled: boolean,
   allObjects: DesignObject[],
-  onDragStateChange?: (isDragging: boolean) => void
+  onDragStateChange?: (isDragging: boolean) => void,
+  onMeshesDiscovered?: (id: string, meshNames: string[]) => void
 }) {
 
     return (
@@ -137,6 +149,7 @@ export default function DesignObjectsRenderer({
                             magnetEnabled={magnetEnabled}
                             allObjects={allObjects}
                             onDragStateChange={onDragStateChange}
+                            onMeshesDiscovered={onMeshesDiscovered}
                         />
                     )
             })}

@@ -2,9 +2,10 @@ import Design3dView from "@/components/DesignScreen/Design3dViewer";
 import View3dOverlay from "@/components/DesignScreen/View3dOverlay";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
-import { DesignObject, createDesignObject } from "./DesignScreen/3dView/DesignObjects";
+import { DesignObject, TextureOverride, createDesignObject } from "./DesignScreen/3dView/DesignObjects";
 import { Room3dProps } from "./DesignScreen/3dView/Room3d";
 import { useObjectTemplates } from "../services/useFurnitureModels";
+import { useMaterials } from "../services/useMaterials";
 
 
 const initialRoom3d: Room3dProps = {
@@ -16,7 +17,8 @@ const initialRoom3d: Room3dProps = {
 };
 
 export default function DesignScreen() {
-  const { objectTemplates, categories, isLoading, error } = useObjectTemplates();
+  const { objectTemplates, categories: objectCategories, isLoading: modelsLoading, error: modelsError } = useObjectTemplates();
+  const { materials, categories: materialCategories, isLoading: materialsLoading } = useMaterials();
   const [room3d, setRoom3d] = useState<Room3dProps>(initialRoom3d);
   const [designObjects, setDesignObjects] = useState<DesignObject[]>([]);
   const [movingObject, setMovingObject] = useState<DesignObject | undefined>(undefined);
@@ -69,9 +71,15 @@ export default function DesignScreen() {
     setDesignObjects(prev => [...prev, newObject]);
   };
 
-  const handleObjectEdited = (id: string, updates: { name: string, position: [number, number, number], rotation?: number }) => {
+  const handleObjectEdited = (id: string, updates: { name: string, position: [number, number, number], rotation?: number, textureOverrides?: TextureOverride[] }) => {
     setDesignObjects(prev => prev.map(obj =>
-      obj.id === id ? { ...obj, name: updates.name, position: updates.position, ...(updates.rotation !== undefined && { rotation: updates.rotation }) } : obj
+      obj.id === id ? {
+        ...obj,
+        name: updates.name,
+        position: updates.position,
+        ...(updates.rotation !== undefined && { rotation: updates.rotation }),
+        ...(updates.textureOverrides !== undefined && { textureOverrides: updates.textureOverrides })
+      } : obj
     ));
   };
 
@@ -80,19 +88,30 @@ export default function DesignScreen() {
     if (movingObject?.id === id) setMovingObject(undefined);
   };
 
-  if (isLoading) {
+  const handleMeshesDiscovered = (id: string, meshNames: string[]) => {
+    const deduped = meshNames.filter((name, i, arr) => arr.indexOf(name) === i);
+    setDesignObjects(prev => prev.map(obj => {
+      if (obj.id !== id) return obj;
+      if (obj.meshNames && deduped.length === obj.meshNames.length && deduped.every((n, i) => n === obj.meshNames[i])) {
+        return obj;
+      }
+      return { ...obj, meshNames: deduped };
+    }));
+  };
+
+  if (modelsLoading || materialsLoading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" color="#0000ff" />
-        <Text>Loading furniture models...</Text>
+        <Text>Loading...</Text>
       </View>
     );
   }
 
-  if (error) {
+  if (modelsError) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <Text>Error loading furniture models: {error.message}</Text>
+        <Text>Error loading furniture models: {modelsError.message}</Text>
       </View>
     );
   }
@@ -116,10 +135,11 @@ export default function DesignScreen() {
         setMovingObject={setMovingObject}
         magnetEnabled={magnetEnabled}
         onDragStateChange={setIsDraggingObject}
+        onMeshesDiscovered={handleMeshesDiscovered}
       />
       <View3dOverlay
         objectTemplates={objectTemplates}
-        categories={categories}
+        categories={objectCategories}
         room3dProps={room3d}
         setRoom3d={setRoom3d}
         designObjects={designObjects}
@@ -132,6 +152,8 @@ export default function DesignScreen() {
         setMagnetEnabled={setMagnetEnabled}
         forceEditObject={forceEditObject}
         clearForceEdit={() => setForceEditObject(undefined)}
+        materials={materials}
+        materialCategories={materialCategories}
       >
       </View3dOverlay>
     </View>

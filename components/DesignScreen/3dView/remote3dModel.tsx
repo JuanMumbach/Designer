@@ -1,7 +1,7 @@
 import { Box, Gltf, useTexture } from '@react-three/drei/native';
 import { Asset } from 'expo-asset';
 import * as FileSystem from 'expo-file-system';
-import React, { Suspense, useEffect, useRef, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Platform } from 'react-native';
 import * as THREE from 'three';
 import { DesignObject } from './DesignObjects';
@@ -58,7 +58,7 @@ export function useDownload3dModel(remoteUrl: string, assetName: string = 'asset
 }
 
 export function DesignObject3D({
-    obj, position, origin, dimensions, modelScale, rotation, onObjectInteraction, isSelected, onObjectEdited, onObjectDeleted, onEditObject, room3d, magnetEnabled, allObjects, onDragStateChange
+    obj, position, origin, dimensions, modelScale, rotation, onObjectInteraction, isSelected, onObjectEdited, onObjectDeleted, onEditObject, room3d, magnetEnabled, allObjects, onDragStateChange, onMeshesDiscovered
 }: {
     obj: DesignObject,
     position: [number, number, number],
@@ -74,7 +74,8 @@ export function DesignObject3D({
     room3d: Room3dProps,
     magnetEnabled: boolean,
     allObjects: DesignObject[],
-    onDragStateChange?: (isDragging: boolean) => void
+    onDragStateChange?: (isDragging: boolean) => void,
+    onMeshesDiscovered?: (id: string, meshNames: string[]) => void
 }) {
     const url = obj.modelUrl;
     const { localUri, isLoading, error } = useDownload3dModel(url, obj.id);
@@ -93,6 +94,104 @@ export function DesignObject3D({
     const editAsset = Asset.fromModule(require('../../../assets/images/edit-icon.png'));
     const editIconTexture = useTexture(editAsset.uri);
 
+    const gltfRef = useRef<THREE.Group | null>(null);
+    const originalMaterialsRef = useRef<Map<string, THREE.Material>>(new Map());
+    const overrideVersionRef = useRef(0);
+    const textureLoaderRef = useRef<THREE.TextureLoader | null>(null);
+    const meshesDiscoveredRef = useRef(false);
+    const onMeshesDiscoveredRef = useRef(onMeshesDiscovered);
+    onMeshesDiscoveredRef.current = onMeshesDiscovered;
+
+    const handleGltfReady = useCallback((group: THREE.Group | null) => {
+      gltfRef.current = group;
+      if (!group) return;
+
+      group.traverse((child) => {
+        if (child instanceof THREE.Mesh && child.material) {
+          (child as THREE.Mesh).material = child.material.clone();
+        }
+      });
+
+      const names: string[] = [];
+      group.traverse((child) => {
+        if (child instanceof THREE.Mesh && child.name) {
+          names.push(child.name);
+          if (!originalMaterialsRef.current.has(child.name)) {
+            originalMaterialsRef.current.set(child.name, child.material.clone());
+          }
+        }
+      });
+      if (names.length > 0 && !meshesDiscoveredRef.current) {
+        meshesDiscoveredRef.current = true;
+        onMeshesDiscoveredRef.current?.(obj.id, names);
+      }
+    }, [obj.id]);
+
+    useEffect(() => {
+      const group = gltfRef.current;
+      if (!group || !localUri) return;
+
+      overrideVersionRef.current++;
+      const currentVersion = overrideVersionRef.current;
+      const overrides = obj.textureOverrides || [];
+
+      if (!textureLoaderRef.current) textureLoaderRef.current = new THREE.TextureLoader();
+
+      if (!overrides.length) {
+        group.traverse((child) => {
+          if (child instanceof THREE.Mesh && child.name) {
+            const orig = originalMaterialsRef.current.get(child.name);
+            if (orig && child.material !== orig) {
+              child.material = orig;
+            }
+          }
+        });
+        return;
+      }
+
+      group.traverse((child) => {
+        if (child instanceof THREE.Mesh && child.name) {
+          const override = overrides.find(t => t.meshName === child.name);
+          if (override && override.fileURL) {
+            textureLoaderRef.current!.load(override.fileURL, (texture) => {
+              if (currentVersion !== overrideVersionRef.current) return;
+              const newMat = (child.material as THREE.MeshStandardMaterial).clone();
+
+              const origMat = originalMaterialsRef.current.get(child.name) as THREE.MeshStandardMaterial | undefined;
+              const origMap = origMat?.map;
+              if (origMap) {
+                texture.wrapS = origMap.wrapS;
+                texture.wrapT = origMap.wrapT;
+              } else {
+                texture.wrapS = THREE.RepeatWrapping;
+                texture.wrapT = THREE.RepeatWrapping;
+              }
+
+              if (
+                override.scaleU > 0 &&
+                override.scaleV > 0 &&
+                texture.image?.width &&
+                texture.image?.height
+              ) {
+                texture.repeat.set(
+                  (override.scaleU * dimensions[0]) / texture.image.width,
+                  (override.scaleV * dimensions[1]) / texture.image.height
+                );
+              }
+
+              newMat.map = texture;
+              newMat.needsUpdate = true;
+              child.material = newMat;
+            });
+          } else {
+            const orig = originalMaterialsRef.current.get(child.name);
+            if (orig && child.material !== orig) {
+              child.material = orig;
+            }
+          }
+        }
+      });
+    }, [obj.textureOverrides, localUri, dimensions]);
 
     useEffect(() => {
         if (Platform.OS === 'web') {
@@ -256,6 +355,7 @@ export function DesignObject3D({
             <group position={modelPosition} rotation={[0, rotation || 0, 0]}>
                 <Suspense fallback={null}>
                     <Gltf
+                        ref={handleGltfReady}
                         src={localUri}
                         rotation={[0, -Math.PI / 2, 0]}
                         scale={modelScale || 1}

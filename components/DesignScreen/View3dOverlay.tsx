@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
 import { Dimensions, ScaledSize, StyleSheet, View } from "react-native";
 import Button from "../Button";
-import { DesignObject, ObjectTemplate } from "./3dView/DesignObjects";
+import { DesignObject, ObjectTemplate, TextureOverride } from "./3dView/DesignObjects";
 import { Room3dProps } from "./3dView/Room3d";
 import AddFurnitureInstanceMenu from "./3dViewOverlay/AddFurnitureInstanceMenu";
 import CategoryBrowser from "./3dViewOverlay/CategoryBrowser";
 import EditFurnitureInstanceMenu from "./3dViewOverlay/EditFurnitureInstanceMenu";
 import FurnitureInstancesManager from "./3dViewOverlay/FurnitureInstancesManager";
 import RoomManager from "./3dViewOverlay/RoomManager";
-import { ObjectCategory } from "../../services/api";
+import { MaterialCategory, MaterialMeta, ObjectCategory } from "../../services/api";
 
 const debugColors = false;
 
@@ -19,7 +19,7 @@ interface View3dOverlayProps {
   room3dProps: Room3dProps;
   setRoom3d: React.Dispatch<React.SetStateAction<Room3dProps>>;
   onObjectAdded: (newObject: DesignObject) => void;
-  onObjectEdited: (id: string, updates: { name: string, position: [number, number, number], rotation?: number }) => void;
+  onObjectEdited: (id: string, updates: { name: string, position: [number, number, number], rotation?: number, textureOverrides?: TextureOverride[] }) => void;
   onObjectDeleted: (id: string) => void;
   movingObject?: DesignObject;
   setMovingObject: (object?: DesignObject) => void;
@@ -27,6 +27,8 @@ interface View3dOverlayProps {
   setMagnetEnabled: React.Dispatch<React.SetStateAction<boolean>>;
   forceEditObject?: DesignObject;
   clearForceEdit: () => void;
+  materials: MaterialMeta[];
+  materialCategories: MaterialCategory[];
 }
 
 function useWindowDimensions() {
@@ -49,7 +51,7 @@ function useWindowDimensions() {
 
 
 
-export default function View3dOverlay({ objectTemplates, categories, designObjects, room3dProps, setRoom3d , onObjectAdded, onObjectEdited, onObjectDeleted, movingObject, setMovingObject, magnetEnabled, setMagnetEnabled, forceEditObject, clearForceEdit} : View3dOverlayProps) {
+export default function View3dOverlay({ objectTemplates, categories, designObjects, room3dProps, setRoom3d , onObjectAdded, onObjectEdited, onObjectDeleted, movingObject, setMovingObject, magnetEnabled, setMagnetEnabled, forceEditObject, clearForceEdit, materials, materialCategories} : View3dOverlayProps) {
 
   const { width } = useWindowDimensions();
   const [isObjectsManagerVisible, setIsObjectsManagerVisible] = useState(false);
@@ -76,6 +78,15 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [forceEditObject]);
 
+  useEffect(() => {
+    if (selectedObjectState) {
+      const updated = designObjects.find(o => o.id === selectedObjectState.id);
+      if (updated && updated !== selectedObjectState) {
+        setSelectedObjectState(updated);
+      }
+    }
+  }, [designObjects, selectedObjectState]);
+
   const showAddObjectMenu = (objectType: ObjectTemplate) => {
     setIsEditObjectMenuVisible(false);
     setIsObjectsManagerVisible(false);
@@ -99,7 +110,7 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
       setSelectedObjectState(undefined);
   };
 
-  const handleObjectEditAndClose = (id: string, updates: { name: string, position: [number, number, number] }) => {
+  const handleObjectEditAndClose = (id: string, updates: { name: string, position: [number, number, number], textureOverrides?: TextureOverride[] }) => {
       onObjectEdited(id, updates);
       closeEditMenu();
   };
@@ -198,6 +209,8 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
                           object={selectedObjectState}
                           onEditComplete={handleObjectEditAndClose}
                           onDelete={handleObjectDeleteAndClose}
+                          materials={materials}
+                          materialCategories={materialCategories}
                       />
                   )
               )
@@ -217,6 +230,8 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
                       object={selectedObjectState}
                       onEditComplete={handleObjectEditAndClose}
                       onDelete={handleObjectDeleteAndClose}
+                      materials={materials}
+                      materialCategories={materialCategories}
                   />
               )
             )

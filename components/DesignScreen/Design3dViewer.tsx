@@ -45,7 +45,8 @@ export default function Design3dView({
   movingObject,
   setMovingObject,
   magnetEnabled,
-  onDragStateChange}:
+  onDragStateChange,
+  onMeshesDiscovered}:
   {
   room3d: Room3dProps,
   designObjects: DesignObject[],
@@ -56,7 +57,8 @@ export default function Design3dView({
   movingObject?: DesignObject,
   setMovingObject?: (object?: DesignObject) => void,
   magnetEnabled: boolean,
-  onDragStateChange?: (isDragging: boolean) => void
+  onDragStateChange?: (isDragging: boolean) => void,
+  onMeshesDiscovered?: (id: string, meshNames: string[]) => void
 })
 {
   const isDragging = useRef(0);
@@ -96,6 +98,7 @@ export default function Design3dView({
             magnetEnabled={magnetEnabled}
             allObjects={designObjects}
             onDragStateChange={handleDragStateChange}
+            onMeshesDiscovered={onMeshesDiscovered}
         />
         <OrbitControls {...cameraControlsProps} enabled={isDragging.current === 0} />
         <fog attach="fog" args={["darkgray", 5, 20]} />

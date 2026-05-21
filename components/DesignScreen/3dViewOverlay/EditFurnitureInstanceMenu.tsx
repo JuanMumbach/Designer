@@ -1,18 +1,26 @@
 import Button from "@/components/Button";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { DesignObject } from "../3dView/DesignObjects";
+import { DesignObject, TextureOverride } from "../3dView/DesignObjects";
+import { MaterialCategory, MaterialMeta, MaterialData } from "../../../services/api";
+import MaterialPicker from "./MaterialPicker";
 
-export default function EditFurnitureInstanceMenu({object, onEditComplete, onDelete} : {
+export default function EditFurnitureInstanceMenu({object, onEditComplete, onDelete, materials, materialCategories} : {
         object : DesignObject,
-        onEditComplete : (id: string, updates: { name: string, position: [number, number, number] }) => void,
+        onEditComplete : (id: string, updates: { name: string, position: [number, number, number], textureOverrides?: TextureOverride[] }) => void,
         onDelete? : (id: string) => void,
+        materials: MaterialMeta[],
+        materialCategories: MaterialCategory[],
     }){
 
     const [name, onChangeName] = useState(object.name);
     const [positionX, setPositionX] = useState(object.position?.[0]?.toString() ?? '0');
     const [positionY, setPositionY] = useState(object.position?.[1]?.toString() ?? '0');
     const [positionZ, setPositionZ] = useState(object.position?.[2]?.toString() ?? '0');
+    const [dirtyOverrides, setDirtyOverrides] = useState<TextureOverride[]>(object.textureOverrides || []);
+    const [editingSlot, setEditingSlot] = useState<string | null>(null);
+    const editingSlotRef = useRef<string | null>(null);
+    editingSlotRef.current = editingSlot;
 
     const handleSave = () => {
         onEditComplete(object.id, {
@@ -21,7 +29,8 @@ export default function EditFurnitureInstanceMenu({object, onEditComplete, onDel
                 parseFloat(positionX) || 0,
                 parseFloat(positionY) || 0,
                 parseFloat(positionZ) || 0
-            ]
+            ],
+            textureOverrides: dirtyOverrides,
         });
     };
 
@@ -30,6 +39,7 @@ export default function EditFurnitureInstanceMenu({object, onEditComplete, onDel
         setPositionX(object.position?.[0]?.toString() ?? '0');
         setPositionY(object.position?.[1]?.toString() ?? '0');
         setPositionZ(object.position?.[2]?.toString() ?? '0');
+        setDirtyOverrides(object.textureOverrides || []);
       }, [object]);
 
     const handleDelete = () => {
@@ -46,6 +56,45 @@ export default function EditFurnitureInstanceMenu({object, onEditComplete, onDel
             ]);
         }
     };
+
+    const handleMaterialSelect = useCallback(async (_materialMeta: MaterialMeta, materialData: MaterialData) => {
+        const slot = editingSlotRef.current;
+        if (!slot) return;
+        const newOverride: TextureOverride = {
+            meshName: slot,
+            materialId: _materialMeta.id,
+            fileURL: materialData.fileURL,
+            scaleU: materialData.scaleU,
+            scaleV: materialData.scaleV,
+        };
+        setDirtyOverrides(prev => {
+            const existing = prev.findIndex(o => o.meshName === slot);
+            if (existing >= 0) {
+                return prev.map((o, i) => i === existing ? newOverride : o);
+            }
+            return [...prev, newOverride];
+        });
+        setEditingSlot(null);
+    }, []);
+
+    const handleResetSlot = (meshName: string) => {
+        setDirtyOverrides(prev => prev.filter(o => o.meshName !== meshName));
+    };
+
+    const getMaterialName = (materialId: string): string => {
+        return materials.find(m => m.id === materialId)?.name ?? 'Unknown';
+    };
+
+    if (editingSlot) {
+        return (
+            <MaterialPicker
+                materials={materials}
+                categories={materialCategories}
+                onSelect={handleMaterialSelect}
+                onClose={() => setEditingSlot(null)}
+            />
+        );
+    }
 
     return (
     <View style={styles.container}>
@@ -73,6 +122,46 @@ export default function EditFurnitureInstanceMenu({object, onEditComplete, onDel
                     value={positionZ}
                     keyboardType="numeric"
                 />
+
+        {object.meshNames && object.meshNames.length > 0 && (
+            <>
+                <Text style={styles.sectionTitle}>Textures</Text>
+                {object.meshNames.map(meshName => {
+                    const override = dirtyOverrides.find(o => o.meshName === meshName);
+                    return (
+                        <View key={meshName} style={styles.textureRow}>
+                            <View style={styles.textureInfo}>
+                                <Text style={styles.textureMeshName}>{meshName}</Text>
+                                <Text style={styles.textureStatus}>
+                                    {override ? getMaterialName(override.materialId) : 'Default'}
+                                </Text>
+                            </View>
+                            <View style={styles.textureActions}>
+                                <Pressable
+                                    style={styles.textureButton}
+                                    onPress={() => setEditingSlot(meshName)}
+                                >
+                                    <Text style={styles.textureButtonLabel}>Change</Text>
+                                </Pressable>
+                                {override && (
+                                    <Pressable
+                                        style={styles.textureResetButton}
+                                        onPress={() => handleResetSlot(meshName)}
+                                    >
+                                        <Text style={styles.textureResetLabel}>Reset</Text>
+                                    </Pressable>
+                                )}
+                            </View>
+                        </View>
+                    );
+                })}
+            </>
+        )}
+
+        {(!object.meshNames || object.meshNames.length === 0) && (
+            <Text style={styles.discoveringText}>Discovering textures...</Text>
+        )}
+
         <Button label="Save Changes" onPress={handleSave} />
         <Pressable style={styles.deleteButton} onPress={handleDelete}>
             <Text style={styles.deleteButtonLabel}>Delete Object</Text>
@@ -122,6 +211,75 @@ const styles = StyleSheet.create({
     backgroundColor: '#f9fafb',
     fontSize: 14,
     color: '#111827',
+  },
+  sectionTitle: {
+    marginTop: 20,
+    marginBottom: 12,
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#374151',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  textureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f9fafb',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  textureInfo: {
+    flex: 1,
+    marginRight: 8,
+  },
+  textureMeshName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 2,
+  },
+  textureStatus: {
+    fontSize: 11,
+    color: '#6b7280',
+  },
+  textureActions: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  textureButton: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    backgroundColor: '#2563eb',
+  },
+  textureButtonLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  textureResetButton: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    backgroundColor: '#f3f4f6',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+  },
+  textureResetLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6b7280',
+  },
+  discoveringText: {
+    marginTop: 12,
+    fontStyle: 'italic',
+    color: '#9ca3af',
+    fontSize: 13,
+    textAlign: 'center',
   },
   deleteButton: {
     borderRadius: 8,
