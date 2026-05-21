@@ -259,16 +259,97 @@
 
 ---
 
+---
+
+## MaterialCategories — `api/MaterialCategories`
+
+| Method | Endpoint | Body | Purpose |
+|--------|----------|------|---------|
+| GET | `/api/MaterialCategories` | — | List all material categories |
+| GET | `/api/MaterialCategories/{id}` | — | Get category |
+| POST | `/api/MaterialCategories` | `{ categoryName, parentCategoryId? }` | Create category |
+| PUT | `/api/MaterialCategories/{id}` | `{ categoryName?, parentCategoryId? }` | Update category |
+| DELETE | `/api/MaterialCategories/{id}` | — | Delete category |
+
+**MaterialCategory Entity:**
+```json
+{
+  "id": "guid",
+  "categoryName": "string",
+  "parentCategoryId": "guid | null",
+  "parentCategory": "MaterialCategory | null"
+}
+```
+
+---
+
+## Materials — `api/Materials`
+
+| Method | Endpoint | Body | Purpose |
+|--------|----------|------|---------|
+| GET | `/api/Materials` | — | List all materials |
+| GET | `/api/Materials/{id}` | — | Get material |
+| POST | `/api/Materials` | `{ name, creatorId, categoryId? }` | Create material |
+| PUT | `/api/Materials/{id}` | `{ name?, categoryId? }` | Update material |
+| PUT | `/api/Materials/rename` | `{ id, name }` | Rename material |
+| PUT | `/api/Materials/categorize` | `{ id, categoryId? }` | Re-categorize material |
+| DELETE | `/api/Materials/{id}` | — | Delete material |
+
+**MaterialMeta Entity:**
+```json
+{
+  "id": "guid",
+  "name": "string",
+  "createdAt": "datetime",
+  "lastUpdate": "datetime",
+  "lastVersion": "int",
+  "creatorId": "guid",
+  "creator": "User | null",
+  "categoryId": "guid | null",
+  "category": "MaterialCategory | null"
+}
+```
+
+---
+
+## MaterialData — `api/MaterialData`
+
+| Method | Endpoint | Body | Purpose |
+|--------|----------|------|---------|
+| GET | `/api/MaterialData` | — | List all material data versions |
+| GET | `/api/MaterialData/{materialId}` | — | List all versions of a material |
+| GET | `/api/MaterialData/{materialId}-{version}` | — | Get specific version |
+| POST | `/api/MaterialData/{materialId}` | `{ fileURL, scaleU, scaleV, materialProperties?, creatorId }` | Create version (auto-increments) |
+| PUT | `/api/MaterialData/{materialId}-{version}` | `{ fileURL?, scaleU?, scaleV?, materialProperties? }` | Update version |
+| DELETE | `/api/MaterialData/{materialId}-{version}` | — | Delete version |
+
+**MaterialData Entity:**
+```json
+{
+  "materialId": "guid",
+  "material": "MaterialMeta | null",
+  "version": "int",
+  "fileURL": "string",
+  "scaleU": "float",
+  "scaleV": "float",
+  "materialProperties": "string",
+  "creatorId": "guid",
+  "creator": "User | null"
+}
+```
+
+---
+
 ## Summary
 
 | Metric | Count |
 |--------|-------|
-| **Total controllers** | 9 |
-| **Total endpoints** | 53 |
-| **GET endpoints** | 16 |
-| **POST endpoints** | 8 |
-| **PUT endpoints** | 10 |
-| **DELETE endpoints** | 8 |
+| **Total controllers** | 12 |
+| **Total endpoints** | 71 |
+| **GET endpoints** | 27 |
+| **POST endpoints** | 13 |
+| **PUT endpoints** | 18 |
+| **DELETE endpoints** | 13 |
 
 ---
 
@@ -277,7 +358,7 @@
 - **No authentication/authorization** is currently enforced at any endpoint.
 - **Repository pattern** fully implemented — controllers never access `DbContext` directly.
 - **Base route prefix** is `api/` followed by the controller name.
-- **Composite keys**: `ObjectVersion` uses `(ObjectId, Version)` and `ProjectVersion` uses `(ProjectId, Version)`.
+- **Composite keys**: `ObjectVersion` uses `(ObjectId, Version)`, `ProjectVersion` uses `(ProjectId, Version)`, and `MaterialData` uses `(MaterialId, Version)`.
 - **Swagger** available at `/swagger` (Development only).
 - **CORS** is fully permissive (`AllowAnyOrigin/Header/Method`).
 - **Database**: SQL Server via Entity Framework Core 8.x
