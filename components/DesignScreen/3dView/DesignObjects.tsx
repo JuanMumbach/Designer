@@ -93,6 +93,7 @@ export default function DesignObjectsRenderer({
   onObjectInteraction,
   onObjectEdited,
   onObjectDeleted,
+  onEditObject,
   movingObjectId,
   room3d,
   magnetEnabled,
@@ -104,6 +105,7 @@ export default function DesignObjectsRenderer({
   onObjectInteraction: (object: DesignObject) => void,
   onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number], rotation?: number }) => void,
   onObjectDeleted?: (id: string) => void,
+  onEditObject?: (object: DesignObject) => void,
   movingObjectId?: string,
   room3d: Room3dProps,
   magnetEnabled: boolean,
@@ -130,6 +132,7 @@ export default function DesignObjectsRenderer({
                             isSelected={obj.id === movingObjectId}
                             onObjectEdited={onObjectEdited}
                             onObjectDeleted={onObjectDeleted}
+                            onEditObject={onEditObject}
                             room3d={room3d}
                             magnetEnabled={magnetEnabled}
                             allObjects={allObjects}

@@ -25,6 +25,8 @@ interface View3dOverlayProps {
   setMovingObject: (object?: DesignObject) => void;
   magnetEnabled: boolean;
   setMagnetEnabled: React.Dispatch<React.SetStateAction<boolean>>;
+  forceEditObject?: DesignObject;
+  clearForceEdit: () => void;
 }
 
 function useWindowDimensions() {
@@ -47,7 +49,7 @@ function useWindowDimensions() {
 
 
 
-export default function View3dOverlay({ objectTemplates, categories, designObjects, room3dProps, setRoom3d , onObjectAdded, onObjectEdited, onObjectDeleted, movingObject, setMovingObject, magnetEnabled, setMagnetEnabled} : View3dOverlayProps) {
+export default function View3dOverlay({ objectTemplates, categories, designObjects, room3dProps, setRoom3d , onObjectAdded, onObjectEdited, onObjectDeleted, movingObject, setMovingObject, magnetEnabled, setMagnetEnabled, forceEditObject, clearForceEdit} : View3dOverlayProps) {
 
   const { width } = useWindowDimensions();
   const [isObjectsManagerVisible, setIsObjectsManagerVisible] = useState(false);
@@ -65,6 +67,14 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
 
   const [isEditObjectMenuVisible, setIsEditObjectMenuVisible] = useState(false);
   const [selectedObjectState, setSelectedObjectState] = useState<DesignObject | undefined>(undefined);
+
+  useEffect(() => {
+    if (forceEditObject) {
+      handleEditObject(forceEditObject);
+      clearForceEdit();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [forceEditObject]);
 
   const showAddObjectMenu = (objectType: ObjectTemplate) => {
     setIsEditObjectMenuVisible(false);

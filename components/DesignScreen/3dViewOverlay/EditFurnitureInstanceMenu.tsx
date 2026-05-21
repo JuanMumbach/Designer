@@ -10,38 +10,27 @@ export default function EditFurnitureInstanceMenu({object, onEditComplete, onDel
     }){
 
     const [name, onChangeName] = useState(object.name);
-    const [positionX, onChangePositionX] = useState(object.position?.[0] ?? 0);
-    const [positionY, onChangePositionY] = useState(object.position?.[1] ?? 0);
-    const [positionZ, onChangePositionZ] = useState(object.position?.[2] ?? 0);
+    const [positionX, setPositionX] = useState(object.position?.[0]?.toString() ?? '0');
+    const [positionY, setPositionY] = useState(object.position?.[1]?.toString() ?? '0');
+    const [positionZ, setPositionZ] = useState(object.position?.[2]?.toString() ?? '0');
 
     const handleSave = () => {
         onEditComplete(object.id, {
             name: name,
-            position: [positionX, positionY, positionZ]
+            position: [
+                parseFloat(positionX) || 0,
+                parseFloat(positionY) || 0,
+                parseFloat(positionZ) || 0
+            ]
         });
     };
 
     useEffect(() => {
         onChangeName(object.name);
-        onChangePositionX(object.position?.[0] ?? 0);
-        onChangePositionY(object.position?.[1] ?? 0);
-        onChangePositionZ(object.position?.[2] ?? 0);
+        setPositionX(object.position?.[0]?.toString() ?? '0');
+        setPositionY(object.position?.[1]?.toString() ?? '0');
+        setPositionZ(object.position?.[2]?.toString() ?? '0');
       }, [object]);
-
-    const handlePositionXChange = (text: string) => {
-        let aNumber : number = parseFloat(text);
-        if (!isNaN(aNumber)) onChangePositionX(aNumber);
-    };
-
-    const handlePositionYChange = (text: string) => {
-        let aNumber : number = parseFloat(text);
-        if (!isNaN(aNumber)) onChangePositionY(aNumber);
-    };
-
-    const handlePositionZChange = (text: string) => {
-        let aNumber : number = parseFloat(text);
-        if (!isNaN(aNumber)) onChangePositionZ(aNumber);
-    };
 
     const handleDelete = () => {
         if (Platform.OS === 'web') {
@@ -68,20 +57,20 @@ export default function EditFurnitureInstanceMenu({object, onEditComplete, onDel
         <Text>Type: {object.name}</Text>
         <Text style={styles.label}>Position X</Text>
               <TextInput style={styles.input}
-                onChangeText={handlePositionXChange}
-                value={positionX.toString()}
+                onChangeText={setPositionX}
+                value={positionX}
                 keyboardType="numeric"
               />
         <Text style={styles.label}>Position Y</Text>
                 <TextInput style={styles.input}
-                    onChangeText={handlePositionYChange}
-                    value={positionY.toString()}
+                    onChangeText={setPositionY}
+                    value={positionY}
                     keyboardType="numeric"
                 />
         <Text style={styles.label}>Position Z</Text>
                 <TextInput style={styles.input}
-                    onChangeText={handlePositionZChange}
-                    value={positionZ.toString()}
+                    onChangeText={setPositionZ}
+                    value={positionZ}
                     keyboardType="numeric"
                 />
         <Button label="Save Changes" onPress={handleSave} />

@@ -58,7 +58,7 @@ export function useDownload3dModel(remoteUrl: string, assetName: string = 'asset
 }
 
 export function DesignObject3D({
-    obj, position, origin, dimensions, modelScale, rotation, onObjectInteraction, isSelected, onObjectEdited, onObjectDeleted, room3d, magnetEnabled, allObjects, onDragStateChange
+    obj, position, origin, dimensions, modelScale, rotation, onObjectInteraction, isSelected, onObjectEdited, onObjectDeleted, onEditObject, room3d, magnetEnabled, allObjects, onDragStateChange
 }: {
     obj: DesignObject,
     position: [number, number, number],
@@ -70,6 +70,7 @@ export function DesignObject3D({
     isSelected?: boolean,
     onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number], rotation?: number }) => void,
     onObjectDeleted?: (id: string) => void,
+    onEditObject?: (object: DesignObject) => void,
     room3d: Room3dProps,
     magnetEnabled: boolean,
     allObjects: DesignObject[],
@@ -88,6 +89,9 @@ export function DesignObject3D({
 
     const deleteAsset = Asset.fromModule(require('../../../assets/images/delete-icon.png'));
     const deleteIconTexture = useTexture(deleteAsset.uri);
+
+    const editAsset = Asset.fromModule(require('../../../assets/images/edit-icon.png'));
+    const editIconTexture = useTexture(editAsset.uri);
 
 
     useEffect(() => {
@@ -325,6 +329,21 @@ export function DesignObject3D({
                         >
                             <spriteMaterial
                                 map={deleteIconTexture}
+                                color="#ffffffff"
+                                depthTest={false}
+                                transparent={true}
+                            />
+                        </sprite>
+                        <sprite
+                            position={[0.1, dimensions[1] + 0.2, 0]}
+                            scale={[0.26, 0.26, 0.26]}
+                            onPointerDown={(e) => {
+                                e.stopPropagation();
+                                if (onEditObject) onEditObject(obj);
+                            }}
+                        >
+                            <spriteMaterial
+                                map={editIconTexture}
                                 color="#ffffffff"
                                 depthTest={false}
                                 transparent={true}

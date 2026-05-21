@@ -22,6 +22,7 @@ export default function DesignScreen() {
   const [movingObject, setMovingObject] = useState<DesignObject | undefined>(undefined);
   const [magnetEnabled, setMagnetEnabled] = useState<boolean>(false);
   const [isDraggingObject, setIsDraggingObject] = useState(false);
+  const [forceEditObject, setForceEditObject] = useState<DesignObject | undefined>(undefined);
 
   useEffect(() => {
     if (objectTemplates.length === 0) return;
@@ -57,6 +58,11 @@ export default function DesignScreen() {
   const handleObjectInteraction = (object: DesignObject) => {
     console.log("Interacted with object:", object.id);
     setMovingObject(object);
+  };
+
+  const handleEditObjectFrom3D = (object: DesignObject) => {
+    setMovingObject(object);
+    setForceEditObject(object);
   };
 
   const handleObjectAdded = (newObject: DesignObject) => {
@@ -105,6 +111,7 @@ export default function DesignScreen() {
         onObjectInteraction={handleObjectInteraction}
         onObjectEdited={handleObjectEdited}
         onObjectDeleted={handleObjectDeleted}
+        onEditObject={handleEditObjectFrom3D}
         movingObject={movingObject}
         setMovingObject={setMovingObject}
         magnetEnabled={magnetEnabled}
@@ -123,6 +130,8 @@ export default function DesignScreen() {
         setMovingObject={setMovingObject}
         magnetEnabled={magnetEnabled}
         setMagnetEnabled={setMagnetEnabled}
+        forceEditObject={forceEditObject}
+        clearForceEdit={() => setForceEditObject(undefined)}
       >
       </View3dOverlay>
     </View>

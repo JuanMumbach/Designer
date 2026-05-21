@@ -41,6 +41,7 @@ export default function Design3dView({
   onObjectInteraction,
   onObjectEdited,
   onObjectDeleted,
+  onEditObject,
   movingObject,
   setMovingObject,
   magnetEnabled,
@@ -51,6 +52,7 @@ export default function Design3dView({
   onObjectInteraction: (object: DesignObject) => void,
   onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number], rotation?: number }) => void,
   onObjectDeleted?: (id: string) => void,
+  onEditObject?: (object: DesignObject) => void,
   movingObject?: DesignObject,
   setMovingObject?: (object?: DesignObject) => void,
   magnetEnabled: boolean,
@@ -88,6 +90,7 @@ export default function Design3dView({
             onObjectInteraction={onObjectInteraction}
             onObjectEdited={onObjectEdited}
             onObjectDeleted={onObjectDeleted}
+            onEditObject={onEditObject}
             movingObjectId={movingObject?.id}
             room3d={room3d}
             magnetEnabled={magnetEnabled}
