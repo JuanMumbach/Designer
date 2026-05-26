@@ -130,28 +130,29 @@ export default function DesignObjectsRenderer({
             {objects.map((obj) => {
                 let currentPosition : [number, number, number] = obj.position;
 
-                return (
-                        <DesignObject3D
-                            key={obj.id}
-                            obj={obj}
-                            onObjectInteraction={onObjectInteraction}
-                            position={currentPosition}
-                            origin={origin}
-                            dimensions={obj.dimensions}
-                            modelUrl={obj.modelUrl}
-                            modelScale={0.01}
-                            rotation={obj.rotation}
-                            isSelected={obj.id === movingObjectId}
-                            onObjectEdited={onObjectEdited}
-                            onObjectDeleted={onObjectDeleted}
-                            onEditObject={onEditObject}
-                            room3d={room3d}
-                            magnetEnabled={magnetEnabled}
-                            allObjects={allObjects}
-                            onDragStateChange={onDragStateChange}
-                            onMeshesDiscovered={onMeshesDiscovered}
-                        />
-                    )
+                 return (
+                         <DesignObject3D
+                             key={obj.id}
+                             obj={obj}
+                             onObjectInteraction={onObjectInteraction}
+                             position={currentPosition}
+                             origin={origin}
+                             dimensions={obj.dimensions}
+                             modelUrl={obj.modelUrl}
+                             modelScale={0.01}
+                             rotation={obj.rotation}
+                             isSelected={obj.id === movingObjectId}
+                             onObjectEdited={onObjectEdited}
+                             onObjectDeleted={onObjectDeleted}
+                             onEditObject={onEditObject}
+                             room3d={room3d}
+                             magnetEnabled={magnetEnabled}
+                             allObjects={allObjects}
+                             onDragStateChange={onDragStateChange}
+                             onMeshesDiscovered={onMeshesDiscovered}
+                             interactionDisabled={movingObjectId !== undefined && obj.id !== movingObjectId}
+                         />
+                     )
             })}
         </>
     );

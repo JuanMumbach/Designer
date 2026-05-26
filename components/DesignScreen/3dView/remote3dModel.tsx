@@ -58,7 +58,7 @@ export function useDownload3dModel(remoteUrl: string, assetName: string = 'asset
 }
 
 export function DesignObject3D({
-    obj, position, origin, dimensions, modelScale, rotation, onObjectInteraction, isSelected, onObjectEdited, onObjectDeleted, onEditObject, room3d, magnetEnabled, allObjects, onDragStateChange, onMeshesDiscovered
+    obj, position, origin, dimensions, modelScale, rotation, onObjectInteraction, isSelected, onObjectEdited, onObjectDeleted, onEditObject, room3d, magnetEnabled, allObjects, onDragStateChange, onMeshesDiscovered, interactionDisabled
 }: {
     obj: DesignObject,
     position: [number, number, number],
@@ -75,7 +75,8 @@ export function DesignObject3D({
     magnetEnabled: boolean,
     allObjects: DesignObject[],
     onDragStateChange?: (isDragging: boolean) => void,
-    onMeshesDiscovered?: (id: string, meshNames: string[]) => void
+    onMeshesDiscovered?: (id: string, meshNames: string[]) => void,
+    interactionDisabled?: boolean
 }) {
     const url = obj.modelUrl;
     const { localUri, isLoading, error } = useDownload3dModel(url, obj.id);
@@ -334,58 +335,63 @@ export function DesignObject3D({
     const planeOffsetX = (dimensions[0] / 2) * Math.cos(currentAngle) + (dimensions[2] / 2) * Math.sin(currentAngle);
     const planeOffsetZ = -(dimensions[0] / 2) * Math.sin(currentAngle) + (dimensions[2] / 2) * Math.cos(currentAngle);
 
-    const meshRotation: [number, number, number] = isFreeMode
-        ? [-Math.PI / 2, 0, 0]
-        : [0, currentAngle, 0];
-
-    const meshPosition: [number, number, number] = isFreeMode
-        ? [
-              origin[0] + initialPosition.current[0] + dimensions[0] / 2,
-              origin[1],
-              origin[2] + initialPosition.current[2] + dimensions[2] / 2
-          ]
-        : [
-              origin[0] + initialPosition.current[0] + planeOffsetX,
-              origin[1],
-              origin[2] + initialPosition.current[2] + planeOffsetZ
-          ];
-
-    return (
-        <group>
-            <group position={modelPosition} rotation={[0, rotation || 0, 0]}>
-                <Suspense fallback={null}>
-                    <Gltf
-                        ref={handleGltfReady}
-                        src={localUri}
-                        rotation={[0, -Math.PI / 2, 0]}
-                        scale={modelScale || 1}
-                        onClick={(e) => {
-                            if (globalIsDragging) return;
-                            e.stopPropagation();
-                        }}
-                        onDoubleClick={(e) => {
-                            if (globalIsDragging) return;
-                            e.stopPropagation();
-                            if (isDesktop) handleInteraction(e);
-                        }}
-                        onPointerDown={(e) => {
-                            if (globalIsDragging) return;
-                            handlePointerDown(e);
-                        }}
-                        onPointerUp={(e) => {
-                            if (globalIsDragging) return;
-                            handlePointerUp(e);
-                        }}
-                        onPointerMove={(e) => {
-                            if (globalIsDragging) return;
-                            handlePointerMove(e);
-                        }}
-                        onPointerLeave={(e) => {
-                            if (globalIsDragging) return;
-                            handlePointerLeave(e);
-                        }}
-                    />
-                </Suspense>
+     const meshRotation: [number, number, number] = isFreeMode
+         ? [-Math.PI / 2, 0, 0]
+         : [0, currentAngle, 0];
+ 
+     const meshPosition: [number, number, number] = isFreeMode
+         ? [
+               origin[0] + initialPosition.current[0] + dimensions[0] / 2,
+               origin[1],
+               origin[2] + initialPosition.current[2] + dimensions[2] / 2
+           ]
+         : [
+               origin[0] + initialPosition.current[0] + planeOffsetX,
+               origin[1],
+               origin[2] + initialPosition.current[2] + planeOffsetZ
+           ];
+ 
+     // Conditional event handlers: disable interaction when another object is selected
+     const gltfHandlers = interactionDisabled ? {} : {
+       onClick: (e) => {
+         if (globalIsDragging) return;
+         e.stopPropagation();
+       },
+       onDoubleClick: (e) => {
+         if (globalIsDragging) return;
+         e.stopPropagation();
+         if (isDesktop) handleInteraction(e);
+       },
+       onPointerDown: (e) => {
+         if (globalIsDragging) return;
+         handlePointerDown(e);
+       },
+       onPointerUp: (e) => {
+         if (globalIsDragging) return;
+         handlePointerUp(e);
+       },
+       onPointerMove: (e) => {
+         if (globalIsDragging) return;
+         handlePointerMove(e);
+       },
+       onPointerLeave: (e) => {
+         if (globalIsDragging) return;
+         handlePointerLeave(e);
+       }
+     };
+ 
+     return (
+         <group>
+             <group position={modelPosition} rotation={[0, rotation || 0, 0]}>
+                 <Suspense fallback={null}>
+                     <Gltf
+                         ref={handleGltfReady}
+                         src={localUri}
+                         rotation={[0, -Math.PI / 2, 0]}
+                         scale={modelScale || 1}
+                         {...gltfHandlers}
+                     />
+                 </Suspense>
 
                 {(isSelected &&
                     <group>
