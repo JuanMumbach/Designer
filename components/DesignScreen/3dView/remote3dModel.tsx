@@ -1,4 +1,5 @@
 import { Box, Gltf, useTexture } from '@react-three/drei/native';
+import ObjectMeasurements3D from './ObjectMeasurements3D';
 import { Asset } from 'expo-asset';
 import * as FileSystem from 'expo-file-system';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
@@ -393,70 +394,78 @@ export function DesignObject3D({
                      />
                  </Suspense>
 
-                {(isSelected &&
-                    <group>
-                        <sprite
-                            position={[dimensions[0] / 2, -0.2, dimensions[2] + 0.2]}
-                            scale={[.75, .75, .75]}
-                            onPointerDown={(e) => {
-                                e.stopPropagation();
-                                setIsDragging(true);
-                                globalIsDragging = true;
-                                dragStartPoint.current.copy(e.point);
-                                initialPosition.current = [...position];
-                                if (onDragStateChange) onDragStateChange(true);
-                            }}
-                        >
-                            <spriteMaterial
-                                map={dragIconTexture}
-                                color="white"
-                                depthTest={false}
-                                transparent={true}
-                            />
-                        </sprite>
-                        <sprite
-                            position={[dimensions[0] - 0.1, dimensions[1] + 0.2, 0]}
-                            scale={[0.2, 0.2, 0.2]}
-                            onPointerDown={(e) => {
-                                e.stopPropagation();
-                                if (Platform.OS === 'web') {
-                                    if (window.confirm('Are you sure you want to delete this object?')) {
-                                        if (onObjectDeleted) onObjectDeleted(obj.id);
-                                    }
-                                } else {
-                                    Alert.alert('Delete Object', 'Are you sure you want to delete this object?', [
-                                        { text: 'Cancel', style: 'cancel' },
-                                        { text: 'Delete', style: 'destructive', onPress: () => {
-                                            if (onObjectDeleted) onObjectDeleted(obj.id);
-                                        }},
-                                    ]);
-                                }
-                            }}
-                        >
-                            <spriteMaterial
-                                map={deleteIconTexture}
-                                color="#ffffffff"
-                                depthTest={false}
-                                transparent={true}
-                            />
-                        </sprite>
-                        <sprite
-                            position={[0.1, dimensions[1] + 0.2, 0]}
-                            scale={[0.26, 0.26, 0.26]}
-                            onPointerDown={(e) => {
-                                e.stopPropagation();
-                                if (onEditObject) onEditObject(obj);
-                            }}
-                        >
-                            <spriteMaterial
-                                map={editIconTexture}
-                                color="#ffffffff"
-                                depthTest={false}
-                                transparent={true}
-                            />
-                        </sprite>
-                    </group>
-                )}
+                 {(isSelected &&
+                     <group>
+                         <sprite
+                             position={[dimensions[0] / 2, -0.2, dimensions[2] + 0.2]}
+                             scale={[.75, .75, .75]}
+                             onPointerDown={(e) => {
+                                 e.stopPropagation();
+                                 setIsDragging(true);
+                                 globalIsDragging = true;
+                                 dragStartPoint.current.copy(e.point);
+                                 initialPosition.current = [...position];
+                                 if (onDragStateChange) onDragStateChange(true);
+                             }}
+                         >
+                             <spriteMaterial
+                                 map={dragIconTexture}
+                                 color="white"
+                                 depthTest={false}
+                                 transparent={true}
+                             />
+                         </sprite>
+                         <sprite
+                             position={[dimensions[0] - 0.1, dimensions[1] + 0.2, 0]}
+                             scale={[0.2, 0.2, 0.2]}
+                             onPointerDown={(e) => {
+                                 e.stopPropagation();
+                                 if (Platform.OS === 'web') {
+                                     if (window.confirm('Are you sure you want to delete this object?')) {
+                                         if (onObjectDeleted) onObjectDeleted(obj.id);
+                                     }
+                                 } else {
+                                     Alert.alert('Delete Object', 'Are you sure you want to delete this object?', [
+                                         { text: 'Cancel', style: 'cancel' },
+                                         { text: 'Delete', style: 'destructive', onPress: () => {
+                                             if (onObjectDeleted) onObjectDeleted(obj.id);
+                                         }},
+                                     ]);
+                                 }
+                             }}
+                         >
+                             <spriteMaterial
+                                 map={deleteIconTexture}
+                                 color="#ffffffff"
+                                 depthTest={false}
+                                 transparent={true}
+                             />
+                         </sprite>
+                         <sprite
+                             position={[0.1, dimensions[1] + 0.2, 0]}
+                             scale={[0.26, 0.26, 0.26]}
+                             onPointerDown={(e) => {
+                                 e.stopPropagation();
+                                 if (onEditObject) onEditObject(obj);
+                             }}
+                         >
+                             <spriteMaterial
+                                 map={editIconTexture}
+                                 color="#ffffffff"
+                                 depthTest={false}
+                                 transparent={true}
+                             />
+                         </sprite>
+                         
+                         {/* Measurements - show when object is selected */}
+                         <ObjectMeasurements3D
+                             object={obj}
+                             allObjects={allObjects}
+                             room3d={room3d}
+                             origin={origin}
+                         />
+                     </group>
+                 )}
             </group>
 
             {isDragging && onObjectEdited && (
