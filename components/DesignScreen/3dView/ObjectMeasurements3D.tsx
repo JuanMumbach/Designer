@@ -1,5 +1,5 @@
+import { Line, Text } from '@react-three/drei/native';
 import React from 'react';
-import { Line } from '@react-three/drei/native';
 
 interface ObjectMeasurements3DProps {
   object: any; // DesignObject
@@ -25,37 +25,102 @@ export default function ObjectMeasurements3D({
   const [objX, objY, objZ] = position;
   const [objWidth, objHeight] = dimensions;
   
-  // Filter: same kind (same movingBehaviour), same rotation (within epsilon), same z (wall)
-  const EPSILON = 0.01;
-  const sameKind = allObjects
-    .filter(o => o.id !== object.id &&
-                o.objectProperties?.movingBehaviour === movingBehaviour &&
-                Math.abs((o.rotation || 0) - rotation) < EPSILON &&
-                Math.abs(o.position[2] - objZ) < EPSILON) // Same z (wall)
-    .sort((a, b) => a.position[0] - b.position[0]); // Sort by x position
+  // Filter and distance calculations based on rotation
+  const EPSILON = 0.1;
+  const isBackWall = Math.abs(rotation) < EPSILON;
+  const isLeftWall = Math.abs(rotation - Math.PI / 2) < EPSILON;
+  const isRightWall = Math.abs(rotation + Math.PI / 2) < EPSILON;
 
-  // Find left and right neighbors
-  const objLeft = objX;
-  const objRight = objX + objWidth;
-  
-  // Left side: find nearest object to the left, or wall
-  const leftCandidates = sameKind.filter(o => o.position[0] + o.dimensions[0] <= objLeft);
   let leftDistance: number | null = null;
-  if (leftCandidates.length > 0) {
-    const nearestLeft = leftCandidates[leftCandidates.length - 1]; // Rightmost of left objects
-    leftDistance = objLeft - (nearestLeft.position[0] + nearestLeft.dimensions[0]);
-  } else if (room3d.leftWall) {
-    leftDistance = objLeft; // Distance from left wall (x=0)
-  }
-  
-  // Right side: find nearest object to the right, or wall
-  const rightCandidates = sameKind.filter(o => o.position[0] >= objRight);
-  let rightDistance: number |null = null;
-  if (rightCandidates.length > 0) {
-    const nearestRight = rightCandidates[0]; // Leftmost of right objects
-    rightDistance = nearestRight.position[0] - objRight;
-  } else if (room3d.rightWall) {
-    rightDistance = room3d.width - objRight;
+  let rightDistance: number | null = null;
+
+  if (isBackWall) {
+    // Back wall: parallel to X-axis
+    const sameKind = allObjects
+      .filter(o => o.id !== object.id &&
+                  o.objectProperties?.movingBehaviour === movingBehaviour &&
+                  Math.abs((o.rotation || 0) - rotation) < EPSILON &&
+                  Math.abs(o.position[2] - objZ) < EPSILON)
+      .sort((a, b) => a.position[0] - b.position[0]);
+
+    const objLeft = objX;
+    const objRight = objX + objWidth;
+
+    // Left side: find nearest object to the left, or left wall
+    const leftCandidates = sameKind.filter(o => o.position[0] + o.dimensions[0] <= objLeft);
+    if (leftCandidates.length > 0) {
+      const nearestLeft = leftCandidates[leftCandidates.length - 1];
+      leftDistance = objLeft - (nearestLeft.position[0] + nearestLeft.dimensions[0]);
+    } else if (room3d.leftWall) {
+      leftDistance = objLeft; // Distance from left wall (x=0)
+    }
+
+    // Right side: find nearest object to the right, or right wall
+    const rightCandidates = sameKind.filter(o => o.position[0] >= objRight);
+    if (rightCandidates.length > 0) {
+      const nearestRight = rightCandidates[0];
+      rightDistance = nearestRight.position[0] - objRight;
+    } else if (room3d.rightWall) {
+      rightDistance = room3d.width - objRight;
+    }
+  } else if (isLeftWall) {
+    // Left wall: parallel to Z-axis
+    const sameKind = allObjects
+      .filter(o => o.id !== object.id &&
+                  o.objectProperties?.movingBehaviour === movingBehaviour &&
+                  Math.abs((o.rotation || 0) - rotation) < EPSILON &&
+                  Math.abs(o.position[0] - objX) < EPSILON)
+      .sort((a, b) => a.position[2] - b.position[2]);
+
+    const objFront = objZ; // front edge (towards depth)
+    const objBack = objZ - objWidth; // back edge (towards 0)
+
+    // Left measurement (goes towards Z = depth / front opening)
+    const frontCandidates = sameKind.filter(o => o.position[2] - o.dimensions[0] >= objFront);
+    if (frontCandidates.length > 0) {
+      const nearestFront = frontCandidates[0]; // closest towards front
+      leftDistance = (nearestFront.position[2] - nearestFront.dimensions[0]) - objFront;
+    } else {
+      leftDistance = room3d.depth - objFront; // Distance to front opening
+    }
+
+    // Right measurement (goes towards Z = 0 / back wall)
+    const backCandidates = sameKind.filter(o => o.position[2] <= objBack);
+    if (backCandidates.length > 0) {
+      const nearestBack = backCandidates[backCandidates.length - 1]; // closest towards back
+      rightDistance = objBack - nearestBack.position[2];
+    } else {
+      rightDistance = objBack; // Distance to back wall
+    }
+  } else if (isRightWall) {
+    // Right wall: parallel to Z-axis
+    const sameKind = allObjects
+      .filter(o => o.id !== object.id &&
+                  o.objectProperties?.movingBehaviour === movingBehaviour &&
+                  Math.abs((o.rotation || 0) - rotation) < EPSILON &&
+                  Math.abs(o.position[0] - objX) < EPSILON)
+      .sort((a, b) => a.position[2] - b.position[2]);
+
+    const objFront = objZ + objWidth; // front edge (towards depth)
+    const objBack = objZ; // back edge (towards 0)
+
+    // Left measurement (goes towards Z = 0 / back wall)
+    const backCandidates = sameKind.filter(o => o.position[2] + o.dimensions[0] <= objBack);
+    if (backCandidates.length > 0) {
+      const nearestBack = backCandidates[backCandidates.length - 1]; // closest towards back
+      leftDistance = objBack - (nearestBack.position[2] + nearestBack.dimensions[0]);
+    } else {
+      leftDistance = objBack; // Distance to back wall
+    }
+
+    // Right measurement (goes towards Z = depth / front opening)
+    const frontCandidates = sameKind.filter(o => o.position[2] >= objFront);
+    if (frontCandidates.length > 0) {
+      const nearestFront = frontCandidates[0]; // closest towards front
+      rightDistance = nearestFront.position[2] - objFront;
+    } else {
+      rightDistance = room3d.depth - objFront; // Distance to front opening
+    }
   }
   
   // Floor distance (if elevated)
@@ -112,6 +177,23 @@ export default function ObjectMeasurements3D({
         depthTest={false}
       />
     );
+    // Distance Label
+    measurementElements.push(
+      <Text
+        key="left-label"
+        position={[(startX + endX) / 2, localLineY, localZ]}
+        fontSize={0.25}
+        color="black"
+        anchorX="center"
+        anchorY="middle"
+        material-depthTest={false}
+        material-depthWrite={false}
+        material-transparent={true}
+        renderOrder={999}
+      >
+        {leftDistance.toFixed(2)}
+      </Text>
+    );
   }
   
   // Right measurement
@@ -149,6 +231,23 @@ export default function ObjectMeasurements3D({
         depthTest={false}
       />
     );
+    // Distance Label
+    measurementElements.push(
+      <Text
+        key="right-label"
+        position={[(startX + endX) / 2, localLineY, localZ]}
+        fontSize={0.25}
+        color="black"
+        anchorX="center"
+        anchorY="middle"
+        material-depthTest={false}
+        material-depthWrite={false}
+        material-transparent={true}
+        renderOrder={999}
+      >
+        {rightDistance.toFixed(2)}
+      </Text>
+    );
   }
   
   // Floor measurement
@@ -183,10 +282,26 @@ export default function ObjectMeasurements3D({
         depthTest={false}
       />
     );
+    // Distance Label
+    measurementElements.push(
+      <Text
+        key="floor-label"
+        position={[localObjCenterX, (localObjBottomY + localFloorY) / 2, localZ]}
+        fontSize={0.25}
+        color="black"
+        anchorX="center"
+        anchorY="middle"
+        material-depthTest={false}
+        material-depthWrite={false}
+        material-transparent={true}
+        renderOrder={999}
+      >
+        {floorDistance.toFixed(2)}
+      </Text>
+    );
   }
   
-  // For MVP, just return the lines (no text labels yet)
-  // In a full implementation, we'd add Html or Text components from drei
+  // Return the measurements and labels
   return (
     <>
       {measurementElements}
