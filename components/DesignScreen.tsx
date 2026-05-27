@@ -22,7 +22,7 @@ export default function DesignScreen() {
   const [room3d, setRoom3d] = useState<Room3dProps>(initialRoom3d);
   const [designObjects, setDesignObjects] = useState<DesignObject[]>([]);
   const [movingObject, setMovingObject] = useState<DesignObject | undefined>(undefined);
-  const [magnetEnabled, setMagnetEnabled] = useState<boolean>(false);
+  const [magnetEnabled, _setMagnetEnabled] = useState<boolean>(true);
   const [isDraggingObject, setIsDraggingObject] = useState(false);
   const [forceEditObject, setForceEditObject] = useState<DesignObject | undefined>(undefined);
 
@@ -149,7 +149,6 @@ export default function DesignScreen() {
         movingObject={movingObject}
         setMovingObject={setMovingObject}
         magnetEnabled={magnetEnabled}
-        setMagnetEnabled={setMagnetEnabled}
         forceEditObject={forceEditObject}
         clearForceEdit={() => setForceEditObject(undefined)}
         materials={materials}

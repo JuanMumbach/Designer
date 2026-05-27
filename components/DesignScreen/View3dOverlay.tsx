@@ -24,7 +24,6 @@ interface View3dOverlayProps {
   movingObject?: DesignObject;
   setMovingObject: (object?: DesignObject) => void;
   magnetEnabled: boolean;
-  setMagnetEnabled: React.Dispatch<React.SetStateAction<boolean>>;
   forceEditObject?: DesignObject;
   clearForceEdit: () => void;
   materials: MaterialMeta[];
@@ -51,7 +50,7 @@ function useWindowDimensions() {
 
 
 
-export default function View3dOverlay({ objectTemplates, categories, designObjects, room3dProps, setRoom3d , onObjectAdded, onObjectEdited, onObjectDeleted, movingObject, setMovingObject, magnetEnabled, setMagnetEnabled, forceEditObject, clearForceEdit, materials, materialCategories} : View3dOverlayProps) {
+export default function View3dOverlay({ objectTemplates, categories, designObjects, room3dProps, setRoom3d , onObjectAdded, onObjectEdited, onObjectDeleted, movingObject, setMovingObject, magnetEnabled, forceEditObject, clearForceEdit, materials, materialCategories} : View3dOverlayProps) {
 
   const { width } = useWindowDimensions();
   const [isObjectsManagerVisible, setIsObjectsManagerVisible] = useState(false);
@@ -167,9 +166,6 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
       {(width > 768) &&
         (
           <View style={[styles.column, { backgroundColor: debugColors ? 'rgba(255, 0, 0, 0.25)' : 'transparent' }]}>
-            <View style={[styles.topBar, { backgroundColor: debugColors ? 'rgba(255, 255, 0, 0.25)' : 'white' }]}>
-              <Button label={magnetEnabled ? "Magnet ON" : "Magnet OFF"} onPress={() => setMagnetEnabled(prev => !prev)} />
-            </View>
             {isRoomSettingsVisible && (
               <RoomManager room3dProps={room3dProps} setRoom3d={setRoom3d} onClose={() => setIsRoomSettingsVisible(false)}></RoomManager>
             )}
@@ -249,12 +245,6 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
           }
         </View>
 
-        {/* Magnet toggle (mobile: top-left of middle column) */}
-        {(width <= 768) &&
-          <View style={[styles.topBar, { backgroundColor: debugColors ? 'rgba(255, 255, 0, 0.25)' : 'white' }]}>
-            <Button label={magnetEnabled ? "Magnet ON" : "Magnet OFF"} onPress={() => setMagnetEnabled(prev => !prev)} />
-          </View>
-        }
       </View>
 
       {/*---------------------------------Menu lateral (Solo desktop)-------------------------------------*/}
@@ -324,21 +314,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4.65,
     elevation: 8,
-    zIndex: 100,
-  },
-  topBar: {
-    position: 'absolute',
-    top: 10,
-    left: 10,
-    flexDirection: 'row',
-    paddingVertical: 4,
-    paddingHorizontal: 4,
-    borderRadius: 30,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 5,
     zIndex: 100,
   },
 });
