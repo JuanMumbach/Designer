@@ -22,7 +22,12 @@ export function useMaterials() {
         fetchAllMaterialCategories(),
       ]);
 
-      setMaterials(materialsData);
+      const seen = new Set<string>();
+      setMaterials(materialsData.filter((m) => {
+        if (seen.has(m.id)) return false;
+        seen.add(m.id);
+        return true;
+      }));
       setCategories(categoriesData);
     } catch (err) {
       setError(err as Error);

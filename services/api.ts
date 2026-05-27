@@ -60,6 +60,149 @@ export async function fetchAllCategories(): Promise<ObjectCategory[]> {
   return response.json();
 }
 
+export async function createObjectCategory(body: {
+  categoryName: string;
+  parentCategoryId?: string;
+}): Promise<ObjectCategory> {
+  const response = await fetch(`${API_BASE_URL}/api/ObjectCategory`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to create object category: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function updateObjectCategory(
+  id: string,
+  body: { categoryName?: string; parentCategoryId?: string | null }
+): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/ObjectCategory/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to update object category ${id}: ${response.status}`);
+  }
+}
+
+export async function deleteObjectCategory(id: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/ObjectCategory/${id}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to delete object category ${id}: ${response.status}`);
+  }
+}
+
+export async function createObject(body: {
+  name: string;
+  creatorId: string;
+  categoryId?: string;
+}): Promise<ObjectModel> {
+  const response = await fetch(`${API_BASE_URL}/api/Objects`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to create object: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function renameObject(body: { id: string; name: string }): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/Objects/rename`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to rename object: ${response.status}`);
+  }
+}
+
+export async function categorizeObject(body: {
+  id: string;
+  categoryId?: string | null;
+}): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/Objects/categorize`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to categorize object: ${response.status}`);
+  }
+}
+
+export async function deleteObject(id: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/Objects/${id}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to delete object ${id}: ${response.status}`);
+  }
+}
+
+export async function createObjectVersion(
+  objectId: string,
+  body: {
+    fileURL: string;
+    sizeX: number;
+    sizeY: number;
+    sizeZ: number;
+    objectProperties?: string;
+    creatorId: string;
+  }
+): Promise<ObjectVersion> {
+  const response = await fetch(`${API_BASE_URL}/api/ObjectData/${objectId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to create object version for ${objectId}: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function updateObjectVersion(
+  objectId: string,
+  version: number,
+  body: {
+    fileURL?: string;
+    sizeX?: number;
+    sizeY?: number;
+    sizeZ?: number;
+    objectProperties?: string;
+  }
+): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/ObjectData/${objectId}-${version}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to update version ${version} of object ${objectId}: ${response.status}`);
+  }
+}
+
+export async function deleteObjectVersion(
+  objectId: string,
+  version: number
+): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/ObjectData/${objectId}-${version}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to delete version ${version} of object ${objectId}: ${response.status}`);
+  }
+}
+
 // ── Material Types ──
 
 export interface MaterialCategory {
