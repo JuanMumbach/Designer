@@ -2,10 +2,10 @@ import Design3dView from "@/components/DesignScreen/Design3dViewer";
 import View3dOverlay from "@/components/DesignScreen/View3dOverlay";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
-import { DesignObject, TextureOverride, createDesignObject } from "./DesignScreen/3dView/DesignObjects";
-import { Room3dProps } from "./DesignScreen/3dView/Room3d";
 import { useObjectTemplates } from "../services/useFurnitureModels";
 import { useMaterials } from "../services/useMaterials";
+import { DesignObject, TextureOverride, createDesignObject } from "./DesignScreen/3dView/DesignObjects";
+import { Room3dProps } from "./DesignScreen/3dView/Room3d";
 
 
 const initialRoom3d: Room3dProps = {
@@ -45,13 +45,11 @@ export default function DesignScreen() {
     if (cupboardModels.length > 0) {
       const cupboard = cupboardModels[0];
       const cupboard2 = cupboardModels.length > 1 ? cupboardModels[1] : cupboardModels[0];
-      const y1 = cupboard.objectProperties?.height ?? 0;
-      const y2 = cupboard2.objectProperties?.height ?? 0;
-      defaults.push(createDesignObject(cupboard, [0, y1, 0]));
-      defaults.push(createDesignObject(cupboard2, [1.2, y2, 0]));
-      defaults.push(createDesignObject(cupboard, [1.8, y1, 0]));
-      defaults.push(createDesignObject(cupboard2, [2.4, y2, 0]));
-      defaults.push(createDesignObject(cupboard2, [3, y2, 0]));
+      defaults.push(createDesignObject(cupboard, [0, 1.5, 0]));
+      defaults.push(createDesignObject(cupboard2, [1.2, 1.5, 0]));
+      defaults.push(createDesignObject(cupboard, [1.8, 1.5, 0]));
+      defaults.push(createDesignObject(cupboard2, [2.4, 1.5, 0]));
+      defaults.push(createDesignObject(cupboard2, [3, 1.5, 0]));
     }
 
     setDesignObjects(defaults);

@@ -131,7 +131,9 @@ export default function ObjectMeasurements3D({
 
   // Render measurements
   const measurementHeight = 0.2; // Height of measurement lines above object
-  const localLineY = objHeight + measurementHeight;
+  const textOffsetY = 0.1; // Vertical offset for text labels
+  const textOffsetX = 0.25; // Horizontal offset for text labels
+  const localLineY = objHeight/2;
   const localObjLeft = 0;
   const localObjRight = objWidth;
   const localObjCenterX = objWidth / 2;
@@ -181,7 +183,7 @@ export default function ObjectMeasurements3D({
     measurementElements.push(
       <Text
         key="left-label"
-        position={[(startX + endX) / 2, localLineY, localZ]}
+        position={[(startX + endX) / 2, localLineY + textOffsetY, localZ]}
         fontSize={0.25}
         color="black"
         anchorX="center"
@@ -235,7 +237,7 @@ export default function ObjectMeasurements3D({
     measurementElements.push(
       <Text
         key="right-label"
-        position={[(startX + endX) / 2, localLineY, localZ]}
+        position={[(startX + endX) / 2, localLineY + textOffsetY, localZ]}
         fontSize={0.25}
         color="black"
         anchorX="center"
@@ -286,7 +288,7 @@ export default function ObjectMeasurements3D({
     measurementElements.push(
       <Text
         key="floor-label"
-        position={[localObjCenterX, (localObjBottomY + localFloorY) / 2, localZ]}
+        position={[localObjCenterX + textOffsetX, (localObjBottomY + localFloorY) / 2, localZ]}
         fontSize={0.25}
         color="black"
         anchorX="center"
