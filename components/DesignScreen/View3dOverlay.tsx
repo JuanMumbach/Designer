@@ -28,6 +28,8 @@ interface View3dOverlayProps {
   clearForceEdit: () => void;
   materials: MaterialMeta[];
   materialCategories: MaterialCategory[];
+  onSaveProject: () => void;
+  onLoadProject: () => void;
 }
 
 function useWindowDimensions() {
@@ -50,7 +52,7 @@ function useWindowDimensions() {
 
 
 
-export default function View3dOverlay({ objectTemplates, categories, designObjects, room3dProps, setRoom3d , onObjectAdded, onObjectEdited, onObjectDeleted, movingObject, setMovingObject, magnetEnabled, forceEditObject, clearForceEdit, materials, materialCategories} : View3dOverlayProps) {
+export default function View3dOverlay({ objectTemplates, categories, designObjects, room3dProps, setRoom3d , onObjectAdded, onObjectEdited, onObjectDeleted, movingObject, setMovingObject, magnetEnabled, forceEditObject, clearForceEdit, materials, materialCategories, onSaveProject, onLoadProject} : View3dOverlayProps) {
 
   const { width } = useWindowDimensions();
   const [isObjectsManagerVisible, setIsObjectsManagerVisible] = useState(false);
@@ -172,6 +174,11 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
             <Button label="Edit Room" onPress={() => toggleRoomSettings()} />
           </View>
         )}
+
+      <View style={styles.topUtilityControls}>
+        <Button label="Save" onPress={onSaveProject} />
+        <Button label="Load" onPress={onLoadProject} />
+      </View>
 
       {/*-------------------------------------Columna central------------------------------------------*/}
       <View style={[styles.middleColumn, { backgroundColor: debugColors ? 'rgba(4, 0, 255, 0.25)' : 'transparent' }]}>
@@ -315,5 +322,13 @@ const styles = StyleSheet.create({
     shadowRadius: 4.65,
     elevation: 8,
     zIndex: 100,
+  },
+  topUtilityControls: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    flexDirection: 'row',
+    zIndex: 100,
+    pointerEvents: "box-none",
   },
 });

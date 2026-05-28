@@ -81,6 +81,7 @@ export function useObjectTemplates() {
             if (isMounted) {
                 templatesArray.push({
                 id: model.id,
+                version: version.version,
                 name: model.name,
                 modelUrl: version.fileURL,
                 width: version.sizeX,

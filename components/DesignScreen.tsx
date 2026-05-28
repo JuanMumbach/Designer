@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 import { useObjectTemplates } from "../services/useFurnitureModels";
 import { useMaterials } from "../services/useMaterials";
+import { serializeProjectState, saveProject, loadProject, deserializeProjectState } from "@/services/projectStorage";
 import { DesignObject, TextureOverride, createDesignObject } from "./DesignScreen/3dView/DesignObjects";
 import { Room3dProps } from "./DesignScreen/3dView/Room3d";
 
@@ -25,6 +26,27 @@ export default function DesignScreen() {
   const [magnetEnabled, _setMagnetEnabled] = useState<boolean>(true);
   const [isDraggingObject, setIsDraggingObject] = useState(false);
   const [forceEditObject, setForceEditObject] = useState<DesignObject | undefined>(undefined);
+
+  const handleSaveProject = async () => {
+    const serializedState = serializeProjectState(room3d, designObjects);
+    await saveProject(serializedState, 'my_designer_project.json');
+  };
+
+  const handleLoadProject = async () => {
+    const projectData = await loadProject();
+    if (projectData) {
+      const getModelUrl = async (modelId: string, version: number) => {
+        const template = objectTemplates.find(t => t.id === modelId && t.version === version);
+        if (template) return template.modelUrl;
+        return undefined;
+      };
+
+      const { room, objects } = await deserializeProjectState(projectData, getModelUrl);
+      setRoom3d(room);
+      setDesignObjects(objects);
+      setMovingObject(undefined);
+    }
+  };
 
   useEffect(() => {
     if (objectTemplates.length === 0) return;
@@ -151,6 +173,8 @@ export default function DesignScreen() {
         clearForceEdit={() => setForceEditObject(undefined)}
         materials={materials}
         materialCategories={materialCategories}
+        onSaveProject={handleSaveProject}
+        onLoadProject={handleLoadProject}
       >
       </View3dOverlay>
     </View>

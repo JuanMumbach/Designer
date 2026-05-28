@@ -6,6 +6,7 @@ import { ObjectProperties } from '../../../services/api';
 
 export interface ObjectTemplate {
     id: string;
+    version: number;
     name: string;
     modelUrl: string;
     width: number;
@@ -26,6 +27,8 @@ export interface TextureOverride {
 
 export interface DesignObject {
     id: string;
+    modelId: string;
+    version: number;
     name: string;
     position: [number, number, number];
     rotation: number;
@@ -40,6 +43,8 @@ export interface DesignObject {
 export function createDesignObject(template: ObjectTemplate, position?: [number, number, number]): DesignObject {
     return {
         id: generateUUID(),
+        modelId: template.id,
+        version: template.version,
         name: template.name,
         position: position ?? [0, 0, 0],
         rotation: 0,
@@ -53,6 +58,7 @@ export function createDesignObject(template: ObjectTemplate, position?: [number,
 export let objectTemplates: ObjectTemplate[] = [
     {
         id: generateUUID(),
+        version: 1,
         name: "Counter60",
         modelUrl: "https://firebasestorage.googleapis.com/v0/b/designer-models.firebasestorage.app/o/bajo60con2puertas.glb?alt=media&token=b0cfe920-1841-43dd-aa60-d05afa483417",
         width: .6,
@@ -62,6 +68,7 @@ export let objectTemplates: ObjectTemplate[] = [
     },
     {
         id: generateUUID(),
+        version: 1,
         name: "Counter60tallplinth",
         modelUrl: "https://firebasestorage.googleapis.com/v0/b/designer-models.firebasestorage.app/o/bajo60con2puertasZocalon.glb?alt=media&token=6ace8545-e3a5-4a8f-8b7b-51510dead445",
         width: .6,
@@ -71,6 +78,7 @@ export let objectTemplates: ObjectTemplate[] = [
     },
     {
         id: generateUUID(),
+        version: 1,
         name: "Cupboard60hdoors",
         modelUrl: "https://firebasestorage.googleapis.com/v0/b/designer-models.firebasestorage.app/o/alacena60con2puertas.glb?alt=media&token=573dfc44-90d6-4fb8-9389-6be1500c9dbd",
         width: .6,
@@ -80,6 +88,7 @@ export let objectTemplates: ObjectTemplate[] = [
     },
     {
         id: generateUUID(),
+        version: 1,
         name: "Cupboard60vdoors",
         modelUrl: "https://firebasestorage.googleapis.com/v0/b/designer-models.firebasestorage.app/o/alacena60con2puertasLevadizas.glb?alt=media&token=9d18bf97-138a-48cb-bc24-4e424fc33a6c",
         width: .6,
