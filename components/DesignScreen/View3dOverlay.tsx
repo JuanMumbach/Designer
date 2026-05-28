@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Dimensions, ScaledSize, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Dimensions, ScaledSize, StyleSheet, View } from "react-native";
 import Button from "../Button";
 import { DesignObject, ObjectTemplate, TextureOverride } from "./3dView/DesignObjects";
 import { Room3dProps } from "./3dView/Room3d";
@@ -30,6 +30,8 @@ interface View3dOverlayProps {
   materialCategories: MaterialCategory[];
   onSaveProject: () => void;
   onLoadProject: () => void;
+  onExport3d: () => void;
+  isExporting: boolean;
 }
 
 function useWindowDimensions() {
@@ -52,7 +54,7 @@ function useWindowDimensions() {
 
 
 
-export default function View3dOverlay({ objectTemplates, categories, designObjects, room3dProps, setRoom3d , onObjectAdded, onObjectEdited, onObjectDeleted, movingObject, setMovingObject, magnetEnabled, forceEditObject, clearForceEdit, materials, materialCategories, onSaveProject, onLoadProject} : View3dOverlayProps) {
+export default function View3dOverlay({ objectTemplates, categories, designObjects, room3dProps, setRoom3d , onObjectAdded, onObjectEdited, onObjectDeleted, movingObject, setMovingObject, magnetEnabled, forceEditObject, clearForceEdit, materials, materialCategories, onSaveProject, onLoadProject, onExport3d, isExporting} : View3dOverlayProps) {
 
   const { width } = useWindowDimensions();
   const [isObjectsManagerVisible, setIsObjectsManagerVisible] = useState(false);
@@ -162,6 +164,7 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
       setIsEditObjectMenuVisible(false);
     }
   };
+
   return (
     <View style={styles.overlay}>
       {/*---------------------------------Menu lateral (Solo desktop)-------------------------------------*/}
@@ -178,6 +181,11 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
       <View style={styles.topUtilityControls}>
         <Button label="Save" onPress={onSaveProject} />
         <Button label="Load" onPress={onLoadProject} />
+        {isExporting ? (
+          <ActivityIndicator size="small" color="#2563eb" style={{ marginHorizontal: 8 }} />
+        ) : (
+          <Button label="Export 3D" onPress={onExport3d} />
+        )}
       </View>
 
       {/*-------------------------------------Columna central------------------------------------------*/}

@@ -5,6 +5,7 @@ import { ActivityIndicator, Text, View } from "react-native";
 import { useObjectTemplates } from "../services/useFurnitureModels";
 import { useMaterials } from "../services/useMaterials";
 import { serializeProjectState, saveProject, loadProject, deserializeProjectState } from "@/services/projectStorage";
+import { exportSceneAsGLB } from "@/services/sceneExport";
 import { DesignObject, TextureOverride, createDesignObject } from "./DesignScreen/3dView/DesignObjects";
 import { Room3dProps } from "./DesignScreen/3dView/Room3d";
 
@@ -26,6 +27,18 @@ export default function DesignScreen() {
   const [magnetEnabled, _setMagnetEnabled] = useState<boolean>(true);
   const [isDraggingObject, setIsDraggingObject] = useState(false);
   const [forceEditObject, setForceEditObject] = useState<DesignObject | undefined>(undefined);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExport3d = async () => {
+    setIsExporting(true);
+    try {
+      await exportSceneAsGLB(room3d, designObjects);
+    } catch (err) {
+      console.error('Export failed:', err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const handleSaveProject = async () => {
     const serializedState = serializeProjectState(room3d, designObjects);
@@ -175,6 +188,8 @@ export default function DesignScreen() {
         materialCategories={materialCategories}
         onSaveProject={handleSaveProject}
         onLoadProject={handleLoadProject}
+        onExport3d={handleExport3d}
+        isExporting={isExporting}
       >
       </View3dOverlay>
     </View>
