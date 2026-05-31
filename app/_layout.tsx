@@ -4,8 +4,15 @@ import { StatusBar } from "expo-status-bar";
 export default function RootLayout() {
   return (
     <>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+        }}
+      >
+        <Stack.Screen name="index" />
+        <Stack.Screen name="(design)" />
+        <Stack.Screen name="(resources)" />
+        <Stack.Screen name="(workspace)" />
       </Stack>
       <StatusBar style="light" />
     </>
