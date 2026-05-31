@@ -1,5 +1,6 @@
 import { useRouter } from "expo-router";
 import React from "react";
+import { useAuth } from "../services/AuthContext";
 import {
   SafeAreaView,
   ScrollView,
@@ -13,9 +14,14 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 
 export default function HubScreen() {
   const router = useRouter();
+  const { user, signOut } = useAuth();
 
   const handleNavigate = (path: "/design" | "/materials" | "/roles") => {
     router.push(path);
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
   };
 
   return (
@@ -24,8 +30,18 @@ export default function HubScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Header Section */}
         <View style={styles.header}>
-          <Text style={styles.brandTitle}>DESIGNER</Text>
-          <Text style={styles.brandSubtitle}>Modular 3D Furniture Studio</Text>
+          <View style={styles.headerRow}>
+            <View style={styles.headerTextGroup}>
+              <Text style={styles.brandTitle}>DESIGNER</Text>
+              <Text style={styles.brandSubtitle}>Modular 3D Furniture Studio</Text>
+            </View>
+            <TouchableOpacity style={styles.signOutBtn} onPress={handleSignOut}>
+              <Ionicons name="log-out-outline" size={20} color="#64748b" />
+              {user?.email ? (
+                <Text style={styles.signOutLabel} numberOfLines={1}>{user.email.split('@')[0]}</Text>
+              ) : null}
+            </TouchableOpacity>
+          </View>
           <View style={styles.divider} />
         </View>
 
@@ -108,9 +124,16 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   header: {
-    alignItems: "center",
     marginBottom: 40,
     marginTop: 10,
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+  },
+  headerTextGroup: {
+    flex: 1,
   },
   brandTitle: {
     fontSize: 36,
@@ -124,6 +147,23 @@ const styles = StyleSheet.create({
     color: "#94a3b8",
     marginTop: 8,
     letterSpacing: 1.5,
+  },
+  signOutBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderColor: "#2d2d44",
+    marginTop: 4,
+  },
+  signOutLabel: {
+    fontSize: 12,
+    color: "#64748b",
+    maxWidth: 80,
   },
   divider: {
     width: 60,

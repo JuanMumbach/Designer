@@ -1,4 +1,40 @@
+import { auth } from './firebaseConfig';
+import { User } from 'firebase/auth';
+
 const API_BASE_URL = 'http://localhost:5111';
+
+async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
+  const token = await auth.currentUser?.getIdToken();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string>),
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return fetch(`${API_BASE_URL}${path}`, { ...options, headers });
+}
+
+export async function syncUserWithBackend(user: User): Promise<void> {
+  const token = await user.getIdToken();
+  const response = await fetch(`${API_BASE_URL}/api/User`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      username: user.displayName ?? user.email?.split('@')[0] ?? 'user',
+      emailAddress: user.email ?? '',
+      firebaseUid: user.uid,
+      name: user.displayName?.split(' ')[0] ?? null,
+      lastname: user.displayName?.split(' ').slice(1).join(' ') || null,
+    }),
+  });
+  if (!response.ok && response.status !== 409) {
+    throw new Error(`User sync failed: ${response.status}`);
+  }
+}
 
 export interface ObjectModel {
   id: string;
@@ -37,7 +73,7 @@ export interface ObjectVersion {
 }
 
 export async function fetchAllObjectModels(): Promise<ObjectModel[]> {
-  const response = await fetch(`${API_BASE_URL}/api/Objects`);
+  const response = await apiFetch('/api/Objects');
   if (!response.ok) {
     throw new Error(`Failed to fetch object models: ${response.status}`);
   }
@@ -45,7 +81,7 @@ export async function fetchAllObjectModels(): Promise<ObjectModel[]> {
 }
 
 export async function fetchObjectVersion(objectId: string): Promise<ObjectVersion> {
-  const response = await fetch(`${API_BASE_URL}/api/Objects/${objectId}`);
+  const response = await apiFetch(`/api/Objects/${objectId}`);
   if (!response.ok) {
     throw new Error(`Failed to fetch object version for ${objectId}: ${response.status}`);
   }
@@ -53,7 +89,7 @@ export async function fetchObjectVersion(objectId: string): Promise<ObjectVersio
 }
 
 export async function fetchAllCategories(): Promise<ObjectCategory[]> {
-  const response = await fetch(`${API_BASE_URL}/api/ObjectCategory`);
+  const response = await apiFetch('/api/ObjectCategory');
   if (!response.ok) {
     throw new Error(`Failed to fetch categories: ${response.status}`);
   }
@@ -64,9 +100,8 @@ export async function createObjectCategory(body: {
   categoryName: string;
   parentCategoryId?: string;
 }): Promise<ObjectCategory> {
-  const response = await fetch(`${API_BASE_URL}/api/ObjectCategory`, {
+  const response = await apiFetch('/api/ObjectCategory', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
   if (!response.ok) {
@@ -79,9 +114,8 @@ export async function updateObjectCategory(
   id: string,
   body: { categoryName?: string; parentCategoryId?: string | null }
 ): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/api/ObjectCategory/${id}`, {
+  const response = await apiFetch(`/api/ObjectCategory/${id}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
   if (!response.ok) {
@@ -90,9 +124,7 @@ export async function updateObjectCategory(
 }
 
 export async function deleteObjectCategory(id: string): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/api/ObjectCategory/${id}`, {
-    method: 'DELETE',
-  });
+  const response = await apiFetch(`/api/ObjectCategory/${id}`, { method: 'DELETE' });
   if (!response.ok) {
     throw new Error(`Failed to delete object category ${id}: ${response.status}`);
   }
@@ -103,9 +135,8 @@ export async function createObject(body: {
   creatorId: string;
   categoryId?: string;
 }): Promise<ObjectModel> {
-  const response = await fetch(`${API_BASE_URL}/api/Objects`, {
+  const response = await apiFetch('/api/Objects', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
   if (!response.ok) {
@@ -115,9 +146,8 @@ export async function createObject(body: {
 }
 
 export async function renameObject(body: { id: string; name: string }): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/api/Objects/rename`, {
+  const response = await apiFetch('/api/Objects/rename', {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
   if (!response.ok) {
@@ -129,9 +159,8 @@ export async function categorizeObject(body: {
   id: string;
   categoryId?: string | null;
 }): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/api/Objects/categorize`, {
+  const response = await apiFetch('/api/Objects/categorize', {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
   if (!response.ok) {
@@ -140,9 +169,7 @@ export async function categorizeObject(body: {
 }
 
 export async function deleteObject(id: string): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/api/Objects/${id}`, {
-    method: 'DELETE',
-  });
+  const response = await apiFetch(`/api/Objects/${id}`, { method: 'DELETE' });
   if (!response.ok) {
     throw new Error(`Failed to delete object ${id}: ${response.status}`);
   }
@@ -159,9 +186,8 @@ export async function createObjectVersion(
     creatorId: string;
   }
 ): Promise<ObjectVersion> {
-  const response = await fetch(`${API_BASE_URL}/api/ObjectData/${objectId}`, {
+  const response = await apiFetch(`/api/ObjectData/${objectId}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
   if (!response.ok) {
@@ -181,9 +207,8 @@ export async function updateObjectVersion(
     objectProperties?: string;
   }
 ): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/api/ObjectData/${objectId}-${version}`, {
+  const response = await apiFetch(`/api/ObjectData/${objectId}-${version}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
   if (!response.ok) {
@@ -195,9 +220,7 @@ export async function deleteObjectVersion(
   objectId: string,
   version: number
 ): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/api/ObjectData/${objectId}-${version}`, {
-    method: 'DELETE',
-  });
+  const response = await apiFetch(`/api/ObjectData/${objectId}-${version}`, { method: 'DELETE' });
   if (!response.ok) {
     throw new Error(`Failed to delete version ${version} of object ${objectId}: ${response.status}`);
   }
@@ -239,7 +262,7 @@ export interface MaterialData {
 // ── Material Categories API ──
 
 export async function fetchAllMaterialCategories(): Promise<MaterialCategory[]> {
-  const response = await fetch(`${API_BASE_URL}/api/MaterialCategories`);
+  const response = await apiFetch('/api/MaterialCategories');
   if (!response.ok) {
     throw new Error(`Failed to fetch material categories: ${response.status}`);
   }
@@ -247,7 +270,7 @@ export async function fetchAllMaterialCategories(): Promise<MaterialCategory[]> 
 }
 
 export async function fetchMaterialCategory(id: string): Promise<MaterialCategory> {
-  const response = await fetch(`${API_BASE_URL}/api/MaterialCategories/${id}`);
+  const response = await apiFetch(`/api/MaterialCategories/${id}`);
   if (!response.ok) {
     throw new Error(`Failed to fetch material category ${id}: ${response.status}`);
   }
@@ -258,9 +281,8 @@ export async function createMaterialCategory(body: {
   categoryName: string;
   parentCategoryId?: string;
 }): Promise<MaterialCategory> {
-  const response = await fetch(`${API_BASE_URL}/api/MaterialCategories`, {
+  const response = await apiFetch('/api/MaterialCategories', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
   if (!response.ok) {
@@ -273,9 +295,8 @@ export async function updateMaterialCategory(
   id: string,
   body: { categoryName?: string; parentCategoryId?: string | null }
 ): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/api/MaterialCategories/${id}`, {
+  const response = await apiFetch(`/api/MaterialCategories/${id}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
   if (!response.ok) {
@@ -284,9 +305,7 @@ export async function updateMaterialCategory(
 }
 
 export async function deleteMaterialCategory(id: string): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/api/MaterialCategories/${id}`, {
-    method: 'DELETE',
-  });
+  const response = await apiFetch(`/api/MaterialCategories/${id}`, { method: 'DELETE' });
   if (!response.ok) {
     throw new Error(`Failed to delete material category ${id}: ${response.status}`);
   }
@@ -295,7 +314,7 @@ export async function deleteMaterialCategory(id: string): Promise<void> {
 // ── Materials (Meta) API ──
 
 export async function fetchAllMaterials(): Promise<MaterialMeta[]> {
-  const response = await fetch(`${API_BASE_URL}/api/Materials`);
+  const response = await apiFetch('/api/Materials');
   if (!response.ok) {
     throw new Error(`Failed to fetch materials: ${response.status}`);
   }
@@ -303,7 +322,7 @@ export async function fetchAllMaterials(): Promise<MaterialMeta[]> {
 }
 
 export async function fetchMaterial(id: string): Promise<MaterialMeta> {
-  const response = await fetch(`${API_BASE_URL}/api/Materials/${id}`);
+  const response = await apiFetch(`/api/Materials/${id}`);
   if (!response.ok) {
     throw new Error(`Failed to fetch material ${id}: ${response.status}`);
   }
@@ -315,9 +334,8 @@ export async function createMaterial(body: {
   creatorId: string;
   categoryId?: string;
 }): Promise<MaterialMeta> {
-  const response = await fetch(`${API_BASE_URL}/api/Materials`, {
+  const response = await apiFetch('/api/Materials', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
   if (!response.ok) {
@@ -330,9 +348,8 @@ export async function updateMaterial(
   id: string,
   body: { name?: string; categoryId?: string | null }
 ): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/api/Materials/${id}`, {
+  const response = await apiFetch(`/api/Materials/${id}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
   if (!response.ok) {
@@ -341,9 +358,8 @@ export async function updateMaterial(
 }
 
 export async function renameMaterial(body: { id: string; name: string }): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/api/Materials/rename`, {
+  const response = await apiFetch('/api/Materials/rename', {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
   if (!response.ok) {
@@ -355,9 +371,8 @@ export async function categorizeMaterial(body: {
   id: string;
   categoryId?: string | null;
 }): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/api/Materials/categorize`, {
+  const response = await apiFetch('/api/Materials/categorize', {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
   if (!response.ok) {
@@ -366,9 +381,7 @@ export async function categorizeMaterial(body: {
 }
 
 export async function deleteMaterial(id: string): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/api/Materials/${id}`, {
-    method: 'DELETE',
-  });
+  const response = await apiFetch(`/api/Materials/${id}`, { method: 'DELETE' });
   if (!response.ok) {
     throw new Error(`Failed to delete material ${id}: ${response.status}`);
   }
@@ -379,9 +392,7 @@ export async function deleteMaterial(id: string): Promise<void> {
 export async function fetchMaterialVersions(
   materialId: string
 ): Promise<MaterialData[]> {
-  const response = await fetch(
-    `${API_BASE_URL}/api/MaterialData/${materialId}`
-  );
+  const response = await apiFetch(`/api/MaterialData/${materialId}`);
   if (!response.ok) {
     throw new Error(
       `Failed to fetch versions for material ${materialId}: ${response.status}`
@@ -394,9 +405,7 @@ export async function fetchMaterialVersion(
   materialId: string,
   version: number
 ): Promise<MaterialData> {
-  const response = await fetch(
-    `${API_BASE_URL}/api/MaterialData/${materialId}-${version}`
-  );
+  const response = await apiFetch(`/api/MaterialData/${materialId}-${version}`);
   if (!response.ok) {
     throw new Error(
       `Failed to fetch version ${version} of material ${materialId}: ${response.status}`
@@ -415,14 +424,10 @@ export async function createMaterialVersion(
     creatorId: string;
   }
 ): Promise<MaterialData> {
-  const response = await fetch(
-    `${API_BASE_URL}/api/MaterialData/${materialId}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    }
-  );
+  const response = await apiFetch(`/api/MaterialData/${materialId}`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
   if (!response.ok) {
     throw new Error(
       `Failed to create material version for ${materialId}: ${response.status}`
@@ -441,14 +446,10 @@ export async function updateMaterialVersion(
     materialProperties?: string;
   }
 ): Promise<void> {
-  const response = await fetch(
-    `${API_BASE_URL}/api/MaterialData/${materialId}-${version}`,
-    {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    }
-  );
+  const response = await apiFetch(`/api/MaterialData/${materialId}-${version}`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
   if (!response.ok) {
     throw new Error(
       `Failed to update version ${version} of material ${materialId}: ${response.status}`
@@ -460,10 +461,7 @@ export async function deleteMaterialVersion(
   materialId: string,
   version: number
 ): Promise<void> {
-  const response = await fetch(
-    `${API_BASE_URL}/api/MaterialData/${materialId}-${version}`,
-    { method: 'DELETE' }
-  );
+  const response = await apiFetch(`/api/MaterialData/${materialId}-${version}`, { method: 'DELETE' });
   if (!response.ok) {
     throw new Error(
       `Failed to delete version ${version} of material ${materialId}: ${response.status}`
