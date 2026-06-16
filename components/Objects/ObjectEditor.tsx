@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
@@ -14,6 +15,7 @@ import Button from '../Button';
 import { uploadFileToFirebase } from '../../services/firebaseSetup';
 import { useAuth } from '../../services/AuthContext';
 import { ObjectCategory } from '../../services/api';
+import ObjectPreview from './ObjectPreview';
 
 export type ObjectFormData = {
   name: string;
@@ -135,169 +137,208 @@ export default function ObjectEditor({
     (c) => c.parentCategoryId === null || c.id !== categoryId
   );
 
-  return (
-    <View style={styles.container}>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-      >
-        <Text style={styles.headerTitle}>
-          {isEdit ? 'Edit Object' : 'New Object'}
-        </Text>
+  const { width: screenWidth } = useWindowDimensions();
+  const isWide = screenWidth >= 700;
 
-        <Text style={styles.label}>Name *</Text>
-        <TextInput
-          style={styles.input}
-          value={name}
-          onChangeText={setName}
-          placeholder="Object name"
-        />
+  const formContent = (
+    <>
+      <Text style={styles.headerTitle}>
+        {isEdit ? 'Edit Object' : 'New Object'}
+      </Text>
 
-        <Text style={styles.label}>Category</Text>
-        <View style={styles.categoryRow}>
+      <Text style={styles.label}>Name *</Text>
+      <TextInput
+        style={styles.input}
+        value={name}
+        onChangeText={setName}
+        placeholder="Object name"
+      />
+
+      <Text style={styles.label}>Category</Text>
+      <View style={styles.categoryRow}>
+        <Pressable
+          style={[
+            styles.categoryChip,
+            categoryId === '' && styles.categoryChipActive,
+          ]}
+          onPress={() => setCategoryId('')}
+        >
+          <Text
+            style={[
+              styles.categoryChipText,
+              categoryId === '' && styles.categoryChipTextActive,
+            ]}
+          >
+            None
+          </Text>
+        </Pressable>
+        {availableCategories.map((cat) => (
           <Pressable
+            key={cat.id}
             style={[
               styles.categoryChip,
-              categoryId === '' && styles.categoryChipActive,
+              categoryId === cat.id && styles.categoryChipActive,
             ]}
-            onPress={() => setCategoryId('')}
+            onPress={() => setCategoryId(cat.id)}
           >
             <Text
               style={[
                 styles.categoryChipText,
-                categoryId === '' && styles.categoryChipTextActive,
+                categoryId === cat.id && styles.categoryChipTextActive,
               ]}
             >
-              None
+              {cat.categoryName}
             </Text>
           </Pressable>
-          {availableCategories.map((cat) => (
-            <Pressable
-              key={cat.id}
-              style={[
-                styles.categoryChip,
-                categoryId === cat.id && styles.categoryChipActive,
-              ]}
-              onPress={() => setCategoryId(cat.id)}
-            >
-              <Text
-                style={[
-                  styles.categoryChipText,
-                  categoryId === cat.id && styles.categoryChipTextActive,
-                ]}
-              >
-                {cat.categoryName}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+        ))}
+      </View>
 
-        <Text style={styles.sectionTitle}>
-          {isEdit ? 'Update Version Data' : 'Initial Version Data'}
-        </Text>
+      <Text style={styles.sectionTitle}>
+        {isEdit ? 'Update Version Data' : 'Initial Version Data'}
+      </Text>
 
-        <Text style={styles.label}>File</Text>
-        <View style={styles.fileRow}>
-          <View style={styles.fileInfo}>
-            <Text
-              style={[
-                styles.fileInfoText,
-                (pickedFile ?? fileURL) && styles.fileInfoTextLoaded,
-              ]}
-              numberOfLines={1}
-            >
-              {pickedFile
-                ? `Selected: ${pickedFile.name}`
-                : fileURL
-                  ? '\u2713 File loaded'
-                  : 'No file selected'}
-            </Text>
-            {pickedFile && (
-              <Pressable
-                onPress={() => setPickedFile(null)}
-                hitSlop={8}
-                style={styles.clearButton}
-              >
-                <Text style={styles.clearButtonLabel}>{'\u2715'}</Text>
-              </Pressable>
-            )}
-          </View>
-          <Pressable
-            style={styles.pickButton}
-            onPress={handlePickFile}
-            disabled={saving}
+      <Text style={styles.label}>File</Text>
+      <View style={styles.fileRow}>
+        <View style={styles.fileInfo}>
+          <Text
+            style={[
+              styles.fileInfoText,
+              (pickedFile ?? fileURL) && styles.fileInfoTextLoaded,
+            ]}
+            numberOfLines={1}
           >
-            <Text style={styles.pickButtonLabel}>
-              {pickedFile || fileURL ? 'Change' : 'Pick File'}
-            </Text>
-          </Pressable>
+            {pickedFile
+              ? `Selected: ${pickedFile.name}`
+              : fileURL
+                ? '\u2713 File loaded'
+                : 'No file selected'}
+          </Text>
+          {pickedFile && (
+            <Pressable
+              onPress={() => setPickedFile(null)}
+              hitSlop={8}
+              style={styles.clearButton}
+            >
+              <Text style={styles.clearButtonLabel}>{'\u2715'}</Text>
+            </Pressable>
+          )}
         </View>
+        <Pressable
+          style={styles.pickButton}
+          onPress={handlePickFile}
+          disabled={saving}
+        >
+          <Text style={styles.pickButtonLabel}>
+            {pickedFile || fileURL ? 'Change' : 'Pick File'}
+          </Text>
+        </Pressable>
+      </View>
 
-        <Text style={styles.label}>Size X</Text>
-        <TextInput
-          style={styles.input}
-          value={sizeX}
-          onChangeText={setSizeX}
-          keyboardType="decimal-pad"
-          placeholder="1.0"
-        />
+      <Text style={styles.label}>Size X</Text>
+      <TextInput
+        style={styles.input}
+        value={sizeX}
+        onChangeText={setSizeX}
+        keyboardType="decimal-pad"
+        placeholder="1.0"
+      />
 
-        <Text style={styles.label}>Size Y</Text>
-        <TextInput
-          style={styles.input}
-          value={sizeY}
-          onChangeText={setSizeY}
-          keyboardType="decimal-pad"
-          placeholder="1.0"
-        />
+      <Text style={styles.label}>Size Y</Text>
+      <TextInput
+        style={styles.input}
+        value={sizeY}
+        onChangeText={setSizeY}
+        keyboardType="decimal-pad"
+        placeholder="1.0"
+      />
 
-        <Text style={styles.label}>Size Z</Text>
-        <TextInput
-          style={styles.input}
-          value={sizeZ}
-          onChangeText={setSizeZ}
-          keyboardType="decimal-pad"
-          placeholder="1.0"
-        />
+      <Text style={styles.label}>Size Z</Text>
+      <TextInput
+        style={styles.input}
+        value={sizeZ}
+        onChangeText={setSizeZ}
+        keyboardType="decimal-pad"
+        placeholder="1.0"
+      />
 
-        <Text style={styles.label}>Object Properties</Text>
-        <TextInput
-          style={[styles.input, styles.multilineInput]}
-          value={objectProperties}
-          onChangeText={setObjectProperties}
-          placeholder="e.g. moving-behavior:counter;height:0.8"
-          multiline
-        />
+      <Text style={styles.label}>Object Properties</Text>
+      <TextInput
+        style={[styles.input, styles.multilineInput]}
+        value={objectProperties}
+        onChangeText={setObjectProperties}
+        placeholder="e.g. moving-behavior:counter;height:0.8"
+        multiline
+      />
 
-        <View style={styles.actions}>
-          <Button label={saving ? 'Saving...' : 'Save'} onPress={handleSave} />
-          <Pressable style={styles.cancelButton} onPress={onClose}>
-            <Text style={styles.cancelButtonLabel}>Cancel</Text>
-          </Pressable>
+      <View style={styles.actions}>
+        <Button label={saving ? 'Saving...' : 'Save'} onPress={handleSave} />
+        <Pressable style={styles.cancelButton} onPress={onClose}>
+          <Text style={styles.cancelButtonLabel}>Cancel</Text>
+        </Pressable>
+      </View>
+
+      {isEdit && onDelete && (
+        <Pressable style={styles.deleteButton} onPress={handleDelete}>
+          <Text style={styles.deleteButtonLabel}>Delete Object</Text>
+        </Pressable>
+      )}
+    </>
+  );
+
+  return (
+    <View style={styles.container}>
+      {isWide ? (
+        <View style={styles.rowContainer}>
+          <View style={styles.previewColumn}>
+            <ObjectPreview uri={pickedFile?.uri ?? null} />
+          </View>
+          <View style={styles.formColumn}>
+            <ScrollView
+              style={styles.scroll}
+              contentContainerStyle={styles.scrollContent}
+            >
+              {formContent}
+            </ScrollView>
+          </View>
         </View>
-
-        {isEdit && onDelete && (
-          <Pressable style={styles.deleteButton} onPress={handleDelete}>
-            <Text style={styles.deleteButtonLabel}>Delete Object</Text>
-          </Pressable>
-        )}
-      </ScrollView>
+      ) : (
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+        >
+          <View style={styles.previewRow}>
+            <ObjectPreview uri={pickedFile?.uri ?? null} />
+          </View>
+          {formContent}
+        </ScrollView>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    width: 340,
-    maxHeight: '90%',
+    flex: 1,
+    width: '100%',
     backgroundColor: 'white',
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 10,
-    overflow: 'hidden',
+  },
+  rowContainer: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  previewColumn: {
+    flex: 1,
+    padding: 16,
+    borderRightWidth: 1,
+    borderRightColor: '#e5e7eb',
+  },
+  formColumn: {
+    width: 340,
+    maxWidth: '35%',
+  },
+  previewRow: {
+    height: 250,
+    marginBottom: 8,
   },
   scroll: {
     flex: 1,

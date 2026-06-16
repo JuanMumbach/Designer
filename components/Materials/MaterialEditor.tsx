@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Platform,
   Pressable,
@@ -7,13 +8,21 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import Button from '../Button';
 import { uploadFileToFirebase } from '../../services/firebaseSetup';
 import { useAuth } from '../../services/AuthContext';
-import { MaterialCategory } from '../../services/api';
+import {
+  fetchAllObjectModels,
+  fetchObjectVersion,
+  MaterialCategory,
+  ObjectModel,
+} from '../../services/api';
+import { ObjectTemplate } from '../DesignScreen/3dView/DesignObjects';
+import MaterialPreview from './MaterialPreview';
 
 export type MaterialFormData = {
   name: string;
@@ -43,6 +52,8 @@ export default function MaterialEditor({
   isEdit,
 }: MaterialEditorProps) {
   const { user } = useAuth();
+  const { width: screenWidth } = useWindowDimensions();
+  const isWide = screenWidth >= 700;
 
   const [name, setName] = useState(initial?.name ?? '');
   const [categoryId, setCategoryId] = useState(initial?.categoryId ?? '');
@@ -57,6 +68,59 @@ export default function MaterialEditor({
     uri: string;
     name: string;
   } | null>(null);
+
+  const [selectedTemplate, setSelectedTemplate] = useState<ObjectTemplate | null>(null);
+  const [selectedMesh, setSelectedMesh] = useState<string | null>(null);
+  const [discoveredMeshes, setDiscoveredMeshes] = useState<string[]>([]);
+  const [showModelPicker, setShowModelPicker] = useState(false);
+  const [allModels, setAllModels] = useState<ObjectTemplate[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+
+  const loadModels = useCallback(async () => {
+    if (allModels.length > 0) {
+      setShowModelPicker(true);
+      return;
+    }
+    setModelsLoading(true);
+    try {
+      const objectModels: ObjectModel[] = await fetchAllObjectModels();
+      const templatesArray: ObjectTemplate[] = [];
+      for (const model of objectModels) {
+        try {
+          const version = await fetchObjectVersion(model.id);
+          templatesArray.push({
+            id: model.id,
+            version: version.version,
+            name: model.name,
+            modelUrl: version.fileURL,
+            width: version.sizeX,
+            height: version.sizeY,
+            depth: version.sizeZ,
+            categoryId: model.categoryId || undefined,
+          });
+        } catch {
+          // skip models with failed version fetch
+        }
+      }
+      setAllModels(templatesArray);
+    } catch {
+      Alert.alert('Error', 'Failed to load models.');
+    } finally {
+      setModelsLoading(false);
+      setShowModelPicker(true);
+    }
+  }, [allModels.length]);
+
+  const handleModelSelect = (template: ObjectTemplate) => {
+    setSelectedTemplate(template);
+    setSelectedMesh(null);
+    setDiscoveredMeshes([]);
+    setShowModelPicker(false);
+  };
+
+  const handleMeshesDiscovered = (names: string[]) => {
+    setDiscoveredMeshes(names);
+  };
 
   const handlePickFile = async () => {
     const file = await DocumentPicker.getDocumentAsync({
@@ -132,160 +196,285 @@ export default function MaterialEditor({
     (c) => c.parentCategoryId === null || c.id !== categoryId
   );
 
-  return (
-    <View style={styles.container}>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-      >
-        <Text style={styles.headerTitle}>
-          {isEdit ? 'Edit Material' : 'New Material'}
-        </Text>
+  const formContent = (
+    <>
+      <Text style={styles.headerTitle}>
+        {isEdit ? 'Edit Material' : 'New Material'}
+      </Text>
 
-        <Text style={styles.label}>Name *</Text>
-        <TextInput
-          style={styles.input}
-          value={name}
-          onChangeText={setName}
-          placeholder="Material name"
-        />
+      <Text style={styles.label}>Name *</Text>
+      <TextInput
+        style={styles.input}
+        value={name}
+        onChangeText={setName}
+        placeholder="Material name"
+      />
 
-        <Text style={styles.label}>Category</Text>
-        <View style={styles.categoryRow}>
+      <Text style={styles.label}>Category</Text>
+      <View style={styles.categoryRow}>
+        <Pressable
+          style={[
+            styles.categoryChip,
+            categoryId === '' && styles.categoryChipActive,
+          ]}
+          onPress={() => setCategoryId('')}
+        >
+          <Text
+            style={[
+              styles.categoryChipText,
+              categoryId === '' && styles.categoryChipTextActive,
+            ]}
+          >
+            None
+          </Text>
+        </Pressable>
+        {availableCategories.map((cat) => (
           <Pressable
+            key={cat.id}
             style={[
               styles.categoryChip,
-              categoryId === '' && styles.categoryChipActive,
+              categoryId === cat.id && styles.categoryChipActive,
             ]}
-            onPress={() => setCategoryId('')}
+            onPress={() => setCategoryId(cat.id)}
           >
             <Text
               style={[
                 styles.categoryChipText,
-                categoryId === '' && styles.categoryChipTextActive,
+                categoryId === cat.id && styles.categoryChipTextActive,
               ]}
             >
-              None
+              {cat.categoryName}
             </Text>
           </Pressable>
-          {availableCategories.map((cat) => (
-            <Pressable
-              key={cat.id}
-              style={[
-                styles.categoryChip,
-                categoryId === cat.id && styles.categoryChipActive,
-              ]}
-              onPress={() => setCategoryId(cat.id)}
-            >
-              <Text
-                style={[
-                  styles.categoryChipText,
-                  categoryId === cat.id && styles.categoryChipTextActive,
-                ]}
-              >
-                {cat.categoryName}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+        ))}
+      </View>
 
-        <Text style={styles.sectionTitle}>
-          {isEdit ? 'Update Version Data' : 'Initial Version Data'}
-        </Text>
+      <Text style={styles.sectionTitle}>
+        {isEdit ? 'Update Version Data' : 'Initial Version Data'}
+      </Text>
 
-        <Text style={styles.label}>File</Text>
-        <View style={styles.fileRow}>
-          <View style={styles.fileInfo}>
-            <Text
-              style={[
-                styles.fileInfoText,
-                (pickedFile ?? fileURL) && styles.fileInfoTextLoaded,
-              ]}
-              numberOfLines={1}
-            >
-              {pickedFile
-                ? `Selected: ${pickedFile.name}`
-                : fileURL
-                  ? '\u2713 File loaded'
-                  : 'No file selected'}
-            </Text>
-            {pickedFile && (
-              <Pressable
-                onPress={() => setPickedFile(null)}
-                hitSlop={8}
-                style={styles.clearButton}
-              >
-                <Text style={styles.clearButtonLabel}>{'\u2715'}</Text>
-              </Pressable>
-            )}
-          </View>
-          <Pressable
-            style={styles.pickButton}
-            onPress={handlePickFile}
-            disabled={saving}
+      <Text style={styles.label}>File</Text>
+      <View style={styles.fileRow}>
+        <View style={styles.fileInfo}>
+          <Text
+            style={[
+              styles.fileInfoText,
+              (pickedFile ?? fileURL) && styles.fileInfoTextLoaded,
+            ]}
+            numberOfLines={1}
           >
-            <Text style={styles.pickButtonLabel}>
-              {pickedFile || fileURL ? 'Change' : 'Pick File'}
-            </Text>
-          </Pressable>
+            {pickedFile
+              ? `Selected: ${pickedFile.name}`
+              : fileURL
+                ? '\u2713 File loaded'
+                : 'No file selected'}
+          </Text>
+          {pickedFile && (
+            <Pressable
+              onPress={() => setPickedFile(null)}
+              hitSlop={8}
+              style={styles.clearButton}
+            >
+              <Text style={styles.clearButtonLabel}>{'\u2715'}</Text>
+            </Pressable>
+          )}
         </View>
+        <Pressable
+          style={styles.pickButton}
+          onPress={handlePickFile}
+          disabled={saving}
+        >
+          <Text style={styles.pickButtonLabel}>
+            {pickedFile || fileURL ? 'Change' : 'Pick File'}
+          </Text>
+        </Pressable>
+      </View>
 
-        <Text style={styles.label}>Scale U</Text>
-        <TextInput
-          style={styles.input}
-          value={scaleU}
-          onChangeText={setScaleU}
-          keyboardType="decimal-pad"
-          placeholder="1.0"
-        />
+      <Text style={styles.label}>Scale U</Text>
+      <TextInput
+        style={styles.input}
+        value={scaleU}
+        onChangeText={setScaleU}
+        keyboardType="decimal-pad"
+        placeholder="1.0"
+      />
 
-        <Text style={styles.label}>Scale V</Text>
-        <TextInput
-          style={styles.input}
-          value={scaleV}
-          onChangeText={setScaleV}
-          keyboardType="decimal-pad"
-          placeholder="1.0"
-        />
+      <Text style={styles.label}>Scale V</Text>
+      <TextInput
+        style={styles.input}
+        value={scaleV}
+        onChangeText={setScaleV}
+        keyboardType="decimal-pad"
+        placeholder="1.0"
+      />
 
-        <Text style={styles.label}>Material Properties</Text>
-        <TextInput
-          style={[styles.input, styles.multilineInput]}
-          value={materialProperties}
-          onChangeText={setMaterialProperties}
-          placeholder="e.g. roughness:0.5;metalness:0.1"
-          multiline
-        />
+      <Text style={styles.label}>Material Properties</Text>
+      <TextInput
+        style={[styles.input, styles.multilineInput]}
+        value={materialProperties}
+        onChangeText={setMaterialProperties}
+        placeholder="e.g. roughness:0.5;metalness:0.1"
+        multiline
+      />
 
-        <View style={styles.actions}>
-          <Button label={saving ? 'Saving...' : 'Save'} onPress={handleSave} />
-          <Pressable style={styles.cancelButton} onPress={onClose}>
-            <Text style={styles.cancelButtonLabel}>Cancel</Text>
-          </Pressable>
+      <View style={styles.actions}>
+        <Button label={saving ? 'Saving...' : 'Save'} onPress={handleSave} />
+        <Pressable style={styles.cancelButton} onPress={onClose}>
+          <Text style={styles.cancelButtonLabel}>Cancel</Text>
+        </Pressable>
+      </View>
+
+      {isEdit && onDelete && (
+        <Pressable style={styles.deleteButton} onPress={handleDelete}>
+          <Text style={styles.deleteButtonLabel}>Delete Material</Text>
+        </Pressable>
+      )}
+    </>
+  );
+
+  const previewContent = (
+    <>
+      <View style={styles.modelSelectorRow}>
+        <Text style={styles.modelSelectorLabel}>
+          {selectedTemplate ? `Model: ${selectedTemplate.name}` : 'Preview Model'}
+        </Text>
+        <Pressable style={styles.selectModelButton} onPress={loadModels}>
+          <Text style={styles.selectModelButtonLabel}>
+            {selectedTemplate ? 'Change' : 'Select Model'}
+          </Text>
+        </Pressable>
+      </View>
+      <MaterialPreview
+        modelUrl={selectedTemplate?.modelUrl ?? null}
+        textureUri={pickedFile?.uri ?? null}
+        selectedMesh={selectedMesh}
+        onMeshesDiscovered={handleMeshesDiscovered}
+      />
+      {discoveredMeshes.length > 0 && (
+        <View style={styles.meshSlotsSection}>
+          <Text style={styles.meshSlotsLabel}>Texture Slots</Text>
+          <View style={styles.meshSlotsRow}>
+            {discoveredMeshes.map((meshName) => {
+              const isActive = selectedMesh === meshName;
+              return (
+                <Pressable
+                  key={meshName}
+                  style={[styles.meshChip, isActive && styles.meshChipActive]}
+                  onPress={() =>
+                    setSelectedMesh(meshName === selectedMesh ? null : meshName)
+                  }
+                >
+                  <Text
+                    style={[
+                      styles.meshChipText,
+                      isActive && styles.meshChipTextActive,
+                    ]}
+                  >
+                    {meshName}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
+      )}
+    </>
+  );
 
-        {isEdit && onDelete && (
-          <Pressable style={styles.deleteButton} onPress={handleDelete}>
-            <Text style={styles.deleteButtonLabel}>Delete Material</Text>
-          </Pressable>
-        )}
-      </ScrollView>
+  return (
+    <View style={styles.container}>
+      {isWide ? (
+        <View style={styles.rowContainer}>
+          <View style={styles.formColumn}>
+            <ScrollView
+              style={styles.scroll}
+              contentContainerStyle={styles.scrollContent}
+            >
+              {formContent}
+            </ScrollView>
+          </View>
+          <View style={styles.previewColumn}>
+            {previewContent}
+          </View>
+        </View>
+      ) : (
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {formContent}
+          <View style={styles.previewRow}>
+            {previewContent}
+          </View>
+        </ScrollView>
+      )}
+      {showModelPicker && (
+        <View style={styles.modelPickerOverlay}>
+          <View style={styles.modelPickerCard}>
+            <Text style={styles.pickerTitle}>Select a 3D Model for Preview</Text>
+            {modelsLoading ? (
+              <View style={styles.loadingRow}>
+                <ActivityIndicator size="small" color="#2563eb" />
+                <Text style={styles.loadingText}>Loading models...</Text>
+              </View>
+            ) : allModels.length === 0 ? (
+              <Text style={styles.emptyText}>No models available.</Text>
+            ) : (
+              <ScrollView style={styles.modelPickerList}>
+                {allModels.map((model) => (
+                  <Pressable
+                    key={model.id}
+                    style={styles.modelItem}
+                    onPress={() => handleModelSelect(model)}
+                  >
+                    <View style={styles.modelItemInfo}>
+                      <Text style={styles.modelItemName}>{model.name}</Text>
+                      <Text style={styles.modelItemDims}>
+                        {model.width} x {model.height} x {model.depth}
+                      </Text>
+                    </View>
+                    <Text style={styles.selectArrow}>Select</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            )}
+            <Pressable
+              style={styles.cancelModelPicker}
+              onPress={() => setShowModelPicker(false)}
+            >
+              <Text style={styles.cancelButtonLabel}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    width: 340,
-    maxHeight: '90%',
+    flex: 1,
+    width: '100%',
     backgroundColor: 'white',
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 10,
-    overflow: 'hidden',
+  },
+  rowContainer: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  formColumn: {
+    width: 340,
+    maxWidth: '35%',
+    borderRightWidth: 1,
+    borderRightColor: '#e5e7eb',
+  },
+  previewColumn: {
+    flex: 1,
+    padding: 16,
+  },
+  previewRow: {
+    height: 350,
+    marginTop: 16,
+    marginBottom: 8,
   },
   scroll: {
     flex: 1,
@@ -430,5 +619,148 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 13,
     fontWeight: '700',
+  },
+  modelPickerOverlay: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 100,
+  },
+  modelPickerCard: {
+    width: 340,
+    maxHeight: '80%',
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 10,
+    overflow: 'hidden',
+  },
+  pickerTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  loadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 30,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+    paddingVertical: 30,
+  },
+  modelPickerList: {
+    maxHeight: 300,
+  },
+  modelItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f9fafb',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  modelItemInfo: {
+    flex: 1,
+    marginRight: 10,
+  },
+  modelItemName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1f2937',
+    marginBottom: 2,
+  },
+  modelItemDims: {
+    fontSize: 11,
+    color: '#6b7280',
+  },
+  selectArrow: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#2563eb',
+  },
+  cancelModelPicker: {
+    alignItems: 'center',
+    paddingVertical: 12,
+    marginTop: 8,
+  },
+  modelSelectorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  modelSelectorLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#374151',
+    flex: 1,
+    marginRight: 8,
+  },
+  selectModelButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    backgroundColor: '#2563eb',
+  },
+  selectModelButtonLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  meshSlotsSection: {
+    marginTop: 12,
+  },
+  meshSlotsLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#374151',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  meshSlotsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  meshChip: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    backgroundColor: '#f3f4f6',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+  },
+  meshChipActive: {
+    backgroundColor: '#2563eb',
+    borderColor: '#2563eb',
+  },
+  meshChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  meshChipTextActive: {
+    color: '#fff',
   },
 });
