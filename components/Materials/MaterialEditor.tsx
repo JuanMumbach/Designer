@@ -9,7 +9,10 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import * as DocumentPicker from 'expo-document-picker';
 import Button from '../Button';
+import { uploadFileToFirebase } from '../../services/firebaseSetup';
+import { useAuth } from '../../services/AuthContext';
 import { MaterialCategory } from '../../services/api';
 
 export type MaterialFormData = {
@@ -39,35 +42,61 @@ export default function MaterialEditor({
   onClose,
   isEdit,
 }: MaterialEditorProps) {
+  const { user } = useAuth();
+
   const [name, setName] = useState(initial?.name ?? '');
-  const [creatorId, setCreatorId] = useState(initial?.creatorId ?? '');
   const [categoryId, setCategoryId] = useState(initial?.categoryId ?? '');
-  const [fileURL, setFileURL] = useState(initial?.fileURL ?? '');
+  const [fileURL] = useState(initial?.fileURL ?? '');
   const [scaleU, setScaleU] = useState(initial?.scaleU ?? '1');
   const [scaleV, setScaleV] = useState(initial?.scaleV ?? '1');
   const [materialProperties, setMaterialProperties] = useState(
     initial?.materialProperties ?? ''
   );
   const [saving, setSaving] = useState(false);
+  const [pickedFile, setPickedFile] = useState<{
+    uri: string;
+    name: string;
+  } | null>(null);
+
+  const handlePickFile = async () => {
+    const file = await DocumentPicker.getDocumentAsync({
+      type: 'image/*',
+      copyToCacheDirectory: true,
+    });
+    if (file.canceled) return;
+    setPickedFile({
+      uri: file.assets[0].uri,
+      name: file.assets[0].name,
+    });
+  };
 
   const handleSave = async () => {
     if (!name.trim()) {
       Alert.alert('Validation', 'Name is required.');
       return;
     }
-    if (!isEdit && !creatorId.trim()) {
-      Alert.alert('Validation', 'Creator ID is required.');
+    if (!isEdit && !user?.uid) {
+      Alert.alert('Validation', 'You must be logged in to create materials.');
       return;
     }
 
     setSaving(true);
     try {
+      let finalUrl = fileURL.trim();
+      if (pickedFile) {
+        finalUrl = await uploadFileToFirebase(
+          pickedFile.uri,
+          'materials',
+          pickedFile.name
+        );
+      }
+
       await onSave(
         {
           name: name.trim(),
-          creatorId: creatorId.trim(),
+          creatorId: initial?.creatorId ?? user?.uid ?? '',
           categoryId: categoryId || null,
-          fileURL: fileURL.trim(),
+          fileURL: finalUrl,
           scaleU: scaleU || '1',
           scaleV: scaleV || '1',
           materialProperties: materialProperties.trim(),
@@ -121,18 +150,6 @@ export default function MaterialEditor({
           placeholder="Material name"
         />
 
-        {!isEdit && (
-          <>
-            <Text style={styles.label}>Creator ID *</Text>
-            <TextInput
-              style={styles.input}
-              value={creatorId}
-              onChangeText={setCreatorId}
-              placeholder="e.g. 3fa85f64-5717-4562-b3fc-2c963f66afa6"
-            />
-          </>
-        )}
-
         <Text style={styles.label}>Category</Text>
         <View style={styles.categoryRow}>
           <Pressable
@@ -176,13 +193,42 @@ export default function MaterialEditor({
           {isEdit ? 'Update Version Data' : 'Initial Version Data'}
         </Text>
 
-        <Text style={styles.label}>File URL</Text>
-        <TextInput
-          style={styles.input}
-          value={fileURL}
-          onChangeText={setFileURL}
-          placeholder="https://..."
-        />
+        <Text style={styles.label}>File</Text>
+        <View style={styles.fileRow}>
+          <View style={styles.fileInfo}>
+            <Text
+              style={[
+                styles.fileInfoText,
+                (pickedFile ?? fileURL) && styles.fileInfoTextLoaded,
+              ]}
+              numberOfLines={1}
+            >
+              {pickedFile
+                ? `Selected: ${pickedFile.name}`
+                : fileURL
+                  ? '\u2713 File loaded'
+                  : 'No file selected'}
+            </Text>
+            {pickedFile && (
+              <Pressable
+                onPress={() => setPickedFile(null)}
+                hitSlop={8}
+                style={styles.clearButton}
+              >
+                <Text style={styles.clearButtonLabel}>{'\u2715'}</Text>
+              </Pressable>
+            )}
+          </View>
+          <Pressable
+            style={styles.pickButton}
+            onPress={handlePickFile}
+            disabled={saving}
+          >
+            <Text style={styles.pickButtonLabel}>
+              {pickedFile || fileURL ? 'Change' : 'Pick File'}
+            </Text>
+          </Pressable>
+        </View>
 
         <Text style={styles.label}>Scale U</Text>
         <TextInput
@@ -339,5 +385,50 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
+  },
+  fileRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  fileInfo: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 44,
+    borderColor: '#e5e7eb',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#f9fafb',
+  },
+  fileInfoText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#9ca3af',
+  },
+  fileInfoTextLoaded: {
+    color: '#16a34a',
+  },
+  clearButton: {
+    marginLeft: 4,
+    padding: 2,
+  },
+  clearButtonLabel: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  pickButton: {
+    height: 44,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: '#2563eb',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pickButtonLabel: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
   },
 });
