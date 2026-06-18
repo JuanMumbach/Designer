@@ -10,17 +10,22 @@ export default function MaterialPreview({
   textureUri,
   selectedMesh,
   onMeshesDiscovered,
+  scaleU = 1,
+  scaleV = 1,
 }: {
   modelUrl: string | null;
   textureUri: string | null;
   selectedMesh: string | null;
   onMeshesDiscovered: (names: string[]) => void;
+  scaleU?: number;
+  scaleV?: number;
 }) {
   const gltfRef = useRef<THREE.Group | null>(null);
   const originalMaterialsRef = useRef<Map<string, THREE.Material>>(new Map());
   const overrideVersionRef = useRef(0);
   const textureLoaderRef = useRef<THREE.TextureLoader | null>(null);
   const meshesDiscoveredRef = useRef(false);
+  const modelDimensionsRef = useRef<[number, number, number]>([1, 1, 1]);
   const [gltfLoaded, setGltfLoaded] = useState(false);
   const [processedTextureUri, setProcessedTextureUri] = useState<string | null>(null);
   const objectUrlRef = useRef<string | null>(null);
@@ -88,6 +93,12 @@ export default function MaterialPreview({
       }
     });
 
+    group.updateWorldMatrix(true, true);
+    const box = new THREE.Box3().setFromObject(group);
+    const size = new THREE.Vector3();
+    box.getSize(size);
+    modelDimensionsRef.current = [size.x || 1, size.y || 1, size.z || 1];
+
     setGltfLoaded(true);
 
     if (names.length > 0 && !meshesDiscoveredRef.current) {
@@ -125,6 +136,20 @@ export default function MaterialPreview({
           textureLoaderRef.current!.load(processedTextureUri, (texture) => {
             if (currentVersion !== overrideVersionRef.current) return;
             const newMat = (child.material as THREE.MeshStandardMaterial).clone();
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            const dim = modelDimensionsRef.current;
+            if (
+              scaleU > 0 &&
+              scaleV > 0 &&
+              texture.image?.width &&
+              texture.image?.height
+            ) {
+              texture.repeat.set(
+                (scaleU * dim[0]) / texture.image.width,
+                (scaleV * dim[1]) / texture.image.height
+              );
+            }
             newMat.map = texture;
             newMat.needsUpdate = true;
             child.material = newMat;
@@ -137,7 +162,7 @@ export default function MaterialPreview({
         }
       }
     });
-  }, [gltfLoaded, modelUrl, processedTextureUri, selectedMesh]);
+  }, [gltfLoaded, modelUrl, processedTextureUri, selectedMesh, scaleU, scaleV]);
 
   return (
     <View style={styles.container}>

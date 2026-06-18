@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Alert,
   Platform,
@@ -34,6 +34,7 @@ interface MaterialEditorProps {
   isEdit: boolean;
   disabled?: boolean;
   onTextureChange?: (uri: string | null) => void;
+  onScaleChange?: (scaleU: number, scaleV: number) => void;
 }
 
 export default function MaterialEditor({
@@ -45,17 +46,27 @@ export default function MaterialEditor({
   isEdit,
   disabled,
   onTextureChange,
+  onScaleChange,
 }: MaterialEditorProps) {
-  const { user } = useAuth();
+  const { backendUserId } = useAuth();
 
   const [name, setName] = useState(initial?.name ?? '');
   const [categoryId, setCategoryId] = useState(initial?.categoryId ?? '');
-  const [fileURL] = useState(initial?.fileURL ?? '');
+  const [fileURL, setFileURL] = useState(initial?.fileURL ?? '');
   const [scaleU, setScaleU] = useState(initial?.scaleU ?? '1');
   const [scaleV, setScaleV] = useState(initial?.scaleV ?? '1');
   const [materialProperties, setMaterialProperties] = useState(
     initial?.materialProperties ?? ''
   );
+  useEffect(() => {
+    if (!onScaleChange) return;
+    const su = parseFloat(scaleU);
+    const sv = parseFloat(scaleV);
+    if (!isNaN(su) && !isNaN(sv)) {
+      onScaleChange(su, sv);
+    }
+  }, [scaleU, scaleV, onScaleChange]);
+
   const [saving, setSaving] = useState(false);
   const [pickedFile, setPickedFile] = useState<{
     uri: string;
@@ -80,7 +91,7 @@ export default function MaterialEditor({
       Alert.alert('Validation', 'Name is required.');
       return;
     }
-    if (!isEdit && !user?.uid) {
+    if (!isEdit && !backendUserId) {
       Alert.alert('Validation', 'You must be logged in to create materials.');
       return;
     }
@@ -99,7 +110,7 @@ export default function MaterialEditor({
       await onSave(
         {
           name: name.trim(),
-          creatorId: initial?.creatorId ?? user?.uid ?? '',
+          creatorId: initial?.creatorId ?? backendUserId ?? '',
           categoryId: categoryId || null,
           fileURL: finalUrl,
           scaleU: scaleU || '1',

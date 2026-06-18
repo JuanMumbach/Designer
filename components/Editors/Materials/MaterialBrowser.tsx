@@ -87,6 +87,8 @@ export default function MaterialBrowser({
   const [allModels, setAllModels] = useState<ObjectTemplate[]>([]);
   const [modelsLoading, setModelsLoading] = useState(false);
   const [previewTextureUri, setPreviewTextureUri] = useState<string | null>(null);
+  const [liveScaleU, setLiveScaleU] = useState(1);
+  const [liveScaleV, setLiveScaleV] = useState(1);
 
   // Fetch material version data when editing a material
   useEffect(() => {
@@ -96,6 +98,11 @@ export default function MaterialBrowser({
         .then(data => {
           setEditingMaterialData(data);
           setEditingDataFailed(false);
+          if (data.fileURL) {
+            setPreviewTextureUri(data.fileURL);
+          }
+          setLiveScaleU(data.scaleU ?? 1);
+          setLiveScaleV(data.scaleV ?? 1);
         })
         .catch(err => {
           console.warn('Failed to fetch material version data:', err);
@@ -104,6 +111,9 @@ export default function MaterialBrowser({
     } else {
       setEditingMaterialData(null);
       setEditingDataFailed(false);
+      setPreviewTextureUri(null);
+      setLiveScaleU(1);
+      setLiveScaleV(1);
     }
   }, [editingMaterial]);
 
@@ -287,36 +297,46 @@ export default function MaterialBrowser({
 
   // ── Render helpers ──
 
-  const renderEditor = () => (
-    <MaterialEditor
-      key={editingMaterial?.id ?? 'new'}
-      disabled={!isActive}
-      isEdit={!!editingMaterial}
-      initial={
-        editingMaterial
-          ? {
-              name: editingMaterial.name,
-              creatorId: editingMaterial.creatorId,
-              categoryId: editingMaterial.categoryId ?? '',
-              fileURL: editingMaterialData?.fileURL ?? '',
-              scaleU: editingMaterialData?.scaleU?.toString() ?? '1',
-              scaleV: editingMaterialData?.scaleV?.toString() ?? '1',
-              materialProperties: editingMaterialData?.materialProperties ?? '',
-            }
-          : undefined
-      }
-      categories={categories}
-      onSave={handleSaveMaterial}
-      onDelete={editingMaterial ? handleDeleteMaterial : undefined}
-      onClose={() => {
-        setEditingMaterial(null);
-        setEditingMaterialData(null);
-        setEditingDataFailed(false);
-        setShowCreator(false);
-      }}
-      onTextureChange={handleTextureChange}
-    />
-  );
+  const renderEditor = () => {
+    if (editingMaterial && isLoadingData) {
+      return renderLoading();
+    }
+    return (
+      <MaterialEditor
+        key={editingMaterial?.id ?? 'new'}
+        disabled={!isActive}
+        isEdit={!!editingMaterial}
+        initial={
+          editingMaterial
+            ? {
+                name: editingMaterial.name,
+                creatorId: editingMaterial.creatorId,
+                categoryId: editingMaterial.categoryId ?? '',
+                fileURL: editingMaterialData?.fileURL ?? '',
+                scaleU: editingMaterialData?.scaleU?.toString() ?? '1',
+                scaleV: editingMaterialData?.scaleV?.toString() ?? '1',
+                materialProperties: editingMaterialData?.materialProperties ?? '',
+              }
+            : undefined
+        }
+        categories={categories}
+        onSave={handleSaveMaterial}
+        onDelete={editingMaterial ? handleDeleteMaterial : undefined}
+        onClose={() => {
+          setEditingMaterial(null);
+          setEditingMaterialData(null);
+          setEditingDataFailed(false);
+          setShowCreator(false);
+          setPreviewTextureUri(null);
+          setSelectedTemplate(null);
+          setSelectedMesh(null);
+          setDiscoveredMeshes([]);
+        }}
+        onTextureChange={handleTextureChange}
+        onScaleChange={(su, sv) => { setLiveScaleU(su); setLiveScaleV(sv); }}
+      />
+    );
+  };
 
   const renderBrowserList = () => {
     const hasContent =
@@ -558,6 +578,8 @@ export default function MaterialBrowser({
         textureUri={previewTextureUri}
         selectedMesh={selectedMesh}
         onMeshesDiscovered={handleMeshesDiscovered}
+        scaleU={liveScaleU}
+        scaleV={liveScaleV}
       />
       {discoveredMeshes.length > 0 && (
         <View style={styles.meshSlotsSection}>

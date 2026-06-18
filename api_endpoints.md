@@ -127,8 +127,8 @@
 | GET | `/api/ObjectVersion` | — | List all object versions |
 | GET | `/api/ObjectVersion/{modelId}` | — | List all versions of a model |
 | GET | `/api/ObjectVersion/{modelId}-{version}` | — | Get specific version |
-| POST | `/api/ObjectVersion/{modelId}` | `{ content, creatorId, description? }` | Create version (auto-increments version number) |
-| PUT | `/api/ObjectVersion/{modelId}-{version}` | `{ content?, description? }` | Update version |
+| POST | `/api/ObjectVersion/{modelId}` | `{ fileUrl, creatorId, sizeX?, sizeY?, sizeZ?, objectProperties? }` | Create version (auto-increments version number) |
+| PUT | `/api/ObjectVersion/{modelId}-{version}` | `{ fileUrl?, sizeX?, sizeY?, sizeZ?, objectProperties? }` | Update version |
 | DELETE | `/api/ObjectVersion/{modelId}-{version}` | — | Delete version |
 
 **ObjectVersion Entity:**

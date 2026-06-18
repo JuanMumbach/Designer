@@ -15,7 +15,7 @@ async function apiFetch(path: string, options: RequestInit = {}): Promise<Respon
   return fetch(`${API_BASE_URL}${path}`, { ...options, headers });
 }
 
-export async function syncUserWithBackend(user: User): Promise<void> {
+export async function syncUserWithBackend(user: User): Promise<string | null> {
   const token = await user.getIdToken();
   const response = await fetch(`${API_BASE_URL}/api/User`, {
     method: 'POST',
@@ -33,6 +33,12 @@ export async function syncUserWithBackend(user: User): Promise<void> {
   });
   if (!response.ok && response.status !== 409) {
     throw new Error(`User sync failed: ${response.status}`);
+  }
+  try {
+    const data = await response.json();
+    return data?.id ?? null;
+  } catch {
+    return null;
   }
 }
 
@@ -178,7 +184,7 @@ export async function deleteObject(id: string): Promise<void> {
 export async function createObjectVersion(
   objectId: string,
   body: {
-    fileURL: string;
+    fileUrl: string;
     sizeX: number;
     sizeY: number;
     sizeZ: number;
@@ -186,11 +192,13 @@ export async function createObjectVersion(
     creatorId: string;
   }
 ): Promise<ObjectVersion> {
-  const response = await apiFetch(`/api/ObjectData/${objectId}`, {
+  const response = await apiFetch(`/api/ObjectVersion/${objectId}`, {
     method: 'POST',
     body: JSON.stringify(body),
   });
   if (!response.ok) {
+    const text = await response.text();
+    console.log('createObjectVersion 400 body:', JSON.stringify(body), 'response:', text);
     throw new Error(`Failed to create object version for ${objectId}: ${response.status}`);
   }
   return response.json();
@@ -200,14 +208,14 @@ export async function updateObjectVersion(
   objectId: string,
   version: number,
   body: {
-    fileURL?: string;
+    fileUrl?: string;
     sizeX?: number;
     sizeY?: number;
     sizeZ?: number;
     objectProperties?: string;
   }
 ): Promise<void> {
-  const response = await apiFetch(`/api/ObjectData/${objectId}-${version}`, {
+  const response = await apiFetch(`/api/ObjectVersion/${objectId}-${version}`, {
     method: 'PUT',
     body: JSON.stringify(body),
   });
@@ -220,7 +228,7 @@ export async function deleteObjectVersion(
   objectId: string,
   version: number
 ): Promise<void> {
-  const response = await apiFetch(`/api/ObjectData/${objectId}-${version}`, { method: 'DELETE' });
+  const response = await apiFetch(`/api/ObjectVersion/${objectId}-${version}`, { method: 'DELETE' });
   if (!response.ok) {
     throw new Error(`Failed to delete version ${version} of object ${objectId}: ${response.status}`);
   }

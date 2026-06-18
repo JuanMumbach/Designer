@@ -9,6 +9,7 @@ import { syncUserWithBackend } from './api';
 
 interface AuthContextValue {
   user: User | null;
+  backendUserId: string | null;
   isLoading: boolean;
   getToken: () => Promise<string | null>;
   signOut: () => Promise<void>;
@@ -16,6 +17,7 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue>({
   user: null,
+  backendUserId: null,
   isLoading: true,
   getToken: async () => null,
   signOut: async () => {},
@@ -23,6 +25,7 @@ const AuthContext = createContext<AuthContextValue>({
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [backendUserId, setBackendUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [syncedUids, setSyncedUids] = useState<Set<string>>(new Set());
 
@@ -34,7 +37,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (firebaseUser && !syncedUids.has(firebaseUser.uid)) {
         setSyncedUids((prev) => new Set(prev).add(firebaseUser.uid));
         try {
-          await syncUserWithBackend(firebaseUser);
+          const id = await syncUserWithBackend(firebaseUser);
+          if (id) {
+            setBackendUserId(id);
+          }
         } catch {
         }
       }
@@ -53,7 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, getToken, signOut }}>
+      <AuthContext.Provider value={{ user, backendUserId, isLoading, getToken, signOut }}>
       {children}
     </AuthContext.Provider>
   );

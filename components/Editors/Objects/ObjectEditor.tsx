@@ -47,11 +47,11 @@ export default function ObjectEditor({
   disabled,
   onPreviewUriChange,
 }: ObjectEditorProps) {
-  const { user } = useAuth();
+  const { backendUserId } = useAuth();
 
   const [name, setName] = useState(initial?.name ?? '');
   const [categoryId, setCategoryId] = useState(initial?.categoryId ?? '');
-  const [fileURL] = useState(initial?.fileURL ?? '');
+  const [fileURL, setFileURL] = useState(initial?.fileURL ?? '');
   const [sizeX, setSizeX] = useState(initial?.sizeX ?? '1');
   const [sizeY, setSizeY] = useState(initial?.sizeY ?? '1');
   const [sizeZ, setSizeZ] = useState(initial?.sizeZ ?? '1');
@@ -82,7 +82,7 @@ export default function ObjectEditor({
       Alert.alert('Validation', 'Name is required.');
       return;
     }
-    if (!isEdit && !user?.uid) {
+    if (!isEdit && !backendUserId) {
       Alert.alert('Validation', 'You must be logged in to create objects.');
       return;
     }
@@ -101,7 +101,7 @@ export default function ObjectEditor({
       await onSave(
         {
           name: name.trim(),
-          creatorId: initial?.creatorId ?? user?.uid ?? '',
+          creatorId: initial?.creatorId ?? backendUserId ?? '',
           categoryId: categoryId || null,
           fileURL: finalUrl,
           sizeX: sizeX || '1',

@@ -86,6 +86,9 @@ export default function ObjectBrowser({
         .then(data => {
           setEditingObjectVersion(data);
           setEditingDataFailed(false);
+          if (data.fileURL) {
+            setPreviewUri(data.fileURL);
+          }
         })
         .catch(err => {
           console.warn('Failed to fetch object version data:', err);
@@ -94,6 +97,7 @@ export default function ObjectBrowser({
     } else {
       setEditingObjectVersion(null);
       setEditingDataFailed(false);
+      setPreviewUri(null);
     }
   }, [editingObject]);
 
@@ -137,7 +141,7 @@ export default function ObjectBrowser({
       }
       if (data.fileURL || data.sizeX || data.sizeY || data.sizeZ || data.objectProperties) {
         await createObjectVersion(editingObject.id, {
-          fileURL: data.fileURL,
+          fileUrl: data.fileURL,
           sizeX: parseFloat(data.sizeX) || 1,
           sizeY: parseFloat(data.sizeY) || 1,
           sizeZ: parseFloat(data.sizeZ) || 1,
@@ -152,7 +156,7 @@ export default function ObjectBrowser({
         categoryId: data.categoryId || undefined,
       });
       await createObjectVersion(meta.id, {
-        fileURL: data.fileURL,
+        fileUrl: data.fileURL,
         sizeX: parseFloat(data.sizeX) || 1,
         sizeY: parseFloat(data.sizeY) || 1,
         sizeZ: parseFloat(data.sizeZ) || 1,
@@ -227,41 +231,47 @@ export default function ObjectBrowser({
 
   // ── Render helpers ──
 
-  const renderEditor = () => (
-    <ObjectEditor
-      key={editingObject?.id ?? 'new'}
-      disabled={!isActive}
-      isEdit={!!editingObject}
-      initial={
-        editingObject
-          ? {
-              name: editingObject.name,
-              creatorId: editingObject.creatorId,
-              categoryId: editingObject.categoryId ?? '',
-              fileURL: editingObjectVersion?.fileURL ?? '',
-              sizeX: editingObjectVersion?.sizeX?.toString() ?? '1',
-              sizeY: editingObjectVersion?.sizeY?.toString() ?? '1',
-              sizeZ: editingObjectVersion?.sizeZ?.toString() ?? '1',
-              objectProperties: (editingObjectVersion?.objectProperties
-                ? typeof editingObjectVersion.objectProperties === 'string'
-                  ? editingObjectVersion.objectProperties
-                  : JSON.stringify(editingObjectVersion.objectProperties)
-                : ''),
-            }
-          : undefined
-      }
-      categories={categories}
-      onSave={handleSaveObject}
-      onDelete={editingObject ? handleDeleteObject : undefined}
-      onClose={() => {
-        setEditingObject(null);
-        setEditingObjectVersion(null);
-        setEditingDataFailed(false);
-        setShowCreator(false);
-      }}
-      onPreviewUriChange={(uri) => setPreviewUri(uri)}
-    />
-  );
+  const renderEditor = () => {
+    if (editingObject && isLoadingData) {
+      return renderLoading();
+    }
+    return (
+      <ObjectEditor
+        key={editingObject?.id ?? 'new'}
+        disabled={!isActive}
+        isEdit={!!editingObject}
+        initial={
+          editingObject
+            ? {
+                name: editingObject.name,
+                creatorId: editingObject.creatorId,
+                categoryId: editingObject.categoryId ?? '',
+                fileURL: editingObjectVersion?.fileURL ?? '',
+                sizeX: editingObjectVersion?.sizeX?.toString() ?? '1',
+                sizeY: editingObjectVersion?.sizeY?.toString() ?? '1',
+                sizeZ: editingObjectVersion?.sizeZ?.toString() ?? '1',
+                objectProperties: (editingObjectVersion?.objectProperties
+                  ? typeof editingObjectVersion.objectProperties === 'string'
+                    ? editingObjectVersion.objectProperties
+                    : JSON.stringify(editingObjectVersion.objectProperties)
+                  : ''),
+              }
+            : undefined
+        }
+        categories={categories}
+        onSave={handleSaveObject}
+        onDelete={editingObject ? handleDeleteObject : undefined}
+        onClose={() => {
+          setEditingObject(null);
+          setEditingObjectVersion(null);
+          setEditingDataFailed(false);
+          setShowCreator(false);
+          setPreviewUri(null);
+        }}
+        onPreviewUriChange={(uri) => setPreviewUri(uri)}
+      />
+    );
+  };
 
   const renderBrowserList = () => {
     const hasContent =
