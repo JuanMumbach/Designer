@@ -1,5 +1,5 @@
 import { useObjects } from '@/services/useObjects';
-import ObjectBrowser from '@/components/Objects/ObjectBrowser';
+import ObjectBrowser from '@/components/Editors/Objects/ObjectBrowser';
 import React from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
@@ -37,8 +37,6 @@ export default function ObjectsScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
     backgroundColor: '#1a1a2e',
   },
   center: {

@@ -7,54 +7,54 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  useWindowDimensions,
   View,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
-import Button from '../Button';
-import { uploadFileToFirebase } from '../../services/firebaseSetup';
-import { useAuth } from '../../services/AuthContext';
-import { ObjectCategory } from '../../services/api';
-import ObjectPreview from './ObjectPreview';
+import Button from '../../Button';
+import { uploadFileToFirebase } from '../../../services/firebaseSetup';
+import { useAuth } from '../../../services/AuthContext';
+import { MaterialCategory } from '../../../services/api';
 
-export type ObjectFormData = {
+export type MaterialFormData = {
   name: string;
   creatorId: string;
   categoryId: string | null;
   fileURL: string;
-  sizeX: string;
-  sizeY: string;
-  sizeZ: string;
-  objectProperties: string;
+  scaleU: string;
+  scaleV: string;
+  materialProperties: string;
 };
 
-interface ObjectEditorProps {
-  initial?: Partial<ObjectFormData>;
-  categories: ObjectCategory[];
-  onSave: (data: ObjectFormData, isEdit: boolean) => Promise<void>;
+interface MaterialEditorProps {
+  initial?: Partial<MaterialFormData>;
+  categories: MaterialCategory[];
+  onSave: (data: MaterialFormData, isEdit: boolean) => Promise<void>;
   onDelete?: () => Promise<void>;
   onClose: () => void;
   isEdit: boolean;
+  disabled?: boolean;
+  onTextureChange?: (uri: string | null) => void;
 }
 
-export default function ObjectEditor({
+export default function MaterialEditor({
   initial,
   categories,
   onSave,
   onDelete,
   onClose,
   isEdit,
-}: ObjectEditorProps) {
+  disabled,
+  onTextureChange,
+}: MaterialEditorProps) {
   const { user } = useAuth();
 
   const [name, setName] = useState(initial?.name ?? '');
   const [categoryId, setCategoryId] = useState(initial?.categoryId ?? '');
   const [fileURL] = useState(initial?.fileURL ?? '');
-  const [sizeX, setSizeX] = useState(initial?.sizeX ?? '1');
-  const [sizeY, setSizeY] = useState(initial?.sizeY ?? '1');
-  const [sizeZ, setSizeZ] = useState(initial?.sizeZ ?? '1');
-  const [objectProperties, setObjectProperties] = useState(
-    initial?.objectProperties ?? ''
+  const [scaleU, setScaleU] = useState(initial?.scaleU ?? '1');
+  const [scaleV, setScaleV] = useState(initial?.scaleV ?? '1');
+  const [materialProperties, setMaterialProperties] = useState(
+    initial?.materialProperties ?? ''
   );
   const [saving, setSaving] = useState(false);
   const [pickedFile, setPickedFile] = useState<{
@@ -64,7 +64,7 @@ export default function ObjectEditor({
 
   const handlePickFile = async () => {
     const file = await DocumentPicker.getDocumentAsync({
-      type: '*/*',
+      type: 'image/*',
       copyToCacheDirectory: true,
     });
     if (file.canceled) return;
@@ -72,6 +72,7 @@ export default function ObjectEditor({
       uri: file.assets[0].uri,
       name: file.assets[0].name,
     });
+    onTextureChange?.(file.assets[0].uri);
   };
 
   const handleSave = async () => {
@@ -80,7 +81,7 @@ export default function ObjectEditor({
       return;
     }
     if (!isEdit && !user?.uid) {
-      Alert.alert('Validation', 'You must be logged in to create objects.');
+      Alert.alert('Validation', 'You must be logged in to create materials.');
       return;
     }
 
@@ -90,7 +91,7 @@ export default function ObjectEditor({
       if (pickedFile) {
         finalUrl = await uploadFileToFirebase(
           pickedFile.uri,
-          'models',
+          'materials',
           pickedFile.name
         );
       }
@@ -101,10 +102,9 @@ export default function ObjectEditor({
           creatorId: initial?.creatorId ?? user?.uid ?? '',
           categoryId: categoryId || null,
           fileURL: finalUrl,
-          sizeX: sizeX || '1',
-          sizeY: sizeY || '1',
-          sizeZ: sizeZ || '1',
-          objectProperties: objectProperties.trim(),
+          scaleU: scaleU || '1',
+          scaleV: scaleV || '1',
+          materialProperties: materialProperties.trim(),
         },
         isEdit
       );
@@ -118,11 +118,11 @@ export default function ObjectEditor({
 
   const handleDelete = () => {
     if (!onDelete) return;
-    const message = 'Are you sure you want to delete this object?';
+    const message = 'Are you sure you want to delete this material?';
     if (Platform.OS === 'web') {
       if (window.confirm(message)) onDelete();
     } else {
-      Alert.alert('Delete Object', message, [
+      Alert.alert('Delete Material', message, [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
@@ -137,149 +137,154 @@ export default function ObjectEditor({
     (c) => c.parentCategoryId === null || c.id !== categoryId
   );
 
-  const { width: screenWidth } = useWindowDimensions();
-  const isWide = screenWidth >= 700;
-
   const formContent = (
     <>
       <Text style={styles.headerTitle}>
-        {isEdit ? 'Edit Object' : 'New Object'}
+        {disabled ? 'Material Form' : isEdit ? 'Edit Material' : 'New Material'}
       </Text>
 
       <Text style={styles.label}>Name *</Text>
       <TextInput
-        style={styles.input}
+        style={[styles.input, disabled && styles.inputDisabled]}
         value={name}
         onChangeText={setName}
-        placeholder="Object name"
+        placeholder="Material name"
+        editable={!disabled}
       />
 
-      <Text style={styles.label}>Category</Text>
-      <View style={styles.categoryRow}>
-        <Pressable
-          style={[
-            styles.categoryChip,
-            categoryId === '' && styles.categoryChipActive,
-          ]}
-          onPress={() => setCategoryId('')}
-        >
-          <Text
-            style={[
-              styles.categoryChipText,
-              categoryId === '' && styles.categoryChipTextActive,
-            ]}
-          >
-            None
-          </Text>
-        </Pressable>
-        {availableCategories.map((cat) => (
-          <Pressable
-            key={cat.id}
-            style={[
-              styles.categoryChip,
-              categoryId === cat.id && styles.categoryChipActive,
-            ]}
-            onPress={() => setCategoryId(cat.id)}
-          >
-            <Text
+      {!disabled && (
+        <>
+          <Text style={styles.label}>Category</Text>
+          <View style={styles.categoryRow}>
+            <Pressable
               style={[
-                styles.categoryChipText,
-                categoryId === cat.id && styles.categoryChipTextActive,
+                styles.categoryChip,
+                categoryId === '' && styles.categoryChipActive,
               ]}
+              onPress={() => setCategoryId('')}
             >
-              {cat.categoryName}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
+              <Text
+                style={[
+                  styles.categoryChipText,
+                  categoryId === '' && styles.categoryChipTextActive,
+                ]}
+              >
+                None
+              </Text>
+            </Pressable>
+            {availableCategories.map((cat) => (
+              <Pressable
+                key={cat.id}
+                style={[
+                  styles.categoryChip,
+                  categoryId === cat.id && styles.categoryChipActive,
+                ]}
+                onPress={() => setCategoryId(cat.id)}
+              >
+                <Text
+                  style={[
+                    styles.categoryChipText,
+                    categoryId === cat.id && styles.categoryChipTextActive,
+                  ]}
+                >
+                  {cat.categoryName}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </>
+      )}
 
       <Text style={styles.sectionTitle}>
         {isEdit ? 'Update Version Data' : 'Initial Version Data'}
       </Text>
 
-      <Text style={styles.label}>File</Text>
-      <View style={styles.fileRow}>
-        <View style={styles.fileInfo}>
-          <Text
-            style={[
-              styles.fileInfoText,
-              (pickedFile ?? fileURL) && styles.fileInfoTextLoaded,
-            ]}
-            numberOfLines={1}
-          >
-            {pickedFile
-              ? `Selected: ${pickedFile.name}`
-              : fileURL
-                ? '\u2713 File loaded'
-                : 'No file selected'}
-          </Text>
-          {pickedFile && (
+      {!disabled && (
+        <>
+          <Text style={styles.label}>File</Text>
+          <View style={styles.fileRow}>
+            <View style={styles.fileInfo}>
+              <Text
+                style={[
+                  styles.fileInfoText,
+                  (pickedFile ?? fileURL) && styles.fileInfoTextLoaded,
+                ]}
+                numberOfLines={1}
+              >
+                {pickedFile
+                  ? `Selected: ${pickedFile.name}`
+                  : fileURL
+                    ? '\u2713 File loaded'
+                    : 'No file selected'}
+              </Text>
+              {pickedFile && (
+                <Pressable
+                  onPress={() => {
+                    setPickedFile(null);
+                    onTextureChange?.(null);
+                  }}
+                  hitSlop={8}
+                  style={styles.clearButton}
+                >
+                  <Text style={styles.clearButtonLabel}>{'\u2715'}</Text>
+                </Pressable>
+              )}
+            </View>
             <Pressable
-              onPress={() => setPickedFile(null)}
-              hitSlop={8}
-              style={styles.clearButton}
+              style={styles.pickButton}
+              onPress={handlePickFile}
+              disabled={saving}
             >
-              <Text style={styles.clearButtonLabel}>{'\u2715'}</Text>
+              <Text style={styles.pickButtonLabel}>
+                {pickedFile || fileURL ? 'Change' : 'Pick File'}
+              </Text>
             </Pressable>
-          )}
-        </View>
-        <Pressable
-          style={styles.pickButton}
-          onPress={handlePickFile}
-          disabled={saving}
-        >
-          <Text style={styles.pickButtonLabel}>
-            {pickedFile || fileURL ? 'Change' : 'Pick File'}
-          </Text>
-        </Pressable>
-      </View>
+          </View>
+        </>
+      )}
 
-      <Text style={styles.label}>Size X</Text>
+      <Text style={styles.label}>Scale U</Text>
       <TextInput
-        style={styles.input}
-        value={sizeX}
-        onChangeText={setSizeX}
+        style={[styles.input, disabled && styles.inputDisabled]}
+        value={scaleU}
+        onChangeText={setScaleU}
         keyboardType="decimal-pad"
         placeholder="1.0"
+        editable={!disabled}
       />
 
-      <Text style={styles.label}>Size Y</Text>
+      <Text style={styles.label}>Scale V</Text>
       <TextInput
-        style={styles.input}
-        value={sizeY}
-        onChangeText={setSizeY}
+        style={[styles.input, disabled && styles.inputDisabled]}
+        value={scaleV}
+        onChangeText={setScaleV}
         keyboardType="decimal-pad"
         placeholder="1.0"
+        editable={!disabled}
       />
 
-      <Text style={styles.label}>Size Z</Text>
+      <Text style={styles.label}>Material Properties</Text>
       <TextInput
-        style={styles.input}
-        value={sizeZ}
-        onChangeText={setSizeZ}
-        keyboardType="decimal-pad"
-        placeholder="1.0"
-      />
-
-      <Text style={styles.label}>Object Properties</Text>
-      <TextInput
-        style={[styles.input, styles.multilineInput]}
-        value={objectProperties}
-        onChangeText={setObjectProperties}
-        placeholder="e.g. moving-behavior:counter;height:0.8"
+        style={[styles.input, styles.multilineInput, disabled && styles.inputDisabled]}
+        value={materialProperties}
+        onChangeText={setMaterialProperties}
+        placeholder="e.g. roughness:0.5;metalness:0.1"
         multiline
+        editable={!disabled}
       />
 
-      <View style={styles.actions}>
-        <Button label={saving ? 'Saving...' : 'Save'} onPress={handleSave} />
-        <Pressable style={styles.cancelButton} onPress={onClose}>
-          <Text style={styles.cancelButtonLabel}>Cancel</Text>
-        </Pressable>
-      </View>
+      {!disabled && (
+        <View style={styles.actions}>
+          <Button label={saving ? 'Saving...' : 'Save'} onPress={handleSave} />
+          <Pressable style={styles.cancelButton} onPress={onClose}>
+            <Text style={styles.cancelButtonLabel}>Cancel</Text>
+          </Pressable>
+        </View>
+      )}
 
-      {isEdit && onDelete && (
+      {!disabled && isEdit && onDelete && (
         <Pressable style={styles.deleteButton} onPress={handleDelete}>
-          <Text style={styles.deleteButtonLabel}>Delete Object</Text>
+          <Text style={styles.deleteButtonLabel}>Delete Material</Text>
         </Pressable>
       )}
     </>
@@ -287,31 +292,12 @@ export default function ObjectEditor({
 
   return (
     <View style={styles.container}>
-      {isWide ? (
-        <View style={styles.rowContainer}>
-          <View style={styles.previewColumn}>
-            <ObjectPreview uri={pickedFile?.uri ?? null} />
-          </View>
-          <View style={styles.formColumn}>
-            <ScrollView
-              style={styles.scroll}
-              contentContainerStyle={styles.scrollContent}
-            >
-              {formContent}
-            </ScrollView>
-          </View>
-        </View>
-      ) : (
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
-        >
-          <View style={styles.previewRow}>
-            <ObjectPreview uri={pickedFile?.uri ?? null} />
-          </View>
-          {formContent}
-        </ScrollView>
-      )}
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {formContent}
+      </ScrollView>
     </View>
   );
 }
@@ -321,24 +307,6 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
     backgroundColor: 'white',
-  },
-  rowContainer: {
-    flex: 1,
-    flexDirection: 'row',
-  },
-  previewColumn: {
-    flex: 1,
-    padding: 16,
-    borderRightWidth: 1,
-    borderRightColor: '#e5e7eb',
-  },
-  formColumn: {
-    width: 340,
-    maxWidth: '35%',
-  },
-  previewRow: {
-    height: 250,
-    marginBottom: 8,
   },
   scroll: {
     flex: 1,
@@ -381,6 +349,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#f9fafb',
     fontSize: 14,
     color: '#111827',
+  },
+  inputDisabled: {
+    backgroundColor: '#f3f4f6',
+    color: '#9ca3af',
   },
   multilineInput: {
     height: 80,

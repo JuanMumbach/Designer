@@ -1,5 +1,5 @@
 import { useMaterials } from '@/services/useMaterials';
-import MaterialBrowser from '@/components/Materials/MaterialBrowser';
+import MaterialBrowser from '@/components/Editors/Materials/MaterialBrowser';
 import React from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
@@ -37,8 +37,6 @@ export default function MaterialsScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
     backgroundColor: '#1a1a2e',
   },
   center: {

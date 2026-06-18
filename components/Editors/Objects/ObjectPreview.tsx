@@ -1,7 +1,8 @@
-import { Box, Gltf, OrbitControls } from '@react-three/drei/native';
+import { Box, Gltf } from '@react-three/drei/native';
 import { Canvas } from '@react-three/fiber';
 import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
+import PreviewEnvironment from '../PreviewScene';
 
 export default function ObjectPreview({ uri }: { uri: string | null }) {
   const [processedUri, setProcessedUri] = useState<string | null>(null);
@@ -48,22 +49,19 @@ export default function ObjectPreview({ uri }: { uri: string | null }) {
         camera={{ position: [2, 2, 2], fov: 50 }}
         style={{ background: '#e5e7eb' }}
       >
-        <ambientLight intensity={0.6} />
-        <directionalLight position={[5, 10, 5]} intensity={0.8} />
-        <OrbitControls enableDamping />
-        <axesHelper args={[1]} position={[0, 0.01, 0]} />
-        <gridHelper args={[20, 20]} />
-        {processedUri && (
-          <Suspense
-            fallback={
-              <Box args={[0.5, 0.5, 0.5]}>
-                <meshStandardMaterial color="#ef4444" />
-              </Box>
-            }
-          >
-            <Gltf src={processedUri} scale={0.01} />
-          </Suspense>
-        )}
+        <PreviewEnvironment>
+          {processedUri && (
+            <Suspense
+              fallback={
+                <Box args={[0.5, 0.5, 0.5]}>
+                  <meshStandardMaterial color="#ef4444" />
+                </Box>
+              }
+            >
+              <Gltf src={processedUri} scale={0.01} />
+            </Suspense>
+          )}
+        </PreviewEnvironment>
       </Canvas>
     </View>
   );

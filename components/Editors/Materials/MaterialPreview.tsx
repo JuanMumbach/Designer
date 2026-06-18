@@ -1,8 +1,9 @@
-import { Box, Gltf, OrbitControls } from '@react-three/drei/native';
+import { Box, Gltf } from '@react-three/drei/native';
 import { Canvas } from '@react-three/fiber';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import * as THREE from 'three';
+import PreviewEnvironment from '../PreviewScene';
 
 export default function MaterialPreview({
   modelUrl,
@@ -144,28 +145,25 @@ export default function MaterialPreview({
         camera={{ position: [1.5, 1.5, 1.5], fov: 50 }}
         style={{ background: '#e5e7eb' }}
       >
-        <ambientLight intensity={0.6} />
-        <directionalLight position={[5, 10, 5]} intensity={0.8} />
-        <OrbitControls enableDamping />
-        <axesHelper args={[1]} position={[0, 0.01, 0]} />
-        <gridHelper args={[20, 20]} />
-        {modelUrl && (
-          <Suspense
-            fallback={
-              <Box args={[0.5, 0.5, 0.5]}>
-                <meshStandardMaterial color="#ef4444" />
-              </Box>
-            }
-          >
-            <Gltf ref={handleGltfReady} src={modelUrl} scale={0.01} />
-          </Suspense>
-        )}
-        {!modelUrl && (
-          <mesh>
-            <boxGeometry args={[0.3, 0.3, 0.3]} />
-            <meshStandardMaterial color="#9ca3af" />
-          </mesh>
-        )}
+        <PreviewEnvironment>
+          {modelUrl && (
+            <Suspense
+              fallback={
+                <Box args={[0.5, 0.5, 0.5]}>
+                  <meshStandardMaterial color="#ef4444" />
+                </Box>
+              }
+            >
+              <Gltf ref={handleGltfReady} src={modelUrl} scale={0.01} />
+            </Suspense>
+          )}
+          {!modelUrl && (
+            <mesh>
+              <boxGeometry args={[0.3, 0.3, 0.3]} />
+              <meshStandardMaterial color="#9ca3af" />
+            </mesh>
+          )}
+        </PreviewEnvironment>
       </Canvas>
     </View>
   );

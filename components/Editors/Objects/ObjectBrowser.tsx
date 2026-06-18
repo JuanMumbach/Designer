@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Platform,
   Pressable,
@@ -7,32 +8,34 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
-import Button from '../Button';
+import Button from '../../Button';
 import {
-  createMaterial,
-  createMaterialCategory,
-  deleteMaterial,
-  deleteMaterialCategory,
-  MaterialCategory,
-  MaterialMeta,
-  MaterialData,
-  renameMaterial,
-  categorizeMaterial,
-  createMaterialVersion,
-  fetchMaterialVersion,
-  updateMaterialCategory,
-} from '../../services/api';
-import MaterialEditor, { MaterialFormData } from './MaterialEditor';
+  createObject,
+  createObjectCategory,
+  deleteObject,
+  deleteObjectCategory,
+  ObjectCategory,
+  ObjectModel,
+  ObjectVersion,
+  renameObject,
+  categorizeObject,
+  createObjectVersion,
+  fetchObjectVersion,
+  updateObjectCategory,
+} from '../../../services/api';
+import ObjectEditor, { ObjectFormData } from './ObjectEditor';
+import ObjectPreview from './ObjectPreview';
 
 function getBreadcrumbPath(
   categoryId: string | null,
-  allCategories: MaterialCategory[]
+  allCategories: ObjectCategory[]
 ): string {
   if (!categoryId) return 'Root';
   const path: string[] = [];
-  let current: MaterialCategory | undefined = allCategories.find(
+  let current: ObjectCategory | undefined = allCategories.find(
     (c) => c.id === categoryId
   );
   while (current) {
@@ -42,51 +45,57 @@ function getBreadcrumbPath(
   return 'Root > ' + path.join(' > ');
 }
 
-interface MaterialBrowserProps {
-  materials: MaterialMeta[];
-  categories: MaterialCategory[];
+interface ObjectBrowserProps {
+  objects: ObjectModel[];
+  categories: ObjectCategory[];
   onRefresh: () => void;
 }
 
-export default function MaterialBrowser({
-  materials,
+export default function ObjectBrowser({
+  objects,
   categories,
   onRefresh,
-}: MaterialBrowserProps) {
+}: ObjectBrowserProps) {
+  const { width: screenWidth } = useWindowDimensions();
+  const isWide = screenWidth >= 700;
+
   const [currentCategoryId, setCurrentCategoryId] = useState<string | null>(
     null
   );
   const [categoryStack, setCategoryStack] = useState<string[]>([]);
-   const [editingMaterial, setEditingMaterial] = useState<MaterialMeta | null>(null);
-   const [editingMaterialData, setEditingMaterialData] = useState<MaterialData | null>(null);
-   const [editingDataFailed, setEditingDataFailed] = useState(false);
-   const [showCreator, setShowCreator] = useState(false);
-   const [showCategoryManager, setShowCategoryManager] = useState(false);
+  const [editingObject, setEditingObject] = useState<ObjectModel | null>(null);
+  const [editingObjectVersion, setEditingObjectVersion] = useState<ObjectVersion | null>(null);
+  const [editingDataFailed, setEditingDataFailed] = useState(false);
+  const [showCreator, setShowCreator] = useState(false);
+  const [showCategoryManager, setShowCategoryManager] = useState(false);
 
-   // ── Category manager state ──
-   const [newCatName, setNewCatName] = useState('');
-   const [newCatParent, setNewCatParent] = useState('');
-   const [editingCatId, setEditingCatId] = useState<string | null>(null);
-   const [editingCatName, setEditingCatName] = useState('');
+  // ── Category manager state ──
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatParent, setNewCatParent] = useState('');
+  const [editingCatId, setEditingCatId] = useState<string | null>(null);
+  const [editingCatName, setEditingCatName] = useState('');
 
-   // Fetch material version data when editing a material
-   useEffect(() => {
-     if (editingMaterial) {
-       setEditingDataFailed(false);
-       fetchMaterialVersion(editingMaterial.id, editingMaterial.lastVersion)
-         .then(data => {
-           setEditingMaterialData(data);
-           setEditingDataFailed(false);
-         })
-         .catch(err => {
-           console.warn('Failed to fetch material version data:', err);
-           setEditingDataFailed(true);
-         });
-     } else {
-       setEditingMaterialData(null);
-       setEditingDataFailed(false);
-     }
-   }, [editingMaterial]);
+  // ── Preview URI state (set by ObjectEditor callback) ──
+  const [previewUri, setPreviewUri] = useState<string | null>(null);
+
+  // Fetch object version data when editing an object
+  useEffect(() => {
+    if (editingObject) {
+      setEditingDataFailed(false);
+      fetchObjectVersion(editingObject.id)
+        .then(data => {
+          setEditingObjectVersion(data);
+          setEditingDataFailed(false);
+        })
+        .catch(err => {
+          console.warn('Failed to fetch object version data:', err);
+          setEditingDataFailed(true);
+        });
+    } else {
+      setEditingObjectVersion(null);
+      setEditingDataFailed(false);
+    }
+  }, [editingObject]);
 
   const rootCategories = categories.filter(
     (c) => c.parentCategoryId === null
@@ -94,12 +103,12 @@ export default function MaterialBrowser({
   const currentSubcategories = categories.filter(
     (c) => c.parentCategoryId === currentCategoryId
   );
-  const materialsInCategory = materials.filter(
-    (m) => m.categoryId === currentCategoryId
+  const objectsInCategory = objects.filter(
+    (o) => o.categoryId === currentCategoryId
   );
-  const uncategorizedMaterials = materials.filter((m) => !m.categoryId);
+  const uncategorizedObjects = objects.filter((o) => !o.categoryId);
 
-  const handleCategoryPress = (cat: MaterialCategory) => {
+  const handleCategoryPress = (cat: ObjectCategory) => {
     setCategoryStack((prev) => [...prev, cat.id]);
     setCurrentCategoryId(cat.id);
   };
@@ -117,58 +126,60 @@ export default function MaterialBrowser({
     }
   };
 
-  const handleSaveMaterial = async (data: MaterialFormData, isEdit: boolean) => {
-    if (isEdit && editingMaterial) {
-      if (data.name !== editingMaterial.name) {
-        await renameMaterial({ id: editingMaterial.id, name: data.name });
+  const handleSaveObject = async (data: ObjectFormData, isEdit: boolean) => {
+    if (isEdit && editingObject) {
+      if (data.name !== editingObject.name) {
+        await renameObject({ id: editingObject.id, name: data.name });
       }
       const newCatId = data.categoryId || null;
-      if (newCatId !== editingMaterial.categoryId) {
-        await categorizeMaterial({ id: editingMaterial.id, categoryId: newCatId });
+      if (newCatId !== editingObject.categoryId) {
+        await categorizeObject({ id: editingObject.id, categoryId: newCatId });
       }
-      if (data.fileURL || data.scaleU || data.scaleV || data.materialProperties) {
-        await createMaterialVersion(editingMaterial.id, {
+      if (data.fileURL || data.sizeX || data.sizeY || data.sizeZ || data.objectProperties) {
+        await createObjectVersion(editingObject.id, {
           fileURL: data.fileURL,
-          scaleU: parseFloat(data.scaleU) || 1,
-          scaleV: parseFloat(data.scaleV) || 1,
-          materialProperties: data.materialProperties || undefined,
-          creatorId: data.creatorId || editingMaterial.creatorId,
+          sizeX: parseFloat(data.sizeX) || 1,
+          sizeY: parseFloat(data.sizeY) || 1,
+          sizeZ: parseFloat(data.sizeZ) || 1,
+          objectProperties: data.objectProperties || undefined,
+          creatorId: data.creatorId || editingObject.creatorId,
         });
       }
     } else {
-      const meta = await createMaterial({
+      const meta = await createObject({
         name: data.name,
         creatorId: data.creatorId,
         categoryId: data.categoryId || undefined,
       });
-      await createMaterialVersion(meta.id, {
+      await createObjectVersion(meta.id, {
         fileURL: data.fileURL,
-        scaleU: parseFloat(data.scaleU) || 1,
-        scaleV: parseFloat(data.scaleV) || 1,
-        materialProperties: data.materialProperties || undefined,
+        sizeX: parseFloat(data.sizeX) || 1,
+        sizeY: parseFloat(data.sizeY) || 1,
+        sizeZ: parseFloat(data.sizeZ) || 1,
+        objectProperties: data.objectProperties || undefined,
         creatorId: data.creatorId,
       });
     }
-    setEditingMaterial(null);
+    setEditingObject(null);
     setShowCreator(false);
     onRefresh();
   };
 
-  const handleDeleteMaterial = async () => {
-    if (!editingMaterial) return;
+  const handleDeleteObject = async () => {
+    if (!editingObject) return;
     try {
-      await deleteMaterial(editingMaterial.id);
-      setEditingMaterial(null);
+      await deleteObject(editingObject.id);
+      setEditingObject(null);
       onRefresh();
     } catch {
-      Alert.alert('Error', 'Failed to delete material.');
+      Alert.alert('Error', 'Failed to delete object.');
     }
   };
 
   const handleCreateCategory = async () => {
     if (!newCatName.trim()) return;
     try {
-      await createMaterialCategory({
+      await createObjectCategory({
         categoryName: newCatName.trim(),
         parentCategoryId: newCatParent || undefined,
       });
@@ -183,7 +194,7 @@ export default function MaterialBrowser({
   const handleRenameCategory = async (id: string) => {
     if (!editingCatName.trim()) return;
     try {
-      await updateMaterialCategory(id, { categoryName: editingCatName.trim() });
+      await updateObjectCategory(id, { categoryName: editingCatName.trim() });
       setEditingCatId(null);
       setEditingCatName('');
       onRefresh();
@@ -194,7 +205,7 @@ export default function MaterialBrowser({
 
   const handleDeleteCategory = (id: string) => {
     const confirm = () => {
-      deleteMaterialCategory(id)
+      deleteObjectCategory(id)
         .then(() => {
           setEditingCatId(null);
           onRefresh();
@@ -211,55 +222,159 @@ export default function MaterialBrowser({
     }
   };
 
-  // ── Render ──
+  const isActive = editingObject || showCreator;
+  const isLoadingData = editingObject && !editingObjectVersion && !editingDataFailed;
 
-   if (editingMaterial || showCreator) {
-     // Wait for version data to load before rendering the edit form
-     if (editingMaterial && !editingMaterialData && !editingDataFailed) {
-       return (
-         <View style={styles.loadingContainer}>
-           <Text style={styles.loadingText}>Loading material data…</Text>
-         </View>
-       );
-     }
-     return (
-       <MaterialEditor
-         isEdit={!!editingMaterial}
-         initial={
-           editingMaterial
-             ? {
-                 name: editingMaterial.name,
-                 creatorId: editingMaterial.creatorId,
-                 categoryId: editingMaterial.categoryId ?? '',
-                 fileURL: editingMaterialData?.fileURL ?? '',
-                 scaleU: editingMaterialData?.scaleU?.toString() ?? '1',
-                 scaleV: editingMaterialData?.scaleV?.toString() ?? '1',
-                 materialProperties: editingMaterialData?.materialProperties ?? '',
-               }
-             : undefined
-         }
-         categories={categories}
-         onSave={handleSaveMaterial}
-         onDelete={editingMaterial ? handleDeleteMaterial : undefined}
-         onClose={() => {
-           setEditingMaterial(null);
-           setEditingMaterialData(null);
-           setEditingDataFailed(false);
-           setShowCreator(false);
-         }}
-       />
-     );
-   }
+  // ── Render helpers ──
 
-  if (showCategoryManager) {
+  const renderEditor = () => (
+    <ObjectEditor
+      key={editingObject?.id ?? 'new'}
+      disabled={!isActive}
+      isEdit={!!editingObject}
+      initial={
+        editingObject
+          ? {
+              name: editingObject.name,
+              creatorId: editingObject.creatorId,
+              categoryId: editingObject.categoryId ?? '',
+              fileURL: editingObjectVersion?.fileURL ?? '',
+              sizeX: editingObjectVersion?.sizeX?.toString() ?? '1',
+              sizeY: editingObjectVersion?.sizeY?.toString() ?? '1',
+              sizeZ: editingObjectVersion?.sizeZ?.toString() ?? '1',
+              objectProperties: (editingObjectVersion?.objectProperties
+                ? typeof editingObjectVersion.objectProperties === 'string'
+                  ? editingObjectVersion.objectProperties
+                  : JSON.stringify(editingObjectVersion.objectProperties)
+                : ''),
+            }
+          : undefined
+      }
+      categories={categories}
+      onSave={handleSaveObject}
+      onDelete={editingObject ? handleDeleteObject : undefined}
+      onClose={() => {
+        setEditingObject(null);
+        setEditingObjectVersion(null);
+        setEditingDataFailed(false);
+        setShowCreator(false);
+      }}
+      onPreviewUriChange={(uri) => setPreviewUri(uri)}
+    />
+  );
+
+  const renderBrowserList = () => {
+    const hasContent =
+      currentCategoryId === null
+        ? rootCategories.length > 0 || uncategorizedObjects.length > 0
+        : currentSubcategories.length > 0 || objectsInCategory.length > 0;
+
+    return (
+      <>
+        <View style={styles.header}>
+          <Pressable style={styles.backButton} onPress={handleBack}>
+            <Text style={styles.backButtonText}>← Back</Text>
+          </Pressable>
+          <Text style={styles.breadcrumb} numberOfLines={1}>
+            {getBreadcrumbPath(currentCategoryId, categories)}
+          </Text>
+        </View>
+
+        <View style={styles.actionBar}>
+          <Pressable style={styles.actionButton} onPress={() => setShowCreator(true)}>
+            <Text style={styles.actionButtonText}>+ New Object</Text>
+          </Pressable>
+          <Pressable
+            style={styles.actionButton}
+            onPress={() => setShowCategoryManager(true)}
+          >
+            <Text style={styles.actionButtonText}>Categories</Text>
+          </Pressable>
+        </View>
+
+        <ScrollView style={styles.scrollView}>
+          {!hasContent ? (
+            <Text style={styles.emptyText}>No items in this category.</Text>
+          ) : (
+            <>
+              {currentCategoryId === null &&
+                rootCategories
+                  .sort((a, b) => a.categoryName.localeCompare(b.categoryName))
+                  .map((cat) => (
+                    <Pressable
+                      key={cat.id}
+                      style={styles.folderItem}
+                      onPress={() => handleCategoryPress(cat)}
+                    >
+                      <Text style={styles.folderIcon}>📁</Text>
+                      <Text style={styles.folderText}>{cat.categoryName}</Text>
+                    </Pressable>
+                  ))}
+              {currentCategoryId !== null &&
+                currentSubcategories
+                  .sort((a, b) => a.categoryName.localeCompare(b.categoryName))
+                  .map((cat) => (
+                    <Pressable
+                      key={cat.id}
+                      style={styles.folderItem}
+                      onPress={() => handleCategoryPress(cat)}
+                    >
+                      <Text style={styles.folderIcon}>📁</Text>
+                      <Text style={styles.folderText}>{cat.categoryName}</Text>
+                    </Pressable>
+                  ))}
+              {currentCategoryId === null &&
+                uncategorizedObjects
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map((obj) => (
+                    <Pressable
+                      key={obj.id}
+                      style={styles.objectItem}
+                      onPress={() => setEditingObject(obj)}
+                    >
+                      <View style={styles.objectInfo}>
+                        <Text style={styles.objectName}>{obj.name}</Text>
+                        <Text style={styles.objectMeta}>
+                          v{obj.lastVersion} · {obj.creatorId.slice(0, 8)}…
+                        </Text>
+                      </View>
+                      <Text style={styles.editIcon}>✎</Text>
+                    </Pressable>
+                  ))}
+              {currentCategoryId !== null &&
+                objectsInCategory
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map((obj) => (
+                    <Pressable
+                      key={obj.id}
+                      style={styles.objectItem}
+                      onPress={() => setEditingObject(obj)}
+                    >
+                      <View style={styles.objectInfo}>
+                        <Text style={styles.objectName}>{obj.name}</Text>
+                        <Text style={styles.objectMeta}>
+                          v{obj.lastVersion} · {obj.creatorId.slice(0, 8)}…
+                        </Text>
+                      </View>
+                      <Text style={styles.editIcon}>✎</Text>
+                    </Pressable>
+                  ))}
+            </>
+          )}
+        </ScrollView>
+      </>
+    );
+  };
+
+  const renderCategoryManager = () => {
     const deletableCats = categories.filter((c) => {
       const childCats = categories.filter((cc) => cc.parentCategoryId === c.id);
-      const childMats = materials.filter((m) => m.categoryId === c.id);
-      return childCats.length === 0 && childMats.length === 0;
+      const childObjs = objects.filter((o) => o.categoryId === c.id);
+      return childCats.length === 0 && childObjs.length === 0;
     });
 
     return (
-      <View style={styles.container}>
+      <>
         <View style={styles.header}>
           <Pressable style={styles.backButton} onPress={() => setShowCategoryManager(false)}>
             <Text style={styles.backButtonText}>← Back</Text>
@@ -367,124 +482,86 @@ export default function MaterialBrowser({
             </>
           )}
         </ScrollView>
-      </View>
+      </>
     );
-  }
+  };
 
-  const hasContent =
-    currentCategoryId === null
-      ? rootCategories.length > 0 || uncategorizedMaterials.length > 0
-      : currentSubcategories.length > 0 || materialsInCategory.length > 0;
+  const renderPreview = () => (
+    <View style={styles.workspaceColumn}>
+      <ObjectPreview uri={previewUri} />
+    </View>
+  );
+
+  const renderLoading = () => (
+    <View style={styles.loadingContainer}>
+      <ActivityIndicator size="large" color="#2563eb" />
+      <Text style={styles.loadingText}>Loading object data…</Text>
+    </View>
+  );
+
+  const renderWorkspace = () => {
+    if (showCategoryManager) return <>{renderCategoryManager()}</>;
+    if (isLoadingData) return renderLoading();
+    if (isActive) return renderPreview();
+    return <>{renderBrowserList()}</>;
+  };
+
+  const renderNarrow = () => {
+    if (showCategoryManager) return renderCategoryManager();
+    if (isActive || isLoadingData) {
+      return (
+        <ScrollView>
+          {isLoadingData ? renderLoading() : (
+            <View style={styles.previewRow}>
+              <ObjectPreview uri={previewUri} />
+            </View>
+          )}
+          {renderEditor()}
+        </ScrollView>
+      );
+    }
+    return renderBrowserList();
+  };
+
+  // ── Main Render ──
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Pressable style={styles.backButton} onPress={handleBack}>
-          <Text style={styles.backButtonText}>← Back</Text>
-        </Pressable>
-        <Text style={styles.breadcrumb} numberOfLines={1}>
-          {getBreadcrumbPath(currentCategoryId, categories)}
-        </Text>
-      </View>
-
-      <View style={styles.actionBar}>
-        <Pressable style={styles.actionButton} onPress={() => setShowCreator(true)}>
-          <Text style={styles.actionButtonText}>+ New Material</Text>
-        </Pressable>
-        <Pressable
-          style={styles.actionButton}
-          onPress={() => setShowCategoryManager(true)}
-        >
-          <Text style={styles.actionButtonText}>Categories</Text>
-        </Pressable>
-      </View>
-
-      <ScrollView style={styles.scrollView}>
-        {!hasContent ? (
-          <Text style={styles.emptyText}>No items in this category.</Text>
-        ) : (
-          <>
-            {currentCategoryId === null &&
-              rootCategories
-                .sort((a, b) => a.categoryName.localeCompare(b.categoryName))
-                .map((cat) => (
-                  <Pressable
-                    key={cat.id}
-                    style={styles.folderItem}
-                    onPress={() => handleCategoryPress(cat)}
-                  >
-                    <Text style={styles.folderIcon}>📁</Text>
-                    <Text style={styles.folderText}>{cat.categoryName}</Text>
-                  </Pressable>
-                ))}
-            {currentCategoryId !== null &&
-              currentSubcategories
-                .sort((a, b) => a.categoryName.localeCompare(b.categoryName))
-                .map((cat) => (
-                  <Pressable
-                    key={cat.id}
-                    style={styles.folderItem}
-                    onPress={() => handleCategoryPress(cat)}
-                  >
-                    <Text style={styles.folderIcon}>📁</Text>
-                    <Text style={styles.folderText}>{cat.categoryName}</Text>
-                  </Pressable>
-                ))}
-            {currentCategoryId === null &&
-              uncategorizedMaterials
-                .sort((a, b) => a.name.localeCompare(b.name))
-                .map((mat) => (
-                  <Pressable
-                    key={mat.id}
-                    style={styles.materialItem}
-                    onPress={() => setEditingMaterial(mat)}
-                  >
-                    <View style={styles.materialInfo}>
-                      <Text style={styles.materialName}>{mat.name}</Text>
-                      <Text style={styles.materialMeta}>
-                        v{mat.lastVersion} · {mat.creatorId.slice(0, 8)}…
-                      </Text>
-                    </View>
-                    <Text style={styles.editIcon}>✎</Text>
-                  </Pressable>
-                ))}
-            {currentCategoryId !== null &&
-              materialsInCategory
-                .sort((a, b) => a.name.localeCompare(b.name))
-                .map((mat) => (
-                  <Pressable
-                    key={mat.id}
-                    style={styles.materialItem}
-                    onPress={() => setEditingMaterial(mat)}
-                  >
-                    <View style={styles.materialInfo}>
-                      <Text style={styles.materialName}>{mat.name}</Text>
-                      <Text style={styles.materialMeta}>
-                        v{mat.lastVersion} · {mat.creatorId.slice(0, 8)}…
-                      </Text>
-                    </View>
-                    <Text style={styles.editIcon}>✎</Text>
-                  </Pressable>
-                ))}
-          </>
-        )}
-      </ScrollView>
+      {isWide ? (
+        <View style={styles.rowContainer}>
+          <View style={styles.workspaceColumn}>{renderWorkspace()}</View>
+          <View style={styles.formColumn}>{renderEditor()}</View>
+        </View>
+      ) : (
+        renderNarrow()
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    width: 340,
-    maxHeight: '85%',
+    flex: 1,
+    width: '100%',
     backgroundColor: 'white',
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 10,
-    overflow: 'hidden',
+  },
+  rowContainer: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  formColumn: {
+    width: 340,
+    maxWidth: '35%',
+  },
+  workspaceColumn: {
+    flex: 1,
+    padding: 16,
+    borderRightWidth: 1,
+    borderRightColor: '#e5e7eb',
+  },
+  previewRow: {
+    height: 250,
+    marginBottom: 8,
   },
   header: {
     flexDirection: 'row',
@@ -565,7 +642,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1f2937',
   },
-  materialItem: {
+  objectItem: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'white',
@@ -576,17 +653,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e5e7eb',
   },
-  materialInfo: {
+  objectInfo: {
     flex: 1,
     marginRight: 10,
   },
-  materialName: {
+  objectName: {
     fontSize: 14,
     fontWeight: '700',
     color: '#1f2937',
     marginBottom: 4,
   },
-  materialMeta: {
+  objectMeta: {
     fontSize: 11,
     color: '#6b7280',
   },
@@ -694,27 +771,19 @@ const styles = StyleSheet.create({
   deleteSmallButton: {
     backgroundColor: '#fecaca',
   },
-   smallButtonText: {
-     fontSize: 12,
-     fontWeight: '600',
-     color: '#374151',
-   },
-   loadingContainer: {
-     width: 340,
-     maxHeight: '85%',
-     backgroundColor: 'white',
-     borderRadius: 16,
-     shadowColor: '#000',
-     shadowOffset: { width: 0, height: 10 },
-     shadowOpacity: 0.25,
-     shadowRadius: 10,
-     elevation: 10,
-     justifyContent: 'center',
-     alignItems: 'center',
-     padding: 40,
-   },
-   loadingText: {
-     fontSize: 14,
-     color: '#6b7280',
-   },
- });
+  smallButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+});
