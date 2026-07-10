@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ObjectTemplate } from '../components/DesignScreen/3dView/DesignObjects';
-import { fetchAllCategories, fetchAllObjectModels, fetchObjectVersion, ObjectModel, ObjectCategory, ObjectProperties } from './api';
+import { fetchAllCategories, fetchAllObjectModels, fetchObjectVersion, ObjectCategory, ObjectModel, ObjectProperties } from './api';
 
 function parseObjectProperties(raw: unknown): ObjectProperties | undefined {
   if (!raw) return undefined;
@@ -9,7 +9,7 @@ function parseObjectProperties(raw: unknown): ObjectProperties | undefined {
     const obj = raw as Record<string, unknown>;
     const behaviour = (
       obj.movingBehaviour ??
-      obj['moving-behavior']
+      obj['moving-behaviour']
     ) as string | undefined;
     const h = obj.height as number | undefined;
 

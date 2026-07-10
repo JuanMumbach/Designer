@@ -26,6 +26,39 @@ export type ObjectFormData = {
   objectProperties: string;
 };
 
+const KNOWN_BEHAVIOURS = ['counter', 'cupboard', 'free'];
+
+function parseInitialProperties(props: string): {
+  behaviour: string;
+  other: string;
+} {
+  let behaviour = '';
+  const otherSegments: string[] = [];
+
+  for (const segment of props.split(';')) {
+    const trimmed = segment.trim();
+    if (!trimmed) continue;
+    const colonIndex = trimmed.indexOf(':');
+    if (colonIndex === -1) {
+      otherSegments.push(trimmed);
+      continue;
+    }
+    const key = trimmed.slice(0, colonIndex).trim().toLowerCase();
+    const value = trimmed.slice(colonIndex + 1).trim();
+    if (key === 'moving-behavior') {
+      if (KNOWN_BEHAVIOURS.includes(value)) {
+        behaviour = value;
+      } else {
+        otherSegments.push(trimmed);
+      }
+    } else {
+      otherSegments.push(trimmed);
+    }
+  }
+
+  return { behaviour, other: otherSegments.join(';') };
+}
+
 interface ObjectEditorProps {
   initial?: Partial<ObjectFormData>;
   categories: ObjectCategory[];
@@ -55,8 +88,12 @@ export default function ObjectEditor({
   const [sizeX, setSizeX] = useState(initial?.sizeX ?? '1');
   const [sizeY, setSizeY] = useState(initial?.sizeY ?? '1');
   const [sizeZ, setSizeZ] = useState(initial?.sizeZ ?? '1');
+  const parsedInitial = parseInitialProperties(initial?.objectProperties ?? '');
+  const [selectedBehaviour, setSelectedBehaviour] = useState(
+    parsedInitial.behaviour
+  );
   const [objectProperties, setObjectProperties] = useState(
-    initial?.objectProperties ?? ''
+    parsedInitial.other
   );
   const [saving, setSaving] = useState(false);
   const [pickedFile, setPickedFile] = useState<{
@@ -98,6 +135,15 @@ export default function ObjectEditor({
         );
       }
 
+      const manualProps = objectProperties.trim();
+      const parts: string[] = [];
+      if (selectedBehaviour) {
+        parts.push(`moving-behavior:${selectedBehaviour}`);
+      }
+      if (manualProps) {
+        parts.push(manualProps);
+      }
+
       await onSave(
         {
           name: name.trim(),
@@ -107,7 +153,7 @@ export default function ObjectEditor({
           sizeX: sizeX || '1',
           sizeY: sizeY || '1',
           sizeZ: sizeZ || '1',
-          objectProperties: objectProperties.trim(),
+          objectProperties: parts.join(';'),
         },
         isEdit
       );
@@ -276,12 +322,56 @@ export default function ObjectEditor({
         editable={!disabled}
       />
 
+      {!disabled && (
+        <>
+          <Text style={styles.label}>Moving Behaviour</Text>
+          <View style={styles.categoryRow}>
+            <Pressable
+              style={[
+                styles.categoryChip,
+                selectedBehaviour === '' && styles.categoryChipActive,
+              ]}
+              onPress={() => setSelectedBehaviour('')}
+            >
+              <Text
+                style={[
+                  styles.categoryChipText,
+                  selectedBehaviour === '' && styles.categoryChipTextActive,
+                ]}
+              >
+                None
+              </Text>
+            </Pressable>
+            {KNOWN_BEHAVIOURS.map((behaviour) => (
+              <Pressable
+                key={behaviour}
+                style={[
+                  styles.categoryChip,
+                  selectedBehaviour === behaviour && styles.categoryChipActive,
+                ]}
+                onPress={() => setSelectedBehaviour(behaviour)}
+              >
+                <Text
+                  style={[
+                    styles.categoryChipText,
+                    selectedBehaviour === behaviour &&
+                      styles.categoryChipTextActive,
+                  ]}
+                >
+                  {behaviour.charAt(0).toUpperCase() + behaviour.slice(1)}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </>
+      )}
+
       <Text style={styles.label}>Object Properties</Text>
       <TextInput
         style={[styles.input, styles.multilineInput, disabled && styles.inputDisabled]}
         value={objectProperties}
         onChangeText={setObjectProperties}
-        placeholder="e.g. moving-behavior:counter;height:0.8"
+        placeholder="e.g. height:0.8"
         multiline
         editable={!disabled}
       />
