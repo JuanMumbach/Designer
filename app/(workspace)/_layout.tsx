@@ -57,6 +57,19 @@ export default function WorkspaceLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="materialTypes"
+        options={{
+          title: "Tipos",
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons
+              name={focused ? "albums" : "albums-outline"}
+              color={color}
+              size={24}
+            />
+          ),
+        }}
+      />
     </Tabs>
   );
 }

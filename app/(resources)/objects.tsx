@@ -1,10 +1,12 @@
 import { useObjects } from '@/services/useObjects';
+import { useMaterialTypes } from '@/services/useMaterialTypes';
 import ObjectBrowser from '@/components/Editors/Objects/ObjectBrowser';
 import React from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 export default function ObjectsScreen() {
   const { objects, categories, isLoading, error, refresh } = useObjects();
+  const { materialTypes } = useMaterialTypes();
 
   if (isLoading) {
     return (
@@ -29,6 +31,7 @@ export default function ObjectsScreen() {
         objects={objects}
         categories={categories}
         onRefresh={refresh}
+        materialTypes={materialTypes}
       />
     </View>
   );

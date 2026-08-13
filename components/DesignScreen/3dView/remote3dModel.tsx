@@ -135,11 +135,16 @@ export function DesignObject3D({
 
       overrideVersionRef.current++;
       const currentVersion = overrideVersionRef.current;
+
       const overrides = obj.textureOverrides || [];
+      const combined = new Map<string, { fileURL: string; scaleU: number; scaleV: number }>();
+      for (const ov of overrides) {
+        combined.set(ov.meshName, { fileURL: ov.fileURL, scaleU: ov.scaleU, scaleV: ov.scaleV });
+      }
 
       if (!textureLoaderRef.current) textureLoaderRef.current = new THREE.TextureLoader();
 
-      if (!overrides.length) {
+      if (combined.size === 0) {
         group.traverse((child) => {
           if (child instanceof THREE.Mesh && child.name) {
             const orig = originalMaterialsRef.current.get(child.name);
@@ -153,7 +158,7 @@ export function DesignObject3D({
 
       group.traverse((child) => {
         if (child instanceof THREE.Mesh && child.name) {
-          const override = overrides.find(t => t.meshName === child.name);
+          const override = combined.get(child.name);
           if (override && override.fileURL) {
             textureLoaderRef.current!.load(override.fileURL, (texture) => {
               if (currentVersion !== overrideVersionRef.current) return;

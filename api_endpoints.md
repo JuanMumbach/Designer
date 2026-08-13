@@ -23,7 +23,7 @@
 |--------|----------|------|---------|
 | GET | `/api/User` | — | List all users |
 | GET | `/api/User/{id}` | — | Get user by ID |
-| POST | `/api/User` | `{ username, emailAddress, appRoleId, firebaseUid?, name?, lastname? }` | Create user |
+| POST | `/api/User` | `{ username, emailAddress, firebaseUid?, name?, lastname? }` | Create user |
 | PUT | `/api/User/{id}` | `{ name?, lastname? }` | Update user |
 | DELETE | `/api/User/{id}` | — | Delete user |
 
@@ -114,7 +114,8 @@
   "creatorId": "guid",
   "creator": "User | null",
   "categoryId": "guid | null",
-  "category": "ObjectCategory | null"
+  "category": "ObjectCategory | null",
+  "materialTypes": ["ObjectMaterialType"]
 }
 ```
 
@@ -127,8 +128,8 @@
 | GET | `/api/ObjectVersion` | — | List all object versions |
 | GET | `/api/ObjectVersion/{modelId}` | — | List all versions of a model |
 | GET | `/api/ObjectVersion/{modelId}-{version}` | — | Get specific version |
-| POST | `/api/ObjectVersion/{modelId}` | `{ fileUrl, creatorId, sizeX?, sizeY?, sizeZ?, objectProperties? }` | Create version (auto-increments version number) |
-| PUT | `/api/ObjectVersion/{modelId}-{version}` | `{ fileUrl?, sizeX?, sizeY?, sizeZ?, objectProperties? }` | Update version |
+| POST | `/api/ObjectVersion/{modelId}` | `{ content, creatorId, description? }` | Create version (auto-increments version number) |
+| PUT | `/api/ObjectVersion/{modelId}-{version}` | `{ content?, description? }` | Update version |
 | DELETE | `/api/ObjectVersion/{modelId}-{version}` | — | Delete version |
 
 **ObjectVersion Entity:**
@@ -293,6 +294,7 @@
 | PUT | `/api/Materials/{id}` | `{ name?, categoryId? }` | Update material |
 | PUT | `/api/Materials/rename` | `{ id, name }` | Rename material |
 | PUT | `/api/Materials/categorize` | `{ id, categoryId? }` | Re-categorize material |
+| PUT | `/api/Materials/categorize-type` | `{ id, typeId? }` | Link material to a material type |
 | DELETE | `/api/Materials/{id}` | — | Delete material |
 
 **MaterialMeta Entity:**
@@ -306,7 +308,9 @@
   "creatorId": "guid",
   "creator": "User | null",
   "categoryId": "guid | null",
-  "category": "MaterialCategory | null"
+  "category": "MaterialCategory | null",
+  "typeId": "guid | null",
+  "type": "MaterialType | null"
 }
 ```
 
@@ -340,16 +344,63 @@
 
 ---
 
+## MaterialTypes — `api/MaterialTypes`
+
+| Method | Endpoint | Body | Purpose |
+|--------|----------|------|---------|
+| GET | `/api/MaterialTypes` | — | List all material types |
+| GET | `/api/MaterialTypes/{id}` | — | Get material type |
+| POST | `/api/MaterialTypes` | `{ name, description? }` | Create material type |
+| PUT | `/api/MaterialTypes/{id}` | `{ name?, description? }` | Update material type |
+| DELETE | `/api/MaterialTypes/{id}` | — | Delete material type |
+
+**MaterialType Entity (DTO):**
+```json
+{
+  "id": "guid",
+  "name": "string",
+  "description": "string | null"
+}
+```
+
+---
+
+## ObjectMaterialTypes — `api/ObjectMaterialTypes`
+
+| Method | Endpoint | Body | Purpose |
+|--------|----------|------|---------|
+| GET | `/api/ObjectMaterialTypes` | — | List all material types |
+| GET | `/api/ObjectMaterialTypes/{objectModelId}/{version}` | — | List all material types for an object version |
+| GET | `/api/ObjectMaterialTypes/{objectModelId}/{version}/{slot}` | — | Get material type |
+| POST | `/api/ObjectMaterialTypes` | `{ objectModelId, version, slot, materialTypeId, displayName }` | Create material type |
+| PUT | `/api/ObjectMaterialTypes/{objectModelId}/{version}/{slot}` | `{ materialTypeId?, displayName? }` | Update material type |
+| DELETE | `/api/ObjectMaterialTypes/{objectModelId}/{version}/{slot}` | — | Delete material type |
+
+**ObjectMaterialType Entity (read DTO):**
+```json
+{
+  "objectModelId": "guid",
+  "objectModelName": "string | null",
+  "version": "int",
+  "slot": "int",
+  "materialTypeId": "guid",
+  "materialTypeName": "string | null",
+  "displayName": "string"
+}
+```
+
+---
+
 ## Summary
 
 | Metric | Count |
 |--------|-------|
-| **Total controllers** | 12 |
-| **Total endpoints** | 71 |
-| **GET endpoints** | 27 |
-| **POST endpoints** | 13 |
-| **PUT endpoints** | 18 |
-| **DELETE endpoints** | 13 |
+| **Total controllers** | 14 |
+| **Total endpoints** | 83 |
+| **GET endpoints** | 32 |
+| **POST endpoints** | 15 |
+| **PUT endpoints** | 21 |
+| **DELETE endpoints** | 15 |
 
 ---
 

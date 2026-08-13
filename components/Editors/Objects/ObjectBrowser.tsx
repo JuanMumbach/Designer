@@ -17,6 +17,7 @@ import {
   createObjectCategory,
   deleteObject,
   deleteObjectCategory,
+  MaterialType,
   ObjectCategory,
   ObjectModel,
   ObjectVersion,
@@ -49,12 +50,14 @@ interface ObjectBrowserProps {
   objects: ObjectModel[];
   categories: ObjectCategory[];
   onRefresh: () => void;
+  materialTypes?: MaterialType[];
 }
 
 export default function ObjectBrowser({
   objects,
   categories,
   onRefresh,
+  materialTypes,
 }: ObjectBrowserProps) {
   const { width: screenWidth } = useWindowDimensions();
   const isWide = screenWidth >= 700;
@@ -141,7 +144,7 @@ export default function ObjectBrowser({
       }
       if (data.fileURL || data.sizeX || data.sizeY || data.sizeZ || data.objectProperties) {
         await createObjectVersion(editingObject.id, {
-          fileUrl: data.fileURL,
+          fileURL: data.fileURL,
           sizeX: parseFloat(data.sizeX) || 1,
           sizeY: parseFloat(data.sizeY) || 1,
           sizeZ: parseFloat(data.sizeZ) || 1,
@@ -156,7 +159,7 @@ export default function ObjectBrowser({
         categoryId: data.categoryId || undefined,
       });
       await createObjectVersion(meta.id, {
-        fileUrl: data.fileURL,
+        fileURL: data.fileURL,
         sizeX: parseFloat(data.sizeX) || 1,
         sizeY: parseFloat(data.sizeY) || 1,
         sizeZ: parseFloat(data.sizeZ) || 1,
@@ -259,6 +262,8 @@ export default function ObjectBrowser({
             : undefined
         }
         categories={categories}
+        objectId={editingObject?.id}
+        materialTypes={materialTypes}
         onSave={handleSaveObject}
         onDelete={editingObject ? handleDeleteObject : undefined}
         onClose={() => {

@@ -1,7 +1,7 @@
-import { auth } from './firebaseConfig';
 import { User } from 'firebase/auth';
+import { auth } from './firebaseConfig';
 
-const API_BASE_URL = 'http://localhost:5111';
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:5111';
 
 async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
   const token = await auth.currentUser?.getIdToken();
@@ -17,19 +17,23 @@ async function apiFetch(path: string, options: RequestInit = {}): Promise<Respon
 
 export async function syncUserWithBackend(user: User): Promise<string | null> {
   const token = await user.getIdToken();
+  const firstName = user.displayName?.split(' ')[0];
+  const lastName = user.displayName?.split(' ').slice(1).join(' ');
+  const body: Record<string, string> = {
+    username: user.displayName ?? user.email?.split('@')[0] ?? 'user',
+    emailAddress: user.email ?? '',
+    firebaseUid: user.uid,
+  };
+
+  if (firstName) body.name = firstName;
+  if (lastName) body.lastname = lastName;
   const response = await fetch(`${API_BASE_URL}/api/User`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({
-      username: user.displayName ?? user.email?.split('@')[0] ?? 'user',
-      emailAddress: user.email ?? '',
-      firebaseUid: user.uid,
-      name: user.displayName?.split(' ')[0] ?? null,
-      lastname: user.displayName?.split(' ').slice(1).join(' ') || null,
-    }),
+    body: JSON.stringify(body),
   });
   if (!response.ok && response.status !== 409) {
     throw new Error(`User sync failed: ${response.status}`);
@@ -184,7 +188,7 @@ export async function deleteObject(id: string): Promise<void> {
 export async function createObjectVersion(
   objectId: string,
   body: {
-    fileUrl: string;
+    fileURL: string;
     sizeX: number;
     sizeY: number;
     sizeZ: number;
@@ -197,41 +201,9 @@ export async function createObjectVersion(
     body: JSON.stringify(body),
   });
   if (!response.ok) {
-    const text = await response.text();
-    console.log('createObjectVersion 400 body:', JSON.stringify(body), 'response:', text);
     throw new Error(`Failed to create object version for ${objectId}: ${response.status}`);
   }
   return response.json();
-}
-
-export async function updateObjectVersion(
-  objectId: string,
-  version: number,
-  body: {
-    fileUrl?: string;
-    sizeX?: number;
-    sizeY?: number;
-    sizeZ?: number;
-    objectProperties?: string;
-  }
-): Promise<void> {
-  const response = await apiFetch(`/api/ObjectVersion/${objectId}-${version}`, {
-    method: 'PUT',
-    body: JSON.stringify(body),
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to update version ${version} of object ${objectId}: ${response.status}`);
-  }
-}
-
-export async function deleteObjectVersion(
-  objectId: string,
-  version: number
-): Promise<void> {
-  const response = await apiFetch(`/api/ObjectVersion/${objectId}-${version}`, { method: 'DELETE' });
-  if (!response.ok) {
-    throw new Error(`Failed to delete version ${version} of object ${objectId}: ${response.status}`);
-  }
 }
 
 // ── Material Types ──
@@ -253,6 +225,8 @@ export interface MaterialMeta {
   creator: unknown | null;
   categoryId: string | null;
   category: MaterialCategory | null;
+  typeId: string | null;
+  type: MaterialType | null;
 }
 
 export interface MaterialData {
@@ -273,14 +247,6 @@ export async function fetchAllMaterialCategories(): Promise<MaterialCategory[]> 
   const response = await apiFetch('/api/MaterialCategories');
   if (!response.ok) {
     throw new Error(`Failed to fetch material categories: ${response.status}`);
-  }
-  return response.json();
-}
-
-export async function fetchMaterialCategory(id: string): Promise<MaterialCategory> {
-  const response = await apiFetch(`/api/MaterialCategories/${id}`);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch material category ${id}: ${response.status}`);
   }
   return response.json();
 }
@@ -329,14 +295,6 @@ export async function fetchAllMaterials(): Promise<MaterialMeta[]> {
   return response.json();
 }
 
-export async function fetchMaterial(id: string): Promise<MaterialMeta> {
-  const response = await apiFetch(`/api/Materials/${id}`);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch material ${id}: ${response.status}`);
-  }
-  return response.json();
-}
-
 export async function createMaterial(body: {
   name: string;
   creatorId: string;
@@ -350,19 +308,6 @@ export async function createMaterial(body: {
     throw new Error(`Failed to create material: ${response.status}`);
   }
   return response.json();
-}
-
-export async function updateMaterial(
-  id: string,
-  body: { name?: string; categoryId?: string | null }
-): Promise<void> {
-  const response = await apiFetch(`/api/Materials/${id}`, {
-    method: 'PUT',
-    body: JSON.stringify(body),
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to update material ${id}: ${response.status}`);
-  }
 }
 
 export async function renameMaterial(body: { id: string; name: string }): Promise<void> {
@@ -396,18 +341,6 @@ export async function deleteMaterial(id: string): Promise<void> {
 }
 
 // ── MaterialData API ──
-
-export async function fetchMaterialVersions(
-  materialId: string
-): Promise<MaterialData[]> {
-  const response = await apiFetch(`/api/MaterialData/${materialId}`);
-  if (!response.ok) {
-    throw new Error(
-      `Failed to fetch versions for material ${materialId}: ${response.status}`
-    );
-  }
-  return response.json();
-}
 
 export async function fetchMaterialVersion(
   materialId: string,
@@ -444,35 +377,136 @@ export async function createMaterialVersion(
   return response.json();
 }
 
-export async function updateMaterialVersion(
-  materialId: string,
-  version: number,
-  body: {
-    fileURL?: string;
-    scaleU?: number;
-    scaleV?: number;
-    materialProperties?: string;
+// ── Material Types API ──
+
+export interface MaterialType {
+  id: string;
+  name: string;
+  description: string | null;
+}
+
+export async function fetchAllMaterialTypes(): Promise<MaterialType[]> {
+  const response = await apiFetch('/api/MaterialTypes');
+  if (!response.ok) {
+    throw new Error(`Failed to fetch material types: ${response.status}`);
   }
+  return response.json();
+}
+
+export async function createMaterialType(body: {
+  name: string;
+  description?: string;
+}): Promise<MaterialType> {
+  const response = await apiFetch('/api/MaterialTypes', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to create material type: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function updateMaterialType(
+  id: string,
+  body: { name?: string; description?: string | null }
 ): Promise<void> {
-  const response = await apiFetch(`/api/MaterialData/${materialId}-${version}`, {
+  const response = await apiFetch(`/api/MaterialTypes/${id}`, {
     method: 'PUT',
     body: JSON.stringify(body),
   });
   if (!response.ok) {
-    throw new Error(
-      `Failed to update version ${version} of material ${materialId}: ${response.status}`
-    );
+    throw new Error(`Failed to update material type ${id}: ${response.status}`);
   }
 }
 
-export async function deleteMaterialVersion(
-  materialId: string,
+export async function deleteMaterialType(id: string): Promise<void> {
+  const response = await apiFetch(`/api/MaterialTypes/${id}`, { method: 'DELETE' });
+  if (!response.ok) {
+    const error = new Error(`Failed to delete material type ${id}: ${response.status}`);
+    (error as Error & { status?: number }).status = response.status;
+    throw error;
+  }
+}
+
+// ── ObjectMaterialTypes API ──
+
+export interface ObjectMaterialType {
+  objectModelId: string;
+  objectModelName: string | null;
+  version: number;
+  slot: number;
+  materialTypeId: string;
+  materialTypeName: string | null;
+  displayName: string;
+}
+
+export async function fetchAllObjectMaterialTypes(): Promise<ObjectMaterialType[]> {
+  const response = await apiFetch('/api/ObjectMaterialTypes');
+  if (!response.ok) {
+    throw new Error(`Failed to fetch object material types: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function fetchModelMaterialTypes(
+  objectModelId: string,
   version: number
-): Promise<void> {
-  const response = await apiFetch(`/api/MaterialData/${materialId}-${version}`, { method: 'DELETE' });
+): Promise<ObjectMaterialType[]> {
+  const response = await apiFetch(`/api/ObjectMaterialTypes/${objectModelId}/${version}`);
   if (!response.ok) {
     throw new Error(
-      `Failed to delete version ${version} of material ${materialId}: ${response.status}`
+      `Failed to fetch material types for model ${objectModelId} version ${version}: ${response.status}`
     );
+  }
+  return response.json();
+}
+
+export async function createObjectMaterialType(body: {
+  objectModelId: string;
+  version: number;
+  slot: number;
+  materialTypeId: string;
+  displayName: string;
+}): Promise<ObjectMaterialType> {
+  const response = await apiFetch('/api/ObjectMaterialTypes', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to create object material type: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function updateObjectMaterialType(
+  objectModelId: string,
+  version: number,
+  slot: number,
+  body: { materialTypeId?: string; displayName?: string }
+): Promise<void> {
+  const response = await apiFetch(
+    `/api/ObjectMaterialTypes/${objectModelId}/${version}/${slot}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to update object material type: ${response.status}`);
+  }
+}
+
+export async function deleteObjectMaterialType(
+  objectModelId: string,
+  version: number,
+  slot: number
+): Promise<void> {
+  const response = await apiFetch(
+    `/api/ObjectMaterialTypes/${objectModelId}/${version}/${slot}`,
+    { method: 'DELETE' }
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to delete object material type: ${response.status}`);
   }
 }

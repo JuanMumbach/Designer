@@ -13,7 +13,8 @@ import * as DocumentPicker from 'expo-document-picker';
 import Button from '../../Button';
 import { uploadFileToFirebase } from '../../../services/firebaseSetup';
 import { useAuth } from '../../../services/AuthContext';
-import { ObjectCategory } from '../../../services/api';
+import { MaterialType, ObjectCategory } from '../../../services/api';
+import ModelSlotsSection from './ModelSlotsSection';
 
 export type ObjectFormData = {
   name: string;
@@ -68,6 +69,8 @@ interface ObjectEditorProps {
   isEdit: boolean;
   disabled?: boolean;
   onPreviewUriChange?: (uri: string | null) => void;
+  objectId?: string;
+  materialTypes?: MaterialType[];
 }
 
 export default function ObjectEditor({
@@ -79,6 +82,8 @@ export default function ObjectEditor({
   isEdit,
   disabled,
   onPreviewUriChange,
+  objectId,
+  materialTypes,
 }: ObjectEditorProps) {
   const { backendUserId } = useAuth();
 
@@ -389,6 +394,15 @@ export default function ObjectEditor({
         <Pressable style={styles.deleteButton} onPress={handleDelete}>
           <Text style={styles.deleteButtonLabel}>Delete Object</Text>
         </Pressable>
+      )}
+
+      {isEdit && objectId && (
+        <ModelSlotsSection
+          objectId={objectId}
+          fileUrl={pickedFile?.uri ?? initial?.fileURL}
+          materialTypes={materialTypes ?? []}
+          disabled={disabled}
+        />
       )}
     </>
   );
