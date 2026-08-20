@@ -1,16 +1,16 @@
+import ProjectLoader from "@/components/DesignScreen/3dViewOverlay/ProjectLoader";
+import ProjectPicker from "@/components/DesignScreen/3dViewOverlay/ProjectPicker";
 import Design3dView from "@/components/DesignScreen/Design3dViewer";
 import View3dOverlay from "@/components/DesignScreen/View3dOverlay";
+import { fetchMaterialVersion } from "@/services/api";
+import { useAuth } from "@/services/AuthContext";
+import { deserializeProjectState, loadProject, ProjectStateDTO, saveProject, serializeProjectState } from "@/services/projectStorage";
+import { exportSceneAsGLB } from "@/services/sceneExport";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Platform, StyleSheet, Text, View } from "react-native";
 import { useObjectTemplates } from "../services/useFurnitureModels";
 import { useMaterials } from "../services/useMaterials";
-import { serializeProjectState, saveProject, loadProject, deserializeProjectState, ProjectStateDTO } from "@/services/projectStorage";
-import { exportSceneAsGLB } from "@/services/sceneExport";
-import { fetchMaterialVersion } from "@/services/api";
-import { useAuth } from "@/services/AuthContext";
-import ProjectPicker from "@/components/DesignScreen/3dViewOverlay/ProjectPicker";
-import ProjectLoader from "@/components/DesignScreen/3dViewOverlay/ProjectLoader";
-import { DesignObject, TextureOverride, createDesignObject } from "./DesignScreen/3dView/DesignObjects";
+import { createDesignObject, DesignObject, TextureOverride } from "./DesignScreen/3dView/DesignObjects";
 import { Room3dProps } from "./DesignScreen/3dView/Room3d";
 
 

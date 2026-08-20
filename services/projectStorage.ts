@@ -1,11 +1,11 @@
-import * as FileSystem from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
-import * as DocumentPicker from 'expo-document-picker';
-import { Alert, Platform } from 'react-native';
 import { DesignObject, TextureOverride } from '@/components/DesignScreen/3dView/DesignObjects';
 import { Room3dProps } from '@/components/DesignScreen/3dView/Room3d';
 import { createProject, createProjectVersion, MaterialData, Project } from '@/services/api';
 import { uploadFileToFirebase } from '@/services/firebaseSetup';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import { Alert, Platform } from 'react-native';
 
 export interface ProjectMetadata {
   version: string;
