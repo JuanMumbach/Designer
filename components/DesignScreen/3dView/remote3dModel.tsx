@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { DesignObject } from './DesignObjects';
 import { Room3dProps } from './Room3d';
 import { MoveContext, computeDragMove } from './moveBehaviours';
+import { collectMeshSlots, getMeshSlotName } from '../../../services/materialSlots';
 
 let globalIsDragging = false;
 
@@ -114,15 +115,10 @@ export function DesignObject3D({
         }
       });
 
-      const names: string[] = [];
-      group.traverse((child) => {
-        if (child instanceof THREE.Mesh && child.name) {
-          names.push(child.name);
-          if (!originalMaterialsRef.current.has(child.name)) {
-            originalMaterialsRef.current.set(child.name, child.material.clone());
-          }
-        }
-      });
+      const { names, originalMaterials } = collectMeshSlots(group);
+      for (const [name, material] of originalMaterials) {
+        originalMaterialsRef.current.set(name, material);
+      }
       if (names.length > 0 && !meshesDiscoveredRef.current) {
         meshesDiscoveredRef.current = true;
         onMeshesDiscoveredRef.current?.(obj.id, names);
@@ -146,8 +142,9 @@ export function DesignObject3D({
 
       if (combined.size === 0) {
         group.traverse((child) => {
-          if (child instanceof THREE.Mesh && child.name) {
-            const orig = originalMaterialsRef.current.get(child.name);
+          if (child instanceof THREE.Mesh && child.material) {
+            const slotName = getMeshSlotName(child);
+            const orig = originalMaterialsRef.current.get(slotName);
             if (orig && child.material !== orig) {
               child.material = orig;
             }
@@ -157,14 +154,15 @@ export function DesignObject3D({
       }
 
       group.traverse((child) => {
-        if (child instanceof THREE.Mesh && child.name) {
-          const override = combined.get(child.name);
+        if (child instanceof THREE.Mesh && child.material) {
+          const slotName = getMeshSlotName(child);
+          const override = combined.get(slotName) ?? combined.get(child.name);
           if (override && override.fileURL) {
             textureLoaderRef.current!.load(override.fileURL, (texture) => {
               if (currentVersion !== overrideVersionRef.current) return;
               const newMat = (child.material as THREE.MeshStandardMaterial).clone();
 
-              const origMat = originalMaterialsRef.current.get(child.name) as THREE.MeshStandardMaterial | undefined;
+              const origMat = originalMaterialsRef.current.get(slotName) as THREE.MeshStandardMaterial | undefined;
               const origMap = origMat?.map;
               if (origMap) {
                 texture.wrapS = origMap.wrapS;
@@ -191,7 +189,7 @@ export function DesignObject3D({
               child.material = newMat;
             });
           } else {
-            const orig = originalMaterialsRef.current.get(child.name);
+            const orig = originalMaterialsRef.current.get(slotName);
             if (orig && child.material !== orig) {
               child.material = orig;
             }

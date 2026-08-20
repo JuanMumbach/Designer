@@ -2,8 +2,10 @@ import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import { Alert, Platform } from 'react-native';
-import { DesignObject } from '@/components/DesignScreen/3dView/DesignObjects';
+import { DesignObject, TextureOverride } from '@/components/DesignScreen/3dView/DesignObjects';
 import { Room3dProps } from '@/components/DesignScreen/3dView/Room3d';
+import { createProject, createProjectVersion, MaterialData, Project } from '@/services/api';
+import { uploadFileToFirebase } from '@/services/firebaseSetup';
 
 export interface ProjectMetadata {
   version: string;
@@ -18,6 +20,12 @@ export interface ProjectRoom {
   rightWall: boolean;
 }
 
+export interface ProjectTextureOverride {
+  slotName: string;
+  materialId: string;
+  version: number;
+}
+
 export interface ProjectInstance {
   id: string;
   name: string;
@@ -28,7 +36,7 @@ export interface ProjectInstance {
   scale: [number, number, number];
   color: string;
   objectProperties?: any;
-  textureOverrides?: any[];
+  textureOverrides?: ProjectTextureOverride[];
 }
 
 export interface ProjectStateDTO {
@@ -40,7 +48,7 @@ export interface ProjectStateDTO {
 export function serializeProjectState(room3d: Room3dProps, designObjects: DesignObject[]): ProjectStateDTO {
   return {
     metadata: {
-      version: '1.0.0',
+      version: '2.0.0',
       savedAt: new Date().toISOString(),
     },
     room: {
@@ -60,17 +68,45 @@ export function serializeProjectState(room3d: Room3dProps, designObjects: Design
       scale: obj.dimensions,
       color: obj.color,
       objectProperties: obj.objectProperties,
-      textureOverrides: obj.textureOverrides,
+      textureOverrides: (obj.textureOverrides ?? [])
+        .filter((ov) => !!ov.meshName && !!ov.materialId && typeof ov.version === 'number')
+        .map((ov) => ({
+          slotName: ov.meshName,
+          materialId: ov.materialId,
+          version: ov.version,
+        })),
     })),
   };
 }
 
 export async function deserializeProjectState(
   dto: ProjectStateDTO,
-  getModelUrl: (modelId: string, version: number) => Promise<string | undefined>
+  getModelUrl: (modelId: string, version: number) => Promise<string | undefined>,
+  getMaterialData: (materialId: string, version: number) => Promise<MaterialData | undefined>
 ): Promise<{ room: Room3dProps; objects: DesignObject[] }> {
   const objects = await Promise.all(dto.instances.map(async (inst) => {
     const modelUrl = await getModelUrl(inst.modelId, inst.version);
+
+    const overrides = await Promise.all((inst.textureOverrides ?? []).map(async (ov) => {
+      if (!ov || typeof ov.slotName !== 'string' || !ov.materialId || typeof ov.version !== 'number') {
+        return null;
+      }
+      const materialData = await getMaterialData(ov.materialId, ov.version);
+      if (!materialData) {
+        console.warn(`Could not resolve material ${ov.materialId} v${ov.version} for slot "${ov.slotName}".`);
+        return null;
+      }
+      const override: TextureOverride = {
+        meshName: ov.slotName,
+        materialId: ov.materialId,
+        version: ov.version,
+        fileURL: materialData.fileURL,
+        scaleU: materialData.scaleU,
+        scaleV: materialData.scaleV,
+      };
+      return override;
+    }));
+
     return {
       id: inst.id,
       modelId: inst.modelId,
@@ -82,7 +118,7 @@ export async function deserializeProjectState(
       color: inst.color || '#ffffff',
       modelUrl: modelUrl || '', // What if modelUrl is undefined?
       objectProperties: inst.objectProperties,
-      textureOverrides: inst.textureOverrides,
+      textureOverrides: overrides.filter((o): o is TextureOverride => o !== null),
     };
   }));
 
@@ -186,6 +222,90 @@ export async function loadProject(): Promise<ProjectStateDTO | null> {
   } catch (error) {
     console.error('Error loading project:', error);
     Alert.alert('Error', 'Failed to load the project.');
+    return null;
+  }
+}
+
+export async function saveProjectToCloud(
+  projectState: ProjectStateDTO,
+  projectId: string,
+  creatorId: string,
+  description?: string,
+  filename: string = 'project.json'
+): Promise<string> {
+  const jsonString = JSON.stringify(projectState, null, 2);
+  let uri: string;
+
+  if (Platform.OS === 'web') {
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    uri = URL.createObjectURL(blob);
+  } else {
+    uri = `${FileSystem.cacheDirectory}${filename}`;
+    await FileSystem.writeAsStringAsync(uri, jsonString, {
+      encoding: FileSystem.EncodingType.UTF8,
+    });
+  }
+
+  try {
+    const fileURL = await uploadFileToFirebase(uri, 'projects', filename);
+    await createProjectVersion(projectId, {
+      content: fileURL,
+      creatorId,
+      ...(description ? { description } : {}),
+    });
+    return fileURL;
+  } finally {
+    if (Platform.OS === 'web') {
+      URL.revokeObjectURL(uri);
+    }
+  }
+}
+
+export async function createProjectInCloud(
+  projectState: ProjectStateDTO,
+  options: {
+    name: string;
+    workspaceId: string;
+    creatorId: string;
+    description?: string;
+  }
+): Promise<{ project: Project; fileURL: string }> {
+  const project = await createProject({
+    name: options.name,
+    workspaceId: options.workspaceId,
+    creatorId: options.creatorId,
+  });
+  const safeName = options.name.trim().replace(/[^a-zA-Z0-9-_]/g, '_');
+  const fileURL = await saveProjectToCloud(
+    projectState,
+    project.id,
+    options.creatorId,
+    options.description,
+    `${safeName || 'project'}.json`
+  );
+  return { project, fileURL };
+}
+
+export async function loadProjectFromCloud(
+  fileURL: string
+): Promise<ProjectStateDTO | null> {
+  try {
+    const response = await fetch(fileURL);
+    if (!response.ok) {
+      throw new Error(`Failed to download project: ${response.status}`);
+    }
+    const fileContent = await response.text();
+    const projectState = JSON.parse(fileContent);
+
+    if (!projectState.metadata || !projectState.room || !Array.isArray(projectState.instances)) {
+      Alert.alert('Error', 'Invalid project file structure.');
+      return null;
+    }
+
+    return projectState as ProjectStateDTO;
+  } catch (error) {
+    console.error('Error loading project from cloud:', error);
+    Alert.alert('Error', 'Failed to load the project from cloud.');
     return null;
   }
 }

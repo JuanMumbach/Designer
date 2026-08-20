@@ -333,6 +333,19 @@ export async function categorizeMaterial(body: {
   }
 }
 
+export async function categorizeMaterialType(body: {
+  id: string;
+  typeId?: string | null;
+}): Promise<void> {
+  const response = await apiFetch('/api/Materials/categorize-type', {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to categorize material type: ${response.status}`);
+  }
+}
+
 export async function deleteMaterial(id: string): Promise<void> {
   const response = await apiFetch(`/api/Materials/${id}`, { method: 'DELETE' });
   if (!response.ok) {
@@ -509,4 +522,132 @@ export async function deleteObjectMaterialType(
   if (!response.ok) {
     throw new Error(`Failed to delete object material type: ${response.status}`);
   }
+}
+
+// ── Workspaces API ──
+
+export interface Workspace {
+  id: string;
+  name: string;
+  creatorId: string;
+  creator: unknown | null;
+  createdAt: string;
+  lastUpdate: string;
+  projects?: Project[] | null;
+  members?: unknown[] | null;
+}
+
+export async function fetchAllWorkspaces(): Promise<Workspace[]> {
+  const response = await apiFetch('/api/Workspace');
+  if (!response.ok) {
+    throw new Error(`Failed to fetch workspaces: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function createWorkspace(body: {
+  name: string;
+  creatorId: string;
+}): Promise<Workspace> {
+  const response = await apiFetch('/api/Workspace', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to create workspace: ${response.status}`);
+  }
+  return response.json();
+}
+
+// ── Projects API ──
+
+export interface Project {
+  id: string;
+  name: string;
+  createdAt: string;
+  lastUpdate: string;
+  lastVersion: number;
+  workspaceId: string;
+  workspace: Workspace | null;
+  creatorId: string;
+  creator: unknown | null;
+}
+
+export interface ProjectVersion {
+  projectId: string;
+  project: Project | null;
+  version: number;
+  fileURL: string;
+  creatorId: string;
+  creator: unknown | null;
+}
+
+export async function fetchAllProjects(): Promise<Project[]> {
+  const response = await apiFetch('/api/Projects');
+  if (!response.ok) {
+    throw new Error(`Failed to fetch projects: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function fetchProject(id: string): Promise<Project> {
+  const response = await apiFetch(`/api/Projects/${id}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch project ${id}: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function createProject(body: {
+  name: string;
+  workspaceId: string;
+  creatorId: string;
+}): Promise<Project> {
+  const response = await apiFetch('/api/Projects', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to create project: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function fetchProjectVersions(projectId: string): Promise<ProjectVersion[]> {
+  const response = await apiFetch(`/api/ProjectVersion/${projectId}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch project versions for ${projectId}: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function fetchProjectVersion(
+  projectId: string,
+  version: number
+): Promise<ProjectVersion> {
+  const response = await apiFetch(`/api/ProjectVersion/${projectId}-${version}`);
+  if (!response.ok) {
+    throw new Error(
+      `Failed to fetch version ${version} of project ${projectId}: ${response.status}`
+    );
+  }
+  return response.json();
+}
+
+export async function createProjectVersion(
+  projectId: string,
+  body: {
+    content: string;
+    creatorId: string;
+    description?: string;
+  }
+): Promise<ProjectVersion> {
+  const response = await apiFetch(`/api/ProjectVersion/${projectId}`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to create project version for ${projectId}: ${response.status}`);
+  }
+  return response.json();
 }

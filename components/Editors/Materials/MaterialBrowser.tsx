@@ -20,10 +20,13 @@ import {
   MaterialCategory,
   MaterialMeta,
   MaterialData,
+  MaterialType,
   renameMaterial,
   categorizeMaterial,
+  categorizeMaterialType,
   createMaterialVersion,
   fetchMaterialVersion,
+  fetchAllMaterialTypes,
   updateMaterialCategory,
   fetchAllObjectModels,
   fetchObjectVersion,
@@ -72,6 +75,19 @@ export default function MaterialBrowser({
   const [editingDataFailed, setEditingDataFailed] = useState(false);
   const [showCreator, setShowCreator] = useState(false);
   const [showCategoryManager, setShowCategoryManager] = useState(false);
+  const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    fetchAllMaterialTypes()
+      .then((types) => {
+        if (isMounted) setMaterialTypes(types);
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // ── Category manager state ──
   const [newCatName, setNewCatName] = useState('');
@@ -155,6 +171,9 @@ export default function MaterialBrowser({
       if (newCatId !== editingMaterial.categoryId) {
         await categorizeMaterial({ id: editingMaterial.id, categoryId: newCatId });
       }
+      if (data.typeId !== editingMaterial.typeId) {
+        await categorizeMaterialType({ id: editingMaterial.id, typeId: data.typeId });
+      }
       if (data.fileURL || data.scaleU || data.scaleV || data.materialProperties) {
         await createMaterialVersion(editingMaterial.id, {
           fileURL: data.fileURL,
@@ -170,6 +189,9 @@ export default function MaterialBrowser({
         creatorId: data.creatorId,
         categoryId: data.categoryId || undefined,
       });
+      if (data.typeId) {
+        await categorizeMaterialType({ id: meta.id, typeId: data.typeId });
+      }
       await createMaterialVersion(meta.id, {
         fileURL: data.fileURL,
         scaleU: parseFloat(data.scaleU) || 1,
@@ -312,6 +334,7 @@ export default function MaterialBrowser({
                 name: editingMaterial.name,
                 creatorId: editingMaterial.creatorId,
                 categoryId: editingMaterial.categoryId ?? '',
+                typeId: editingMaterial.typeId ?? '',
                 fileURL: editingMaterialData?.fileURL ?? '',
                 scaleU: editingMaterialData?.scaleU?.toString() ?? '1',
                 scaleV: editingMaterialData?.scaleV?.toString() ?? '1',
@@ -320,6 +343,7 @@ export default function MaterialBrowser({
             : undefined
         }
         categories={categories}
+        materialTypes={materialTypes}
         onSave={handleSaveMaterial}
         onDelete={editingMaterial ? handleDeleteMaterial : undefined}
         onClose={() => {
@@ -412,6 +436,9 @@ export default function MaterialBrowser({
                         <Text style={styles.materialMeta}>
                           v{mat.lastVersion} · {mat.creatorId.slice(0, 8)}…
                         </Text>
+                        {mat.type?.name && (
+                          <Text style={styles.materialType}>Type: {mat.type.name}</Text>
+                        )}
                       </View>
                       <Text style={styles.editIcon}>✎</Text>
                     </Pressable>
@@ -430,6 +457,9 @@ export default function MaterialBrowser({
                         <Text style={styles.materialMeta}>
                           v{mat.lastVersion} · {mat.creatorId.slice(0, 8)}…
                         </Text>
+                        {mat.type?.name && (
+                          <Text style={styles.materialType}>Type: {mat.type.name}</Text>
+                        )}
                       </View>
                       <Text style={styles.editIcon}>✎</Text>
                     </Pressable>
@@ -815,6 +845,12 @@ const styles = StyleSheet.create({
   materialMeta: {
     fontSize: 11,
     color: '#6b7280',
+  },
+  materialType: {
+    fontSize: 11,
+    color: '#2563eb',
+    fontWeight: '600',
+    marginTop: 2,
   },
   editIcon: {
     fontSize: 18,

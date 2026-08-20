@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFExporter, GLTFLoader } from 'three-stdlib';
 import { Room3dProps } from '@/components/DesignScreen/3dView/Room3d';
 import { DesignObject, TextureOverride } from '@/components/DesignScreen/3dView/DesignObjects';
+import { getMeshSlotName } from '@/services/materialSlots';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { Alert, Platform } from 'react-native';
@@ -89,8 +90,11 @@ function applyTextureOverrides(
   const textureLoader = new THREE.TextureLoader();
 
   group.traverse((child) => {
-    if (child instanceof THREE.Mesh && child.name) {
-      const override = textureOverrides.find((t) => t.meshName === child.name);
+    if (child instanceof THREE.Mesh && child.material) {
+      const slotName = getMeshSlotName(child);
+      const override = textureOverrides.find(
+        (t) => t.meshName === slotName || t.meshName === child.name
+      );
       if (override && override.fileURL) {
         const texture = textureLoader.load(override.fileURL);
         texture.wrapS = THREE.RepeatWrapping;

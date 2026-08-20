@@ -63,6 +63,7 @@ export default function EditFurnitureInstanceMenu({object, onEditComplete, onDel
         const newOverride: TextureOverride = {
             meshName: slot,
             materialId: _materialMeta.id,
+            version: materialData.version,
             fileURL: materialData.fileURL,
             scaleU: materialData.scaleU,
             scaleV: materialData.scaleV,

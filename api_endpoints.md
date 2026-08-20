@@ -166,6 +166,9 @@
 {
   "id": "guid",
   "name": "string",
+  "createdAt": "datetime",
+  "lastUpdate": "datetime",
+  "lastVersion": "int",
   "workspaceId": "guid",
   "workspace": "Workspace | null",
   "creatorId": "guid",

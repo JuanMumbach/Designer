@@ -30,6 +30,8 @@ interface View3dOverlayProps {
   materialCategories: MaterialCategory[];
   onSaveProject: () => void;
   onLoadProject: () => void;
+  onSaveProjectCloud: () => void;
+  onLoadProjectCloud: () => void;
   onExport3d: () => void;
   isExporting: boolean;
 }
@@ -54,7 +56,7 @@ function useWindowDimensions() {
 
 
 
-export default function View3dOverlay({ objectTemplates, categories, designObjects, room3dProps, setRoom3d , onObjectAdded, onObjectEdited, onObjectDeleted, movingObject, setMovingObject, magnetEnabled, forceEditObject, clearForceEdit, materials, materialCategories, onSaveProject, onLoadProject, onExport3d, isExporting} : View3dOverlayProps) {
+export default function View3dOverlay({ objectTemplates, categories, designObjects, room3dProps, setRoom3d , onObjectAdded, onObjectEdited, onObjectDeleted, movingObject, setMovingObject, magnetEnabled, forceEditObject, clearForceEdit, materials, materialCategories, onSaveProject, onLoadProject, onSaveProjectCloud, onLoadProjectCloud, onExport3d, isExporting} : View3dOverlayProps) {
 
   const { width } = useWindowDimensions();
   const [isObjectsManagerVisible, setIsObjectsManagerVisible] = useState(false);
@@ -180,7 +182,9 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
 
       <View style={styles.topUtilityControls}>
         <Button label="Save" onPress={onSaveProject} />
+        <Button label="Save Cloud" onPress={onSaveProjectCloud} />
         <Button label="Load" onPress={onLoadProject} />
+        <Button label="Load Cloud" onPress={onLoadProjectCloud} />
         {isExporting ? (
           <ActivityIndicator size="small" color="#2563eb" style={{ marginHorizontal: 8 }} />
         ) : (

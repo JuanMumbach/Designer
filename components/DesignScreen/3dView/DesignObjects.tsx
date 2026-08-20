@@ -20,6 +20,7 @@ export interface ObjectTemplate {
 export interface TextureOverride {
     meshName: string;
     materialId: string;
+    version: number;
     fileURL: string;
     scaleU: number;
     scaleV: number;
