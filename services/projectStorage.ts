@@ -2,8 +2,9 @@ import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import { Alert, Platform } from 'react-native';
-import { DesignObject } from '@/components/DesignScreen/3dView/DesignObjects';
+import { DesignObject, TextureOverride } from '@/components/DesignScreen/3dView/DesignObjects';
 import { Room3dProps } from '@/components/DesignScreen/3dView/Room3d';
+import { MaterialData } from '@/services/api';
 
 export interface ProjectMetadata {
   version: string;
@@ -18,6 +19,12 @@ export interface ProjectRoom {
   rightWall: boolean;
 }
 
+export interface ProjectTextureOverride {
+  slotName: string;
+  materialId: string;
+  version: number;
+}
+
 export interface ProjectInstance {
   id: string;
   name: string;
@@ -28,7 +35,7 @@ export interface ProjectInstance {
   scale: [number, number, number];
   color: string;
   objectProperties?: any;
-  textureOverrides?: any[];
+  textureOverrides?: ProjectTextureOverride[];
 }
 
 export interface ProjectStateDTO {
@@ -40,7 +47,7 @@ export interface ProjectStateDTO {
 export function serializeProjectState(room3d: Room3dProps, designObjects: DesignObject[]): ProjectStateDTO {
   return {
     metadata: {
-      version: '1.0.0',
+      version: '2.0.0',
       savedAt: new Date().toISOString(),
     },
     room: {
@@ -60,17 +67,45 @@ export function serializeProjectState(room3d: Room3dProps, designObjects: Design
       scale: obj.dimensions,
       color: obj.color,
       objectProperties: obj.objectProperties,
-      textureOverrides: obj.textureOverrides,
+      textureOverrides: (obj.textureOverrides ?? [])
+        .filter((ov) => !!ov.meshName && !!ov.materialId && typeof ov.version === 'number')
+        .map((ov) => ({
+          slotName: ov.meshName,
+          materialId: ov.materialId,
+          version: ov.version,
+        })),
     })),
   };
 }
 
 export async function deserializeProjectState(
   dto: ProjectStateDTO,
-  getModelUrl: (modelId: string, version: number) => Promise<string | undefined>
+  getModelUrl: (modelId: string, version: number) => Promise<string | undefined>,
+  getMaterialData: (materialId: string, version: number) => Promise<MaterialData | undefined>
 ): Promise<{ room: Room3dProps; objects: DesignObject[] }> {
   const objects = await Promise.all(dto.instances.map(async (inst) => {
     const modelUrl = await getModelUrl(inst.modelId, inst.version);
+
+    const overrides = await Promise.all((inst.textureOverrides ?? []).map(async (ov) => {
+      if (!ov || typeof ov.slotName !== 'string' || !ov.materialId || typeof ov.version !== 'number') {
+        return null;
+      }
+      const materialData = await getMaterialData(ov.materialId, ov.version);
+      if (!materialData) {
+        console.warn(`Could not resolve material ${ov.materialId} v${ov.version} for slot "${ov.slotName}".`);
+        return null;
+      }
+      const override: TextureOverride = {
+        meshName: ov.slotName,
+        materialId: ov.materialId,
+        version: ov.version,
+        fileURL: materialData.fileURL,
+        scaleU: materialData.scaleU,
+        scaleV: materialData.scaleV,
+      };
+      return override;
+    }));
+
     return {
       id: inst.id,
       modelId: inst.modelId,
@@ -82,7 +117,7 @@ export async function deserializeProjectState(
       color: inst.color || '#ffffff',
       modelUrl: modelUrl || '', // What if modelUrl is undefined?
       objectProperties: inst.objectProperties,
-      textureOverrides: inst.textureOverrides,
+      textureOverrides: overrides.filter((o): o is TextureOverride => o !== null),
     };
   }));
 

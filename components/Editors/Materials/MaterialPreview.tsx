@@ -4,6 +4,7 @@ import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react
 import { Platform, StyleSheet, View } from 'react-native';
 import * as THREE from 'three';
 import PreviewEnvironment from '../PreviewScene';
+import { collectMeshSlots, getMeshSlotName } from '../../../services/materialSlots';
 
 export default function MaterialPreview({
   modelUrl,
@@ -83,15 +84,10 @@ export default function MaterialPreview({
       }
     });
 
-    const names: string[] = [];
-    group.traverse((child) => {
-      if (child instanceof THREE.Mesh && child.name) {
-        names.push(child.name);
-        if (!originalMaterialsRef.current.has(child.name)) {
-          originalMaterialsRef.current.set(child.name, child.material.clone());
-        }
-      }
-    });
+    const { names, originalMaterials } = collectMeshSlots(group);
+    for (const [name, material] of originalMaterials) {
+      originalMaterialsRef.current.set(name, material);
+    }
 
     group.updateWorldMatrix(true, true);
     const box = new THREE.Box3().setFromObject(group);
@@ -120,8 +116,9 @@ export default function MaterialPreview({
 
     if (!processedTextureUri || !selectedMesh) {
       group.traverse((child) => {
-        if (child instanceof THREE.Mesh && child.name) {
-          const orig = originalMaterialsRef.current.get(child.name);
+        if (child instanceof THREE.Mesh && child.material) {
+          const slotName = getMeshSlotName(child);
+          const orig = originalMaterialsRef.current.get(slotName);
           if (orig && child.material !== orig) {
             child.material = orig;
           }
@@ -131,8 +128,9 @@ export default function MaterialPreview({
     }
 
     group.traverse((child) => {
-      if (child instanceof THREE.Mesh && child.name) {
-        if (child.name === selectedMesh) {
+      if (child instanceof THREE.Mesh && child.material) {
+        const slotName = getMeshSlotName(child);
+        if (slotName === selectedMesh) {
           textureLoaderRef.current!.load(processedTextureUri, (texture) => {
             if (currentVersion !== overrideVersionRef.current) return;
             const newMat = (child.material as THREE.MeshStandardMaterial).clone();
@@ -155,7 +153,7 @@ export default function MaterialPreview({
             child.material = newMat;
           });
         } else {
-          const orig = originalMaterialsRef.current.get(child.name);
+          const orig = originalMaterialsRef.current.get(slotName);
           if (orig && child.material !== orig) {
             child.material = orig;
           }

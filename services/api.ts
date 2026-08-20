@@ -333,6 +333,19 @@ export async function categorizeMaterial(body: {
   }
 }
 
+export async function categorizeMaterialType(body: {
+  id: string;
+  typeId?: string | null;
+}): Promise<void> {
+  const response = await apiFetch('/api/Materials/categorize-type', {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to categorize material type: ${response.status}`);
+  }
+}
+
 export async function deleteMaterial(id: string): Promise<void> {
   const response = await apiFetch(`/api/Materials/${id}`, { method: 'DELETE' });
   if (!response.ok) {

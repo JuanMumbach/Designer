@@ -13,12 +13,13 @@ import * as DocumentPicker from 'expo-document-picker';
 import Button from '../../Button';
 import { uploadFileToFirebase } from '../../../services/firebaseSetup';
 import { useAuth } from '../../../services/AuthContext';
-import { MaterialCategory } from '../../../services/api';
+import { MaterialCategory, MaterialType } from '../../../services/api';
 
 export type MaterialFormData = {
   name: string;
   creatorId: string;
   categoryId: string | null;
+  typeId: string | null;
   fileURL: string;
   scaleU: string;
   scaleV: string;
@@ -28,6 +29,7 @@ export type MaterialFormData = {
 interface MaterialEditorProps {
   initial?: Partial<MaterialFormData>;
   categories: MaterialCategory[];
+  materialTypes: MaterialType[];
   onSave: (data: MaterialFormData, isEdit: boolean) => Promise<void>;
   onDelete?: () => Promise<void>;
   onClose: () => void;
@@ -40,6 +42,7 @@ interface MaterialEditorProps {
 export default function MaterialEditor({
   initial,
   categories,
+  materialTypes,
   onSave,
   onDelete,
   onClose,
@@ -52,6 +55,7 @@ export default function MaterialEditor({
 
   const [name, setName] = useState(initial?.name ?? '');
   const [categoryId, setCategoryId] = useState(initial?.categoryId ?? '');
+  const [typeId, setTypeId] = useState(initial?.typeId ?? '');
   const [fileURL, setFileURL] = useState(initial?.fileURL ?? '');
   const [scaleU, setScaleU] = useState(initial?.scaleU ?? '1');
   const [scaleV, setScaleV] = useState(initial?.scaleV ?? '1');
@@ -112,6 +116,7 @@ export default function MaterialEditor({
           name: name.trim(),
           creatorId: initial?.creatorId ?? backendUserId ?? '',
           categoryId: categoryId || null,
+          typeId: typeId || null,
           fileURL: finalUrl,
           scaleU: scaleU || '1',
           scaleV: scaleV || '1',
@@ -199,6 +204,49 @@ export default function MaterialEditor({
                   ]}
                 >
                   {cat.categoryName}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </>
+      )}
+
+      {!disabled && (
+        <>
+          <Text style={styles.label}>Material Type</Text>
+          <View style={styles.categoryRow}>
+            <Pressable
+              style={[
+                styles.categoryChip,
+                typeId === '' && styles.categoryChipActive,
+              ]}
+              onPress={() => setTypeId('')}
+            >
+              <Text
+                style={[
+                  styles.categoryChipText,
+                  typeId === '' && styles.categoryChipTextActive,
+                ]}
+              >
+                None
+              </Text>
+            </Pressable>
+            {materialTypes.map((type) => (
+              <Pressable
+                key={type.id}
+                style={[
+                  styles.categoryChip,
+                  typeId === type.id && styles.categoryChipActive,
+                ]}
+                onPress={() => setTypeId(type.id)}
+              >
+                <Text
+                  style={[
+                    styles.categoryChipText,
+                    typeId === type.id && styles.categoryChipTextActive,
+                  ]}
+                >
+                  {type.name}
                 </Text>
               </Pressable>
             ))}

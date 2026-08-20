@@ -6,6 +6,7 @@ import { useObjectTemplates } from "../services/useFurnitureModels";
 import { useMaterials } from "../services/useMaterials";
 import { serializeProjectState, saveProject, loadProject, deserializeProjectState } from "@/services/projectStorage";
 import { exportSceneAsGLB } from "@/services/sceneExport";
+import { fetchMaterialVersion } from "@/services/api";
 import { DesignObject, TextureOverride, createDesignObject } from "./DesignScreen/3dView/DesignObjects";
 import { Room3dProps } from "./DesignScreen/3dView/Room3d";
 
@@ -54,7 +55,15 @@ export default function DesignScreen() {
         return undefined;
       };
 
-      const { room, objects } = await deserializeProjectState(projectData, getModelUrl);
+      const getMaterialData = async (materialId: string, version: number) => {
+        try {
+          return await fetchMaterialVersion(materialId, version);
+        } catch {
+          return undefined;
+        }
+      };
+
+      const { room, objects } = await deserializeProjectState(projectData, getModelUrl, getMaterialData);
       setRoom3d(room);
       setDesignObjects(objects);
       setMovingObject(undefined);
