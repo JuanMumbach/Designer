@@ -28,6 +28,7 @@ import {
   fetchMaterialVersion,
   fetchAllMaterialTypes,
   updateMaterialCategory,
+  updateMaterial,
   fetchAllObjectModels,
   fetchObjectVersion,
   ObjectModel,
@@ -170,6 +171,9 @@ export default function MaterialBrowser({
       const newCatId = data.categoryId || null;
       if (newCatId !== editingMaterial.categoryId) {
         await categorizeMaterial({ id: editingMaterial.id, categoryId: newCatId });
+      }
+      if (data.isPublic !== editingMaterial.isPublic) {
+        await updateMaterial(editingMaterial.id, { isPublic: data.isPublic });
       }
       if (data.typeId !== editingMaterial.typeId) {
         await categorizeMaterialType({ id: editingMaterial.id, typeId: data.typeId });
@@ -339,6 +343,7 @@ export default function MaterialBrowser({
                 scaleU: editingMaterialData?.scaleU?.toString() ?? '1',
                 scaleV: editingMaterialData?.scaleV?.toString() ?? '1',
                 materialProperties: editingMaterialData?.materialProperties ?? '',
+                isPublic: editingMaterial.isPublic,
               }
             : undefined
         }

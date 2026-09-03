@@ -26,6 +26,7 @@ import {
   createObjectVersion,
   fetchObjectVersion,
   updateObjectCategory,
+  updateObject,
 } from '../../../services/api';
 import ObjectEditor, { ObjectFormData } from './ObjectEditor';
 import ObjectPreview from './ObjectPreview';
@@ -141,6 +142,9 @@ export default function ObjectBrowser({
       const newCatId = data.categoryId || null;
       if (newCatId !== editingObject.categoryId) {
         await categorizeObject({ id: editingObject.id, categoryId: newCatId });
+      }
+      if (data.isPublic !== editingObject.isPublic) {
+        await updateObject(editingObject.id, { isPublic: data.isPublic });
       }
       if (data.fileURL || data.sizeX || data.sizeY || data.sizeZ || data.objectProperties) {
         await createObjectVersion(editingObject.id, {
@@ -258,6 +262,7 @@ export default function ObjectBrowser({
                     ? editingObjectVersion.objectProperties
                     : JSON.stringify(editingObjectVersion.objectProperties)
                   : ''),
+                isPublic: editingObject.isPublic,
               }
             : undefined
         }

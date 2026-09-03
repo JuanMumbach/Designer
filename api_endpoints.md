@@ -93,11 +93,16 @@
 
 | Method | Endpoint | Body | Purpose |
 |--------|----------|------|---------|
-| GET | `/api/Objects` | — | List all 3D models |
+| GET | `/api/Objects` | — | List all 3D models (all workspaces) |
 | GET | `/api/Objects/meta/{id}` | — | Get model metadata only |
 | GET | `/api/Objects/{id}/{versionId?}` | — | Get model version (omit versionId for latest) |
-| POST | `/api/Objects` | `{ name, creatorId, categoryId? }` | Create model |
-| PUT | `/api/Objects/{id}` | `{ name?, categoryId? }` | Update model |
+| GET | `/api/Objects/public?workspaceId=` | — | List community (public) models from other workspaces |
+| GET | `/api/Objects/catalog?workspaceId=` | — | List workspace catalog = natively-owned + externally-shortcut models |
+| POST | `/api/Objects` | `{ name, creatorId, workspaceId, isPublic?, categoryId? }` | Create model |
+| POST | `/api/Objects/clone?workspaceId=` | `{ sourceId, versionId, creatorId }` | Clone an external model (copies specified version only) into the current workspace |
+| POST | `/api/Objects/add-shortcut` | `{ workspaceId, objectId }` | Link an external model as a shortcut in a workspace (idempotent) |
+| DELETE | `/api/Objects/shortcut` | `{ workspaceId, objectId }` | Remove an external model shortcut |
+| PUT | `/api/Objects/{id}` | `{ name?, isPublic?, categoryId? }` | Update model |
 | PUT | `/api/Objects/rename` | `{ id, name }` | Rename model |
 | PUT | `/api/Objects/version` | `{ id, version }` | Set specific version number |
 | PUT | `/api/Objects/categorize` | `{ id, categoryId? }` | Re-categorize model |
@@ -113,6 +118,9 @@
   "lastVersion": "int",
   "creatorId": "guid",
   "creator": "User | null",
+  "workspaceId": "guid",
+  "workspace": "Workspace | null",
+  "isPublic": "bool",
   "categoryId": "guid | null",
   "category": "ObjectCategory | null",
   "materialTypes": ["ObjectMaterialType"]
@@ -291,10 +299,15 @@
 
 | Method | Endpoint | Body | Purpose |
 |--------|----------|------|---------|
-| GET | `/api/Materials` | — | List all materials |
+| GET | `/api/Materials` | — | List all materials (all workspaces) |
 | GET | `/api/Materials/{id}` | — | Get material |
-| POST | `/api/Materials` | `{ name, creatorId, categoryId? }` | Create material |
-| PUT | `/api/Materials/{id}` | `{ name?, categoryId? }` | Update material |
+| GET | `/api/Materials/public?workspaceId=` | — | List community (public) materials from other workspaces |
+| GET | `/api/Materials/catalog?workspaceId=` | — | List workspace catalog = natively-owned + externally-shortcut materials |
+| POST | `/api/Materials` | `{ name, creatorId, workspaceId, isPublic?, categoryId?, typeId? }` | Create material |
+| POST | `/api/Materials/clone?workspaceId=` | `{ sourceId, versionId, creatorId }` | Clone an external material (copies specified version only) into the current workspace |
+| POST | `/api/Materials/add-shortcut` | `{ workspaceId, materialId }` | Link an external material as a shortcut in a workspace (idempotent) |
+| DELETE | `/api/Materials/shortcut` | `{ workspaceId, materialId }` | Remove an external material shortcut |
+| PUT | `/api/Materials/{id}` | `{ name?, isPublic?, categoryId?, typeId? }` | Update material |
 | PUT | `/api/Materials/rename` | `{ id, name }` | Rename material |
 | PUT | `/api/Materials/categorize` | `{ id, categoryId? }` | Re-categorize material |
 | PUT | `/api/Materials/categorize-type` | `{ id, typeId? }` | Link material to a material type |
@@ -310,6 +323,9 @@
   "lastVersion": "int",
   "creatorId": "guid",
   "creator": "User | null",
+  "workspaceId": "guid",
+  "workspace": "Workspace | null",
+  "isPublic": "bool",
   "categoryId": "guid | null",
   "category": "MaterialCategory | null",
   "typeId": "guid | null",
@@ -399,11 +415,11 @@
 | Metric | Count |
 |--------|-------|
 | **Total controllers** | 14 |
-| **Total endpoints** | 83 |
-| **GET endpoints** | 32 |
-| **POST endpoints** | 15 |
+| **Total endpoints** | 93 |
+| **GET endpoints** | 36 |
+| **POST endpoints** | 19 |
 | **PUT endpoints** | 21 |
-| **DELETE endpoints** | 15 |
+| **DELETE endpoints** | 17 |
 
 ---
 
@@ -413,6 +429,7 @@
 - **Repository pattern** fully implemented — controllers never access `DbContext` directly.
 - **Base route prefix** is `api/` followed by the controller name.
 - **Composite keys**: `ObjectVersion` uses `(ObjectId, Version)`, `ProjectVersion` uses `(ProjectId, Version)`, and `MaterialData` uses `(MaterialId, Version)`.
+- **Workspace scoping**: `public`, `catalog`, and `clone` endpoints take the current `workspaceId` as a **query string** parameter. `public` returns resources where `isPublic == true && workspaceId != current`. `catalog` returns a union of the workspace's natively-owned resources **plus** resources linked via the `WorkspaceExternalObject` / `WorkspaceExternalMaterial` shortcut tables. `clone` deep-copies the single specified version (`sourceId` + `versionId`) into a new record owned by `workspaceId` (with `lastVersion = 1`).
 - **Swagger** available at `/swagger` (Development only).
 - **CORS** is fully permissive (`AllowAnyOrigin/Header/Method`).
 - **Database**: SQL Server via Entity Framework Core 8.x

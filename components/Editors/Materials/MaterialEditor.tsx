@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Alert,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -11,6 +12,7 @@ import {
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import Button from '../../Button';
+import Toggle from '../../Toggle';
 import { uploadFileToFirebase } from '../../../services/firebaseSetup';
 import { useAuth } from '../../../services/AuthContext';
 import { MaterialCategory, MaterialType } from '../../../services/api';
@@ -24,6 +26,7 @@ export type MaterialFormData = {
   scaleU: string;
   scaleV: string;
   materialProperties: string;
+  isPublic: boolean;
 };
 
 interface MaterialEditorProps {
@@ -62,6 +65,8 @@ export default function MaterialEditor({
   const [materialProperties, setMaterialProperties] = useState(
     initial?.materialProperties ?? ''
   );
+  const [isPublic, setIsPublic] = useState(initial?.isPublic ?? false);
+  const [pendingPublicValue, setPendingPublicValue] = useState<boolean | null>(null);
   useEffect(() => {
     if (!onScaleChange) return;
     const su = parseFloat(scaleU);
@@ -121,6 +126,7 @@ export default function MaterialEditor({
           scaleU: scaleU || '1',
           scaleV: scaleV || '1',
           materialProperties: materialProperties.trim(),
+          isPublic,
         },
         isEdit
       );
@@ -152,6 +158,21 @@ export default function MaterialEditor({
   const availableCategories = categories.filter(
     (c) => c.parentCategoryId === null || c.id !== categoryId
   );
+
+  const handleRequestPublicChange = (value: boolean) => {
+    if (!value) {
+      setPendingPublicValue(false);
+      return;
+    }
+    setPendingPublicValue(true);
+  };
+
+  const confirmPublicChange = () => {
+    if (pendingPublicValue !== null) {
+      setIsPublic(pendingPublicValue);
+    }
+    setPendingPublicValue(null);
+  };
 
   const formContent = (
     <>
@@ -333,6 +354,14 @@ export default function MaterialEditor({
       />
 
       {!disabled && (
+        <Toggle
+          label="Compartir en la comunidad (público)"
+          value={isPublic}
+          onValueChange={handleRequestPublicChange}
+        />
+      )}
+
+      {!disabled && (
         <View style={styles.actions}>
           <Button label={saving ? 'Saving...' : 'Save'} onPress={handleSave} />
           <Pressable style={styles.cancelButton} onPress={onClose}>
@@ -357,6 +386,37 @@ export default function MaterialEditor({
       >
         {formContent}
       </ScrollView>
+
+      <Modal
+        visible={pendingPublicValue !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPendingPublicValue(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Hacer público el material</Text>
+            <Text style={styles.modalText}>
+              Este material será visible para la comunidad y otros usuarios
+              podrán clonarlo o agregarlo como acceso directo. ¿Continuar?
+            </Text>
+            <View style={styles.modalActions}>
+              <Pressable
+                style={[styles.modalButton, styles.modalButtonSecondary]}
+                onPress={() => setPendingPublicValue(null)}
+              >
+                <Text style={styles.modalButtonTextSecondary}>Cancelar</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalButton, styles.modalButtonPrimary]}
+                onPress={confirmPublicChange}
+              >
+                <Text style={styles.modalButtonTextPrimary}>Confirmar</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -514,5 +574,62 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 13,
     fontWeight: '700',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 12,
+  },
+  modalText: {
+    fontSize: 14,
+    color: '#4b5563',
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 10,
+    justifyContent: 'flex-end',
+  },
+  modalButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 8,
+  },
+  modalButtonPrimary: {
+    backgroundColor: '#2563eb',
+  },
+  modalButtonSecondary: {
+    backgroundColor: '#f3f4f6',
+  },
+  modalButtonTextPrimary: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  modalButtonTextSecondary: {
+    color: '#374151',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

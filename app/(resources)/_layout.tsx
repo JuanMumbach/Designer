@@ -57,6 +57,19 @@ export default function ResourcesLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="explorer"
+        options={{
+          title: "Comunidad",
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons
+              name={focused ? "globe" : "globe-outline"}
+              color={color}
+              size={24}
+            />
+          ),
+        }}
+      />
     </Tabs>
   );
 }

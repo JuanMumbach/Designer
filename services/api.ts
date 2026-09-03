@@ -56,6 +56,7 @@ export interface ObjectModel {
   creator: unknown | null;
   categoryId: string | null;
   category: ObjectCategory | null;
+  isPublic: boolean;
 }
 
 export interface ObjectCategory {
@@ -88,6 +89,54 @@ export async function fetchAllObjectModels(): Promise<ObjectModel[]> {
     throw new Error(`Failed to fetch object models: ${response.status}`);
   }
   return response.json();
+}
+
+export async function fetchPublicObjectModels(workspaceId: string): Promise<ObjectModel[]> {
+  const response = await apiFetch(`/api/Objects/public?workspaceId=${encodeURIComponent(workspaceId)}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch public object models: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function cloneObject(
+  workspaceId: string,
+  body: { sourceId: string; versionId: number; creatorId: string }
+): Promise<ObjectModel> {
+  const response = await apiFetch(`/api/Objects/clone?workspaceId=${encodeURIComponent(workspaceId)}`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to clone object: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function addObjectShortcut(body: {
+  workspaceId: string;
+  objectId: string;
+}): Promise<void> {
+  const response = await apiFetch('/api/Objects/add-shortcut', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to add object shortcut: ${response.status}`);
+  }
+}
+
+export async function removeObjectShortcut(body: {
+  workspaceId: string;
+  objectId: string;
+}): Promise<void> {
+  const response = await apiFetch('/api/Objects/shortcut', {
+    method: 'DELETE',
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to remove object shortcut: ${response.status}`);
+  }
 }
 
 export async function fetchObjectVersion(objectId: string): Promise<ObjectVersion> {
@@ -153,6 +202,19 @@ export async function createObject(body: {
     throw new Error(`Failed to create object: ${response.status}`);
   }
   return response.json();
+}
+
+export async function updateObject(
+  id: string,
+  body: { name?: string; isPublic?: boolean; categoryId?: string | null }
+): Promise<void> {
+  const response = await apiFetch(`/api/Objects/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to update object ${id}: ${response.status}`);
+  }
 }
 
 export async function renameObject(body: { id: string; name: string }): Promise<void> {
@@ -227,6 +289,7 @@ export interface MaterialMeta {
   category: MaterialCategory | null;
   typeId: string | null;
   type: MaterialType | null;
+  isPublic: boolean;
 }
 
 export interface MaterialData {
@@ -295,6 +358,54 @@ export async function fetchAllMaterials(): Promise<MaterialMeta[]> {
   return response.json();
 }
 
+export async function fetchPublicMaterials(workspaceId: string): Promise<MaterialMeta[]> {
+  const response = await apiFetch(`/api/Materials/public?workspaceId=${encodeURIComponent(workspaceId)}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch public materials: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function cloneMaterial(
+  workspaceId: string,
+  body: { sourceId: string; versionId: number; creatorId: string }
+): Promise<MaterialMeta> {
+  const response = await apiFetch(`/api/Materials/clone?workspaceId=${encodeURIComponent(workspaceId)}`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to clone material: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function addMaterialShortcut(body: {
+  workspaceId: string;
+  materialId: string;
+}): Promise<void> {
+  const response = await apiFetch('/api/Materials/add-shortcut', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to add material shortcut: ${response.status}`);
+  }
+}
+
+export async function removeMaterialShortcut(body: {
+  workspaceId: string;
+  materialId: string;
+}): Promise<void> {
+  const response = await apiFetch('/api/Materials/shortcut', {
+    method: 'DELETE',
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to remove material shortcut: ${response.status}`);
+  }
+}
+
 export async function createMaterial(body: {
   name: string;
   creatorId: string;
@@ -308,6 +419,24 @@ export async function createMaterial(body: {
     throw new Error(`Failed to create material: ${response.status}`);
   }
   return response.json();
+}
+
+export async function updateMaterial(
+  id: string,
+  body: {
+    name?: string;
+    isPublic?: boolean;
+    categoryId?: string | null;
+    typeId?: string | null;
+  }
+): Promise<void> {
+  const response = await apiFetch(`/api/Materials/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to update material ${id}: ${response.status}`);
+  }
 }
 
 export async function renameMaterial(body: { id: string; name: string }): Promise<void> {
