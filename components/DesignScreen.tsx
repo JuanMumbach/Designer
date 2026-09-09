@@ -12,6 +12,7 @@ import { useObjectTemplates } from "../services/useFurnitureModels";
 import { useMaterials } from "../services/useMaterials";
 import { createDesignObject, DesignObject, TextureOverride } from "./DesignScreen/3dView/DesignObjects";
 import { Room3dProps } from "./DesignScreen/3dView/Room3d";
+import { MaterialSlotInfo } from "../services/materialSlots";
 
 
 const initialRoom3d: Room3dProps = {
@@ -162,14 +163,18 @@ export default function DesignScreen() {
     if (movingObject?.id === id) setMovingObject(undefined);
   };
 
-  const handleMeshesDiscovered = (id: string, meshNames: string[]) => {
-    const deduped = meshNames.filter((name, i, arr) => arr.indexOf(name) === i);
+  const handleSlotsDiscovered = (id: string, slots: MaterialSlotInfo[]) => {
+    const deduped = slots.filter((s, i, arr) => arr.findIndex(a => a.slot === s.slot) === i);
     setDesignObjects(prev => prev.map(obj => {
       if (obj.id !== id) return obj;
-      if (obj.meshNames && deduped.length === obj.meshNames.length && deduped.every((n, i) => n === obj.meshNames[i])) {
+      if (
+        obj.slots &&
+        deduped.length === obj.slots.length &&
+        deduped.every((s, i) => s.slot === obj.slots![i].slot && s.displayName === obj.slots![i].displayName)
+      ) {
         return obj;
       }
-      return { ...obj, meshNames: deduped };
+      return { ...obj, slots: deduped };
     }));
   };
 
@@ -209,7 +214,7 @@ export default function DesignScreen() {
         setMovingObject={setMovingObject}
         magnetEnabled={magnetEnabled}
         onDragStateChange={setIsDraggingObject}
-        onMeshesDiscovered={handleMeshesDiscovered}
+        onSlotsDiscovered={handleSlotsDiscovered}
       />
       <View3dOverlay
         objectTemplates={objectTemplates}

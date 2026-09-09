@@ -17,6 +17,7 @@ import { uploadFileToFirebase } from '../../../services/firebaseSetup';
 import { useAuth } from '../../../services/AuthContext';
 import { MaterialType, ObjectCategory } from '../../../services/api';
 import ModelSlotsSection from './ModelSlotsSection';
+import SlotAssignmentModal from './SlotAssignmentModal';
 
 export type ObjectFormData = {
   name: string;
@@ -66,27 +67,36 @@ function parseInitialProperties(props: string): {
 interface ObjectEditorProps {
   initial?: Partial<ObjectFormData>;
   categories: ObjectCategory[];
-  onSave: (data: ObjectFormData, isEdit: boolean) => Promise<void>;
+  onSave: (
+    data: ObjectFormData,
+    isEdit: boolean
+  ) => Promise<{
+    slotAssignment?: { objectId: string; version: number; fileUrl: string };
+  }>;
+  onSaveComplete?: () => void;
   onDelete?: () => Promise<void>;
   onClose: () => void;
   isEdit: boolean;
   disabled?: boolean;
   onPreviewUriChange?: (uri: string | null) => void;
-  objectId?: string;
   materialTypes?: MaterialType[];
+  objectId?: string;
+  onHighlightSlot?: (slot: number | null) => void;
 }
 
 export default function ObjectEditor({
   initial,
   categories,
   onSave,
+  onSaveComplete,
   onDelete,
   onClose,
   isEdit,
   disabled,
   onPreviewUriChange,
-  objectId,
   materialTypes,
+  objectId,
+  onHighlightSlot,
 }: ObjectEditorProps) {
   const { backendUserId } = useAuth();
 
@@ -109,6 +119,11 @@ export default function ObjectEditor({
   const [pickedFile, setPickedFile] = useState<{
     uri: string;
     name: string;
+  } | null>(null);
+  const [pendingSlotAssignment, setPendingSlotAssignment] = useState<{
+    objectId: string;
+    version: number;
+    fileUrl: string;
   } | null>(null);
 
   const handlePickFile = async () => {
@@ -154,7 +169,7 @@ export default function ObjectEditor({
         parts.push(manualProps);
       }
 
-      await onSave(
+      const result = await onSave(
         {
           name: name.trim(),
           creatorId: initial?.creatorId ?? backendUserId ?? '',
@@ -168,7 +183,12 @@ export default function ObjectEditor({
         },
         isEdit
       );
-      onClose();
+      setSaving(false);
+      if (result?.slotAssignment) {
+        setPendingSlotAssignment(result.slotAssignment);
+      } else {
+        onClose();
+      }
     } catch {
       // error handled by caller
     } finally {
@@ -428,9 +448,9 @@ export default function ObjectEditor({
       {isEdit && objectId && (
         <ModelSlotsSection
           objectId={objectId}
-          fileUrl={pickedFile?.uri ?? initial?.fileURL}
           materialTypes={materialTypes ?? []}
           disabled={disabled}
+          onHighlightSlot={onHighlightSlot}
         />
       )}
     </>
@@ -475,6 +495,20 @@ export default function ObjectEditor({
           </View>
         </View>
       </Modal>
+
+      {pendingSlotAssignment && (
+        <SlotAssignmentModal
+          objectId={pendingSlotAssignment.objectId}
+          version={pendingSlotAssignment.version}
+          fileUrl={pendingSlotAssignment.fileUrl}
+          materialTypes={materialTypes ?? []}
+          onComplete={() => {
+            setPendingSlotAssignment(null);
+            onClose();
+            onSaveComplete?.();
+          }}
+        />
+      )}
     </View>
   );
 }

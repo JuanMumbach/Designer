@@ -3,6 +3,7 @@ import { generateUUID } from 'three/src/math/MathUtils.js';
 import { DesignObject3D } from './remote3dModel';
 import { Room3dProps } from './Room3d';
 import { ObjectProperties } from '../../../services/api';
+import { MaterialSlotInfo } from '../../../services/materialSlots';
 
 export interface ObjectTemplate {
     id: string;
@@ -18,12 +19,13 @@ export interface ObjectTemplate {
 }
 
 export interface TextureOverride {
-    meshName: string;
+    slot: number;
     materialId: string;
     version: number;
     fileURL: string;
     scaleU: number;
     scaleV: number;
+    legacyMeshName?: string;
 }
 
 export interface DesignObject {
@@ -38,7 +40,7 @@ export interface DesignObject {
     modelUrl: string;
     objectProperties?: ObjectProperties;
     textureOverrides?: TextureOverride[];
-    meshNames?: string[];
+    slots?: MaterialSlotInfo[];
 }
 
 export function createDesignObject(template: ObjectTemplate, position?: [number, number, number]): DesignObject {
@@ -119,7 +121,7 @@ export default function DesignObjectsRenderer({
   magnetEnabled,
   allObjects,
   onDragStateChange,
-  onMeshesDiscovered
+  onSlotsDiscovered
 }: {
   objects: DesignObject[],
   origin: [number, number, number],
@@ -132,7 +134,7 @@ export default function DesignObjectsRenderer({
   magnetEnabled: boolean,
   allObjects: DesignObject[],
   onDragStateChange?: (isDragging: boolean) => void,
-  onMeshesDiscovered?: (id: string, meshNames: string[]) => void
+  onSlotsDiscovered?: (id: string, slots: MaterialSlotInfo[]) => void
 }) {
 
     return (
@@ -159,7 +161,7 @@ export default function DesignObjectsRenderer({
                              magnetEnabled={magnetEnabled}
                              allObjects={allObjects}
                              onDragStateChange={onDragStateChange}
-                             onMeshesDiscovered={onMeshesDiscovered}
+                             onSlotsDiscovered={onSlotsDiscovered}
                              interactionDisabled={movingObjectId !== undefined && obj.id !== movingObjectId}
                          />
                      )

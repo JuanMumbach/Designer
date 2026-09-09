@@ -34,6 +34,7 @@ import {
   ObjectModel,
 } from '../../../services/api';
 import { ObjectTemplate } from '../../DesignScreen/3dView/DesignObjects';
+import { MaterialSlotInfo } from '../../../services/materialSlots';
 import MaterialEditor, { MaterialFormData } from './MaterialEditor';
 import MaterialPreview from './MaterialPreview';
 
@@ -98,8 +99,8 @@ export default function MaterialBrowser({
 
   // ── Lifted preview state (from MaterialEditor) ──
   const [selectedTemplate, setSelectedTemplate] = useState<ObjectTemplate | null>(null);
-  const [selectedMesh, setSelectedMesh] = useState<string | null>(null);
-  const [discoveredMeshes, setDiscoveredMeshes] = useState<string[]>([]);
+  const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
+  const [discoveredSlots, setDiscoveredSlots] = useState<MaterialSlotInfo[]>([]);
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [allModels, setAllModels] = useState<ObjectTemplate[]>([]);
   const [modelsLoading, setModelsLoading] = useState(false);
@@ -305,13 +306,13 @@ export default function MaterialBrowser({
 
   const handleModelSelect = (template: ObjectTemplate) => {
     setSelectedTemplate(template);
-    setSelectedMesh(null);
-    setDiscoveredMeshes([]);
+    setSelectedSlot(null);
+    setDiscoveredSlots([]);
     setShowModelPicker(false);
   };
 
-  const handleMeshesDiscovered = (names: string[]) => {
-    setDiscoveredMeshes(names);
+  const handleSlotsDiscovered = (slots: MaterialSlotInfo[]) => {
+    setDiscoveredSlots(slots);
   };
 
   const handleTextureChange = (uri: string | null) => {
@@ -358,8 +359,8 @@ export default function MaterialBrowser({
           setShowCreator(false);
           setPreviewTextureUri(null);
           setSelectedTemplate(null);
-          setSelectedMesh(null);
-          setDiscoveredMeshes([]);
+          setSelectedSlot(null);
+          setDiscoveredSlots([]);
         }}
         onTextureChange={handleTextureChange}
         onScaleChange={(su, sv) => { setLiveScaleU(su); setLiveScaleV(sv); }}
@@ -611,23 +612,23 @@ export default function MaterialBrowser({
       <MaterialPreview
         modelUrl={selectedTemplate?.modelUrl ?? null}
         textureUri={previewTextureUri}
-        selectedMesh={selectedMesh}
-        onMeshesDiscovered={handleMeshesDiscovered}
+        selectedSlot={selectedSlot}
+        onSlotsDiscovered={handleSlotsDiscovered}
         scaleU={liveScaleU}
         scaleV={liveScaleV}
       />
-      {discoveredMeshes.length > 0 && (
+      {discoveredSlots.length > 0 && (
         <View style={styles.meshSlotsSection}>
           <Text style={styles.meshSlotsLabel}>Texture Slots</Text>
           <View style={styles.meshSlotsRow}>
-            {discoveredMeshes.map((meshName) => {
-              const isActive = selectedMesh === meshName;
+            {discoveredSlots.map((slotInfo) => {
+              const isActive = selectedSlot === slotInfo.slot;
               return (
                 <Pressable
-                  key={meshName}
+                  key={slotInfo.slot}
                   style={[styles.meshChip, isActive && styles.meshChipActive]}
                   onPress={() =>
-                    setSelectedMesh(meshName === selectedMesh ? null : meshName)
+                    setSelectedSlot(selectedSlot === slotInfo.slot ? null : slotInfo.slot)
                   }
                 >
                   <Text
@@ -636,7 +637,7 @@ export default function MaterialBrowser({
                       isActive && styles.meshChipTextActive,
                     ]}
                   >
-                    {meshName}
+                    {slotInfo.displayName || `Slot ${slotInfo.slot}`}
                   </Text>
                 </Pressable>
               );

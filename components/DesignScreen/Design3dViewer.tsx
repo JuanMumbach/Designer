@@ -4,6 +4,7 @@ import React, { useRef, useState } from 'react';
 import * as THREE from 'three';
 import DesignObjectsRenderer, { DesignObject } from "./3dView/DesignObjects";
 import Room3d, { Room3dProps, RoomOrigin } from "./3dView/Room3d";
+import { MaterialSlotInfo } from "../../services/materialSlots";
 
 const cameraControlsProps = {
     mouseButtons: {
@@ -46,7 +47,7 @@ export default function Design3dView({
   setMovingObject,
   magnetEnabled,
   onDragStateChange,
-  onMeshesDiscovered}:
+  onSlotsDiscovered}:
   {
   room3d: Room3dProps,
   designObjects: DesignObject[],
@@ -58,7 +59,7 @@ export default function Design3dView({
   setMovingObject?: (object?: DesignObject) => void,
   magnetEnabled: boolean,
   onDragStateChange?: (isDragging: boolean) => void,
-  onMeshesDiscovered?: (id: string, meshNames: string[]) => void
+  onSlotsDiscovered?: (id: string, slots: MaterialSlotInfo[]) => void
 })
 {
   const isDragging = useRef(0);
@@ -98,7 +99,7 @@ export default function Design3dView({
             magnetEnabled={magnetEnabled}
             allObjects={designObjects}
             onDragStateChange={handleDragStateChange}
-            onMeshesDiscovered={onMeshesDiscovered}
+            onSlotsDiscovered={onSlotsDiscovered}
         />
         <OrbitControls {...cameraControlsProps} enabled={isDragging.current === 0} />
         <fog attach="fog" args={["darkgray", 5, 20]} />

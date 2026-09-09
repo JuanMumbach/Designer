@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import {
-  createObjectMaterialType,
   deleteObjectMaterialType,
   fetchObjectVersion,
   MaterialType,
@@ -9,22 +8,12 @@ import {
   updateObjectMaterialType,
 } from "../../../services/api";
 import { useModelMaterialTypes } from "../../../services/useModelMaterialTypes";
-import { extractGlbParts, readGlbBytes } from "../../../services/glbParts";
 
 interface ModelSlotsSectionProps {
   objectId: string;
-  fileUrl?: string;
   materialTypes: MaterialType[];
   disabled?: boolean;
-}
-
-interface ImportPartDraft {
-  key: string;
-  materialIndex: number;
-  materialName: string | null;
-  displayName: string;
-  included: boolean;
-  materialTypeId: string;
+  onHighlightSlot?: (slot: number | null) => void;
 }
 
 interface EditKey {
@@ -40,9 +29,9 @@ interface EditDraft {
 
 export default function ModelSlotsSection({
   objectId,
-  fileUrl,
   materialTypes,
   disabled,
+  onHighlightSlot,
 }: ModelSlotsSectionProps) {
   const [version, setVersion] = useState<number | null>(null);
   const {
@@ -53,10 +42,6 @@ export default function ModelSlotsSection({
 
   const [editKey, setEditKey] = useState<EditKey | null>(null);
   const [editDraft, setEditDraft] = useState<EditDraft | null>(null);
-
-  const [importOpen, setImportOpen] = useState(false);
-  const [importLoading, setImportLoading] = useState(false);
-  const [parts, setParts] = useState<ImportPartDraft[]>([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -72,14 +57,7 @@ export default function ModelSlotsSection({
     };
   }, [objectId]);
 
-  useEffect(() => {
-    if (!importOpen) {
-      setParts([]);
-    }
-  }, [importOpen]);
-
   const startEdit = (slot: ObjectMaterialType) => {
-    setImportOpen(false);
     setEditKey({
       objectModelId: slot.objectModelId,
       version: slot.version,
@@ -89,11 +67,13 @@ export default function ModelSlotsSection({
       displayName: slot.displayName,
       materialTypeId: slot.materialTypeId,
     });
+    onHighlightSlot?.(slot.slot);
   };
 
   const closeEdit = () => {
     setEditKey(null);
     setEditDraft(null);
+    onHighlightSlot?.(null);
   };
 
   const handleSaveEdit = async () => {
@@ -117,94 +97,6 @@ export default function ModelSlotsSection({
       await refresh();
     } catch {
       Alert.alert("Error", "Failed to save the slot.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const startImport = async () => {
-    if (!fileUrl) return;
-    setImportOpen(true);
-    setImportLoading(true);
-    try {
-      const bytes = await readGlbBytes(fileUrl);
-      const extracted = extractGlbParts(bytes);
-      const drafts: ImportPartDraft[] = [];
-      const seen = new Set<number>();
-      for (const part of extracted) {
-        if (part.materialIndex < 0 || seen.has(part.materialIndex)) continue;
-        seen.add(part.materialIndex);
-        const existing = slots.find((s) => s.slot === part.materialIndex);
-        drafts.push({
-          key: `${part.materialIndex}`,
-          materialIndex: part.materialIndex,
-          materialName: part.materialName,
-          displayName: part.displayName,
-          included: true,
-          materialTypeId: existing?.materialTypeId ?? "",
-        });
-      }
-      setParts(drafts);
-    } catch (err) {
-      Alert.alert("Error", (err as Error).message || "Failed to read the .glb file.");
-      setImportOpen(false);
-    } finally {
-      setImportLoading(false);
-    }
-  };
-
-  const handleTogglePart = (key: string) => {
-    setParts((prev) =>
-      prev.map((p) => (p.key === key ? { ...p, included: !p.included } : p))
-    );
-  };
-
-  const handleSaveAll = async () => {
-    const selected = parts.filter((p) => p.included);
-    if (selected.length === 0) {
-      Alert.alert("Validation", "No parts selected.");
-      return;
-    }
-    const invalid = selected.filter((p) => !p.materialTypeId);
-    if (invalid.length > 0) {
-      Alert.alert(
-        "Validation",
-        `Select a material type for ${invalid.length} part(s): ${invalid
-          .slice(0, 3)
-          .map((p) => p.displayName)
-          .join(", ")}${invalid.length > 3 ? "…" : ""}.`
-      );
-      return;
-    }
-    if (version == null) return;
-    setSaving(true);
-    try {
-      for (const part of selected) {
-        const existing = slots.find((s) => s.slot === part.materialIndex);
-        if (existing) {
-          await updateObjectMaterialType(
-            existing.objectModelId,
-            existing.version,
-            existing.slot,
-            {
-              displayName: part.displayName,
-              materialTypeId: part.materialTypeId,
-            }
-          );
-        } else {
-          await createObjectMaterialType({
-            objectModelId: objectId,
-            version,
-            slot: part.materialIndex,
-            materialTypeId: part.materialTypeId,
-            displayName: part.displayName,
-          });
-        }
-      }
-      setImportOpen(false);
-      await refresh();
-    } catch {
-      Alert.alert("Error", "Failed to save the slots.");
     } finally {
       setSaving(false);
     }
@@ -234,28 +126,7 @@ export default function ModelSlotsSection({
     <View>
       <View style={styles.headerRow}>
         <Text style={styles.sectionTitle}>Material Slots</Text>
-        {!disabled && fileUrl && (
-          <Pressable
-            style={styles.addButton}
-            onPress={importOpen ? () => setImportOpen(false) : startImport}
-            disabled={importLoading}
-          >
-            <Text style={styles.addButtonText}>
-              {importLoading
-                ? "Reading GLB…"
-                : importOpen
-                  ? "Cancel"
-                  : "Import from GLB"}
-            </Text>
-          </Pressable>
-        )}
       </View>
-
-      {!fileUrl && !disabled && (
-        <Text style={styles.emptyText}>
-          Pick or load a .glb file to import its material slots.
-        </Text>
-      )}
 
       {loadError && (
         <Text style={styles.errorText}>Failed to load slots: {loadError.message}</Text>
@@ -268,7 +139,12 @@ export default function ModelSlotsSection({
       )}
 
       {slots.map((slot) => (
-        <View key={`${slot.objectModelId}-${slot.version}-${slot.slot}`} style={styles.slotRow}>
+        <Pressable
+          key={`${slot.objectModelId}-${slot.version}-${slot.slot}`}
+          style={styles.slotRow}
+          onPress={() => onHighlightSlot?.(slot.slot === editKey?.slot ? null : slot.slot)}
+          disabled={disabled}
+        >
           <View style={styles.slotInfo}>
             <Text style={styles.slotName}>{slot.displayName}</Text>
             <Text style={styles.slotMeta}>Slot {slot.slot}</Text>
@@ -276,7 +152,7 @@ export default function ModelSlotsSection({
               Type: {slot.materialTypeName ?? getTypeName(slot.materialTypeId)}
             </Text>
           </View>
-          {!disabled && !importOpen && (
+          {!disabled && (
             <View style={styles.slotActions}>
               <Pressable style={styles.actionButton} onPress={() => startEdit(slot)}>
                 <Text style={styles.actionButtonText}>Edit</Text>
@@ -289,7 +165,7 @@ export default function ModelSlotsSection({
               </Pressable>
             </View>
           )}
-        </View>
+        </Pressable>
       ))}
 
       {editKey && editDraft && (
@@ -345,93 +221,6 @@ export default function ModelSlotsSection({
         </View>
       )}
 
-      {importOpen && !importLoading && parts.length === 0 && (
-        <Text style={styles.emptyText}>
-          No mesh parts found in this .glb file.
-        </Text>
-      )}
-
-      {importOpen && parts.length > 0 && (
-        <View style={styles.form}>
-          <Text style={styles.importHint}>
-            Parts are detected from the .glb and identified by their material index in
-            the file. Select a material type for each part.
-          </Text>
-
-          {materialTypes.length === 0 && (
-            <Text style={styles.warnText}>
-              No material types exist yet. Create them under Ajustes de Entorno → Tipos before saving.
-            </Text>
-          )}
-
-          {parts.map((part) => (
-            <View key={part.key} style={styles.importPartRow}>
-              <Pressable
-                style={styles.importToggle}
-                onPress={() => handleTogglePart(part.key)}
-              >
-                <Text style={styles.importToggleText}>{part.included ? "✓" : ""}</Text>
-              </Pressable>
-              <View style={styles.importPartBody}>
-                <View style={styles.importPartHeader}>
-                  <View style={styles.importPartTitle}>
-                    <Text style={[styles.importPartName, !part.included && styles.importPartMuted]}>
-                      #{part.materialIndex} {part.materialName ?? "Unnamed material"}
-                    </Text>
-                    <Text style={[styles.slotMeta, !part.included && styles.importPartMuted]}>
-                      {part.displayName}
-                    </Text>
-                  </View>
-                  {!part.included && (
-                    <Text style={styles.importSkipped}>Skipped</Text>
-                  )}
-                </View>
-
-                {part.included && (
-                  <View style={styles.chipRow}>
-                    {materialTypes.map((type) => (
-                      <Pressable
-                        key={type.id}
-                        style={[
-                          styles.chip,
-                          part.materialTypeId === type.id && styles.chipActive,
-                        ]}
-                        onPress={() =>
-                          setParts((prev) =>
-                            prev.map((p) =>
-                              p.key === part.key ? { ...p, materialTypeId: type.id } : p
-                            )
-                          )
-                        }
-                      >
-                        <Text
-                          style={[
-                            styles.chipText,
-                            part.materialTypeId === type.id && styles.chipTextActive,
-                          ]}
-                        >
-                          {type.name}
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                )}
-              </View>
-            </View>
-          ))}
-
-          <View style={styles.formActions}>
-            <Pressable style={styles.saveButton} onPress={handleSaveAll} disabled={saving}>
-              <Text style={styles.saveButtonText}>
-                {saving ? "Saving..." : "Save All Slots"}
-              </Text>
-            </Pressable>
-            <Pressable style={styles.cancelButton} onPress={() => setImportOpen(false)}>
-              <Text style={styles.cancelButtonLabel}>Cancel</Text>
-            </Pressable>
-          </View>
-        </View>
-      )}
     </View>
   );
 }
@@ -451,37 +240,16 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
-  addButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-    backgroundColor: "#2563eb",
-  },
-  addButtonText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#fff",
-  },
   errorText: {
     fontSize: 12,
     color: "#dc2626",
     marginBottom: 8,
-  },
-  warnText: {
-    fontSize: 12,
-    color: "#b45309",
-    marginBottom: 10,
   },
   emptyText: {
     fontSize: 13,
     fontStyle: "italic",
     color: "#9ca3af",
     marginBottom: 8,
-  },
-  importHint: {
-    fontSize: 12,
-    color: "#6b7280",
-    marginBottom: 12,
   },
   slotRow: {
     flexDirection: "row",
@@ -615,61 +383,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     color: "#6b7280",
-  },
-  importPartRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    backgroundColor: "#fff",
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    marginBottom: 8,
-    gap: 8,
-  },
-  importToggle: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: "#9ca3af",
-    backgroundColor: "#fff",
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 2,
-  },
-  importToggleText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#16a34a",
-  },
-  importPartBody: {
-    flex: 1,
-  },
-  importPartHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 6,
-  },
-  importPartTitle: {
-    flex: 1,
-    marginRight: 8,
-  },
-  importPartName: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#1f2937",
-    marginBottom: 2,
-  },
-  importPartMuted: {
-    color: "#9ca3af",
-  },
-  importSkipped: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#9ca3af",
-    textTransform: "uppercase",
   },
 });

@@ -21,9 +21,10 @@ export interface ProjectRoom {
 }
 
 export interface ProjectTextureOverride {
-  slotName: string;
+  slot: number;
   materialId: string;
   version: number;
+  slotName?: string;
 }
 
 export interface ProjectInstance {
@@ -48,7 +49,7 @@ export interface ProjectStateDTO {
 export function serializeProjectState(room3d: Room3dProps, designObjects: DesignObject[]): ProjectStateDTO {
   return {
     metadata: {
-      version: '2.0.0',
+      version: '2.1.0',
       savedAt: new Date().toISOString(),
     },
     room: {
@@ -69,9 +70,9 @@ export function serializeProjectState(room3d: Room3dProps, designObjects: Design
       color: obj.color,
       objectProperties: obj.objectProperties,
       textureOverrides: (obj.textureOverrides ?? [])
-        .filter((ov) => !!ov.meshName && !!ov.materialId && typeof ov.version === 'number')
+        .filter((ov) => typeof ov.slot === 'number' && !!ov.materialId && typeof ov.version === 'number')
         .map((ov) => ({
-          slotName: ov.meshName,
+          slot: ov.slot,
           materialId: ov.materialId,
           version: ov.version,
         })),
@@ -88,22 +89,25 @@ export async function deserializeProjectState(
     const modelUrl = await getModelUrl(inst.modelId, inst.version);
 
     const overrides = await Promise.all((inst.textureOverrides ?? []).map(async (ov) => {
-      if (!ov || typeof ov.slotName !== 'string' || !ov.materialId || typeof ov.version !== 'number') {
+      if (!ov || !ov.materialId || typeof ov.version !== 'number') {
         return null;
       }
       const materialData = await getMaterialData(ov.materialId, ov.version);
       if (!materialData) {
-        console.warn(`Could not resolve material ${ov.materialId} v${ov.version} for slot "${ov.slotName}".`);
+        console.warn(`Could not resolve material ${ov.materialId} v${ov.version} for slot ${ov.slot ?? ov.slotName}.`);
         return null;
       }
       const override: TextureOverride = {
-        meshName: ov.slotName,
+        slot: typeof ov.slot === 'number' ? ov.slot : -1,
         materialId: ov.materialId,
         version: ov.version,
         fileURL: materialData.fileURL,
         scaleU: materialData.scaleU,
         scaleV: materialData.scaleV,
       };
+      if (typeof ov.slot !== 'number' && typeof ov.slotName === 'string') {
+        override.legacyMeshName = ov.slotName;
+      }
       return override;
     }));
 

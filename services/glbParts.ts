@@ -61,7 +61,7 @@ export async function readGlbBytes(uri: string): Promise<Uint8Array> {
   return new Uint8Array(buffer);
 }
 
-function sanitizeNodeName(name: string): string {
+export function sanitizeNodeName(name: string): string {
   return name.replace(/\s/g, '_').replace(/[\[\].:/]/g, '');
 }
 

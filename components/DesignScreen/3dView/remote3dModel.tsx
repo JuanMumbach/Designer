@@ -8,7 +8,15 @@ import * as THREE from 'three';
 import { DesignObject } from './DesignObjects';
 import { Room3dProps } from './Room3d';
 import { MoveContext, computeDragMove } from './moveBehaviours';
-import { collectMeshSlots, getMeshSlotName } from '../../../services/materialSlots';
+import {
+  buildSlotIndexMaps,
+  collectSlots,
+  MaterialSlotInfo,
+  resolveMeshSlot,
+  resolveSlotName,
+  SlotIndexMaps,
+} from '../../../services/materialSlots';
+import { extractGlbParts, readGlbBytes } from '../../../services/glbParts';
 
 let globalIsDragging = false;
 
@@ -60,7 +68,7 @@ export function useDownload3dModel(remoteUrl: string, assetName: string = 'asset
 }
 
 export function DesignObject3D({
-    obj, position, origin, dimensions, modelScale, rotation, onObjectInteraction, isSelected, onObjectEdited, onObjectDeleted, onEditObject, room3d, magnetEnabled, allObjects, onDragStateChange, onMeshesDiscovered, interactionDisabled
+    obj, position, origin, dimensions, modelScale, rotation, onObjectInteraction, isSelected, onObjectEdited, onObjectDeleted, onEditObject, room3d, magnetEnabled, allObjects, onDragStateChange, onSlotsDiscovered, interactionDisabled
 }: {
     obj: DesignObject,
     position: [number, number, number],
@@ -77,7 +85,7 @@ export function DesignObject3D({
     magnetEnabled: boolean,
     allObjects: DesignObject[],
     onDragStateChange?: (isDragging: boolean) => void,
-    onMeshesDiscovered?: (id: string, meshNames: string[]) => void,
+    onSlotsDiscovered?: (id: string, slots: MaterialSlotInfo[]) => void,
     interactionDisabled?: boolean
 }) {
     const url = obj.modelUrl;
@@ -98,16 +106,22 @@ export function DesignObject3D({
     const editIconTexture = useTexture(editAsset.uri);
 
     const gltfRef = useRef<THREE.Group | null>(null);
-    const originalMaterialsRef = useRef<Map<string, THREE.Material>>(new Map());
+    const originalMaterialsRef = useRef<Map<number, THREE.Material>>(new Map());
+    const slotMapsRef = useRef<SlotIndexMaps | null>(null);
     const overrideVersionRef = useRef(0);
     const textureLoaderRef = useRef<THREE.TextureLoader | null>(null);
-    const meshesDiscoveredRef = useRef(false);
-    const onMeshesDiscoveredRef = useRef(onMeshesDiscovered);
-    onMeshesDiscoveredRef.current = onMeshesDiscovered;
+    const slotsDiscoveredRef = useRef(false);
+    const [groupReady, setGroupReady] = useState(false);
+    const [slotMapsReady, setSlotMapsReady] = useState(false);
+    const onSlotsDiscoveredRef = useRef(onSlotsDiscovered);
+    onSlotsDiscoveredRef.current = onSlotsDiscovered;
 
     const handleGltfReady = useCallback((group: THREE.Group | null) => {
       gltfRef.current = group;
-      if (!group) return;
+      if (!group) {
+        setGroupReady(false);
+        return;
+      }
 
       group.traverse((child) => {
         if (child instanceof THREE.Mesh && child.material) {
@@ -115,27 +129,62 @@ export function DesignObject3D({
         }
       });
 
-      const { names, originalMaterials } = collectMeshSlots(group);
-      for (const [name, material] of originalMaterials) {
-        originalMaterialsRef.current.set(name, material);
-      }
-      if (names.length > 0 && !meshesDiscoveredRef.current) {
-        meshesDiscoveredRef.current = true;
-        onMeshesDiscoveredRef.current?.(obj.id, names);
-      }
-    }, [obj.id]);
+      setGroupReady(true);
+    }, []);
+
+    useEffect(() => {
+      if (!localUri) return;
+      let cancelled = false;
+      (async () => {
+        try {
+          const bytes = await readGlbBytes(localUri);
+          const parts = extractGlbParts(bytes);
+          const maps = buildSlotIndexMaps(parts);
+          if (cancelled) return;
+          slotMapsRef.current = maps;
+        } catch (err) {
+          console.warn('Failed to parse GLB material slots:', err);
+          if (cancelled) return;
+          slotMapsRef.current = null;
+        } finally {
+          if (!cancelled) setSlotMapsReady(true);
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [localUri]);
 
     useEffect(() => {
       const group = gltfRef.current;
-      if (!group || !localUri) return;
+      const maps = slotMapsRef.current;
+      if (!group || !maps || !slotMapsReady) return;
+
+      const { slots, originalMaterials } = collectSlots(group, maps);
+      originalMaterialsRef.current = originalMaterials;
+      if (slots.length > 0 && !slotsDiscoveredRef.current) {
+        slotsDiscoveredRef.current = true;
+        onSlotsDiscoveredRef.current?.(obj.id, slots);
+      }
+    }, [groupReady, slotMapsReady, obj.id]);
+
+    useEffect(() => {
+      const group = gltfRef.current;
+      const maps = slotMapsRef.current;
+      if (!group || !maps || !localUri || !slotMapsReady) return;
 
       overrideVersionRef.current++;
       const currentVersion = overrideVersionRef.current;
 
       const overrides = obj.textureOverrides || [];
-      const combined = new Map<string, { fileURL: string; scaleU: number; scaleV: number }>();
+      const combined = new Map<number, { fileURL: string; scaleU: number; scaleV: number }>();
       for (const ov of overrides) {
-        combined.set(ov.meshName, { fileURL: ov.fileURL, scaleU: ov.scaleU, scaleV: ov.scaleV });
+        let slot = typeof ov.slot === 'number' ? ov.slot : -1;
+        if (slot < 0 && ov.legacyMeshName) {
+          slot = resolveSlotName(ov.legacyMeshName, maps) ?? -1;
+        }
+        if (slot < 0) continue;
+        combined.set(slot, { fileURL: ov.fileURL, scaleU: ov.scaleU, scaleV: ov.scaleV });
       }
 
       if (!textureLoaderRef.current) textureLoaderRef.current = new THREE.TextureLoader();
@@ -143,8 +192,9 @@ export function DesignObject3D({
       if (combined.size === 0) {
         group.traverse((child) => {
           if (child instanceof THREE.Mesh && child.material) {
-            const slotName = getMeshSlotName(child);
-            const orig = originalMaterialsRef.current.get(slotName);
+            const slot = resolveMeshSlot(child, maps);
+            if (slot === null) return;
+            const orig = originalMaterialsRef.current.get(slot);
             if (orig && child.material !== orig) {
               child.material = orig;
             }
@@ -155,14 +205,15 @@ export function DesignObject3D({
 
       group.traverse((child) => {
         if (child instanceof THREE.Mesh && child.material) {
-          const slotName = getMeshSlotName(child);
-          const override = combined.get(slotName) ?? combined.get(child.name);
+          const slot = resolveMeshSlot(child, maps);
+          if (slot === null) return;
+          const override = combined.get(slot);
           if (override && override.fileURL) {
             textureLoaderRef.current!.load(override.fileURL, (texture) => {
               if (currentVersion !== overrideVersionRef.current) return;
               const newMat = (child.material as THREE.MeshStandardMaterial).clone();
 
-              const origMat = originalMaterialsRef.current.get(slotName) as THREE.MeshStandardMaterial | undefined;
+              const origMat = originalMaterialsRef.current.get(slot) as THREE.MeshStandardMaterial | undefined;
               const origMap = origMat?.map;
               if (origMap) {
                 texture.wrapS = origMap.wrapS;
@@ -189,14 +240,14 @@ export function DesignObject3D({
               child.material = newMat;
             });
           } else {
-            const orig = originalMaterialsRef.current.get(slotName);
+            const orig = originalMaterialsRef.current.get(slot);
             if (orig && child.material !== orig) {
               child.material = orig;
             }
           }
         }
       });
-    }, [obj.textureOverrides, localUri, dimensions]);
+    }, [obj.textureOverrides, localUri, dimensions, slotMapsReady, groupReady]);
 
     useEffect(() => {
         if (Platform.OS === 'web') {

@@ -4,34 +4,43 @@ import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react
 import { Platform, StyleSheet, View } from 'react-native';
 import * as THREE from 'three';
 import PreviewEnvironment from '../PreviewScene';
-import { collectMeshSlots, getMeshSlotName } from '../../../services/materialSlots';
+import {
+  buildSlotIndexMaps,
+  collectSlots,
+  MaterialSlotInfo,
+  resolveMeshSlot,
+  SlotIndexMaps,
+} from '../../../services/materialSlots';
+import { extractGlbParts, readGlbBytes } from '../../../services/glbParts';
 
 export default function MaterialPreview({
   modelUrl,
   textureUri,
-  selectedMesh,
-  onMeshesDiscovered,
+  selectedSlot,
+  onSlotsDiscovered,
   scaleU = 1,
   scaleV = 1,
 }: {
   modelUrl: string | null;
   textureUri: string | null;
-  selectedMesh: string | null;
-  onMeshesDiscovered: (names: string[]) => void;
+  selectedSlot: number | null;
+  onSlotsDiscovered: (slots: MaterialSlotInfo[]) => void;
   scaleU?: number;
   scaleV?: number;
 }) {
   const gltfRef = useRef<THREE.Group | null>(null);
-  const originalMaterialsRef = useRef<Map<string, THREE.Material>>(new Map());
+  const originalMaterialsRef = useRef<Map<number, THREE.Material>>(new Map());
+  const slotMapsRef = useRef<SlotIndexMaps | null>(null);
   const overrideVersionRef = useRef(0);
   const textureLoaderRef = useRef<THREE.TextureLoader | null>(null);
-  const meshesDiscoveredRef = useRef(false);
+  const slotsDiscoveredRef = useRef(false);
   const modelDimensionsRef = useRef<[number, number, number]>([1, 1, 1]);
   const [gltfLoaded, setGltfLoaded] = useState(false);
+  const [slotMapsReady, setSlotMapsReady] = useState(false);
   const [processedTextureUri, setProcessedTextureUri] = useState<string | null>(null);
   const objectUrlRef = useRef<string | null>(null);
-  const onMeshesDiscoveredRef = useRef(onMeshesDiscovered);
-  onMeshesDiscoveredRef.current = onMeshesDiscovered;
+  const onSlotsDiscoveredRef = useRef(onSlotsDiscovered);
+  onSlotsDiscoveredRef.current = onSlotsDiscovered;
 
   useEffect(() => {
     if (!textureUri) {
@@ -70,8 +79,30 @@ export default function MaterialPreview({
 
   useEffect(() => {
     setGltfLoaded(false);
-    meshesDiscoveredRef.current = false;
+    slotsDiscoveredRef.current = false;
     originalMaterialsRef.current.clear();
+  }, [modelUrl]);
+
+  useEffect(() => {
+    if (!modelUrl) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const bytes = await readGlbBytes(modelUrl);
+        const maps = buildSlotIndexMaps(extractGlbParts(bytes));
+        if (cancelled) return;
+        slotMapsRef.current = maps;
+      } catch (err) {
+        console.warn('Failed to parse GLB material slots:', err);
+        if (cancelled) return;
+        slotMapsRef.current = null;
+      } finally {
+        if (!cancelled) setSlotMapsReady(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [modelUrl]);
 
   const handleGltfReady = useCallback((group: THREE.Group | null) => {
@@ -84,11 +115,6 @@ export default function MaterialPreview({
       }
     });
 
-    const { names, originalMaterials } = collectMeshSlots(group);
-    for (const [name, material] of originalMaterials) {
-      originalMaterialsRef.current.set(name, material);
-    }
-
     group.updateWorldMatrix(true, true);
     const box = new THREE.Box3().setFromObject(group);
     const size = new THREE.Vector3();
@@ -96,16 +122,26 @@ export default function MaterialPreview({
     modelDimensionsRef.current = [size.x || 1, size.y || 1, size.z || 1];
 
     setGltfLoaded(true);
-
-    if (names.length > 0 && !meshesDiscoveredRef.current) {
-      meshesDiscoveredRef.current = true;
-      onMeshesDiscoveredRef.current(names);
-    }
   }, []);
 
   useEffect(() => {
     const group = gltfRef.current;
-    if (!group || !gltfLoaded || !modelUrl) return;
+    const maps = slotMapsRef.current;
+    if (!group || !maps || !gltfLoaded || !slotMapsReady) return;
+
+    const { slots, originalMaterials } = collectSlots(group, maps);
+    originalMaterialsRef.current = originalMaterials;
+
+    if (slots.length > 0 && !slotsDiscoveredRef.current) {
+      slotsDiscoveredRef.current = true;
+      onSlotsDiscoveredRef.current(slots);
+    }
+  }, [gltfLoaded, slotMapsReady, modelUrl]);
+
+  useEffect(() => {
+    const group = gltfRef.current;
+    const maps = slotMapsRef.current;
+    if (!group || !gltfLoaded || !modelUrl || !maps || !slotMapsReady) return;
 
     overrideVersionRef.current++;
     const currentVersion = overrideVersionRef.current;
@@ -114,11 +150,12 @@ export default function MaterialPreview({
       textureLoaderRef.current = new THREE.TextureLoader();
     }
 
-    if (!processedTextureUri || !selectedMesh) {
+    if (!processedTextureUri || selectedSlot === null || selectedSlot === undefined) {
       group.traverse((child) => {
         if (child instanceof THREE.Mesh && child.material) {
-          const slotName = getMeshSlotName(child);
-          const orig = originalMaterialsRef.current.get(slotName);
+          const slot = resolveMeshSlot(child, maps);
+          if (slot === null) return;
+          const orig = originalMaterialsRef.current.get(slot);
           if (orig && child.material !== orig) {
             child.material = orig;
           }
@@ -129,8 +166,9 @@ export default function MaterialPreview({
 
     group.traverse((child) => {
       if (child instanceof THREE.Mesh && child.material) {
-        const slotName = getMeshSlotName(child);
-        if (slotName === selectedMesh) {
+        const slot = resolveMeshSlot(child, maps);
+        if (slot === null) return;
+        if (slot === selectedSlot) {
           textureLoaderRef.current!.load(processedTextureUri, (texture) => {
             if (currentVersion !== overrideVersionRef.current) return;
             const newMat = (child.material as THREE.MeshStandardMaterial).clone();
@@ -153,14 +191,14 @@ export default function MaterialPreview({
             child.material = newMat;
           });
         } else {
-          const orig = originalMaterialsRef.current.get(slotName);
+          const orig = originalMaterialsRef.current.get(slot);
           if (orig && child.material !== orig) {
             child.material = orig;
           }
         }
       }
     });
-  }, [gltfLoaded, modelUrl, processedTextureUri, selectedMesh, scaleU, scaleV]);
+  }, [gltfLoaded, modelUrl, processedTextureUri, selectedSlot, scaleU, scaleV, slotMapsReady]);
 
   return (
     <View style={styles.container}>

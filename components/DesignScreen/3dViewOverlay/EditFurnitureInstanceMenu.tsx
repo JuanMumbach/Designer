@@ -2,7 +2,8 @@ import Button from "@/components/Button";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { DesignObject, TextureOverride } from "../3dView/DesignObjects";
-import { MaterialCategory, MaterialMeta, MaterialData } from "../../../services/api";
+import { fetchModelMaterialTypes, MaterialCategory, MaterialMeta, MaterialData } from "../../../services/api";
+import { MaterialSlotInfo } from "../../../services/materialSlots";
 import MaterialPicker from "./MaterialPicker";
 
 export default function EditFurnitureInstanceMenu({object, onEditComplete, onDelete, materials, materialCategories} : {
@@ -18,9 +19,34 @@ export default function EditFurnitureInstanceMenu({object, onEditComplete, onDel
     const [positionY, setPositionY] = useState(object.position?.[1]?.toString() ?? '0');
     const [positionZ, setPositionZ] = useState(object.position?.[2]?.toString() ?? '0');
     const [dirtyOverrides, setDirtyOverrides] = useState<TextureOverride[]>(object.textureOverrides || []);
-    const [editingSlot, setEditingSlot] = useState<string | null>(null);
-    const editingSlotRef = useRef<string | null>(null);
+    const [editingSlot, setEditingSlot] = useState<number | null>(null);
+    const editingSlotRef = useRef<number | null>(null);
     editingSlotRef.current = editingSlot;
+
+    const [backendSlots, setBackendSlots] = useState<MaterialSlotInfo[]>([]);
+
+    useEffect(() => {
+        let isMounted = true;
+        fetchModelMaterialTypes(object.modelId, object.version)
+            .then((types) => {
+                if (!isMounted) return;
+                setBackendSlots(types.map((t) => ({ slot: t.slot, displayName: t.displayName })));
+            })
+            .catch(() => {});
+        return () => {
+            isMounted = false;
+        };
+    }, [object.modelId, object.version]);
+
+    const slotList: MaterialSlotInfo[] = (() => {
+        if (backendSlots.length > 0) {
+            return backendSlots.map((s) => ({
+                slot: s.slot,
+                displayName: s.displayName || `Slot ${s.slot}`,
+            }));
+        }
+        return object.slots ?? [];
+    })();
 
     const handleSave = () => {
         onEditComplete(object.id, {
@@ -59,9 +85,9 @@ export default function EditFurnitureInstanceMenu({object, onEditComplete, onDel
 
     const handleMaterialSelect = useCallback(async (_materialMeta: MaterialMeta, materialData: MaterialData) => {
         const slot = editingSlotRef.current;
-        if (!slot) return;
+        if (slot === null || slot === undefined) return;
         const newOverride: TextureOverride = {
-            meshName: slot,
+            slot,
             materialId: _materialMeta.id,
             version: materialData.version,
             fileURL: materialData.fileURL,
@@ -69,7 +95,7 @@ export default function EditFurnitureInstanceMenu({object, onEditComplete, onDel
             scaleV: materialData.scaleV,
         };
         setDirtyOverrides(prev => {
-            const existing = prev.findIndex(o => o.meshName === slot);
+            const existing = prev.findIndex(o => o.slot === slot);
             if (existing >= 0) {
                 return prev.map((o, i) => i === existing ? newOverride : o);
             }
@@ -78,8 +104,8 @@ export default function EditFurnitureInstanceMenu({object, onEditComplete, onDel
         setEditingSlot(null);
     }, []);
 
-    const handleResetSlot = (meshName: string) => {
-        setDirtyOverrides(prev => prev.filter(o => o.meshName !== meshName));
+    const handleResetSlot = (slot: number) => {
+        setDirtyOverrides(prev => prev.filter(o => o.slot !== slot));
     };
 
     const getMaterialName = (materialId: string): string => {
@@ -124,15 +150,15 @@ export default function EditFurnitureInstanceMenu({object, onEditComplete, onDel
                     keyboardType="numeric"
                 />
 
-        {object.meshNames && object.meshNames.length > 0 && (
+        {slotList.length > 0 && (
             <>
                 <Text style={styles.sectionTitle}>Textures</Text>
-                {object.meshNames.map(meshName => {
-                    const override = dirtyOverrides.find(o => o.meshName === meshName);
+                {slotList.map(slotInfo => {
+                    const override = dirtyOverrides.find(o => o.slot === slotInfo.slot);
                     return (
-                        <View key={meshName} style={styles.textureRow}>
+                        <View key={slotInfo.slot} style={styles.textureRow}>
                             <View style={styles.textureInfo}>
-                                <Text style={styles.textureMeshName}>{meshName}</Text>
+                                <Text style={styles.textureMeshName}>{slotInfo.displayName || `Slot ${slotInfo.slot}`}</Text>
                                 <Text style={styles.textureStatus}>
                                     {override ? getMaterialName(override.materialId) : 'Default'}
                                 </Text>
@@ -140,14 +166,14 @@ export default function EditFurnitureInstanceMenu({object, onEditComplete, onDel
                             <View style={styles.textureActions}>
                                 <Pressable
                                     style={styles.textureButton}
-                                    onPress={() => setEditingSlot(meshName)}
+                                    onPress={() => setEditingSlot(slotInfo.slot)}
                                 >
                                     <Text style={styles.textureButtonLabel}>Change</Text>
                                 </Pressable>
                                 {override && (
                                     <Pressable
                                         style={styles.textureResetButton}
-                                        onPress={() => handleResetSlot(meshName)}
+                                        onPress={() => handleResetSlot(slotInfo.slot)}
                                     >
                                         <Text style={styles.textureResetLabel}>Reset</Text>
                                     </Pressable>
@@ -159,7 +185,7 @@ export default function EditFurnitureInstanceMenu({object, onEditComplete, onDel
             </>
         )}
 
-        {(!object.meshNames || object.meshNames.length === 0) && (
+        {slotList.length === 0 && (
             <Text style={styles.discoveringText}>Discovering textures...</Text>
         )}
 

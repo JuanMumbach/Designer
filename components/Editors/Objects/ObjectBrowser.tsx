@@ -81,10 +81,12 @@ export default function ObjectBrowser({
 
   // ── Preview URI state (set by ObjectEditor callback) ──
   const [previewUri, setPreviewUri] = useState<string | null>(null);
+  const [highlightSlot, setHighlightSlot] = useState<number | null>(null);
 
   // Fetch object version data when editing an object
   useEffect(() => {
     if (editingObject) {
+      setHighlightSlot(null);
       setEditingDataFailed(false);
       fetchObjectVersion(editingObject.id)
         .then(data => {
@@ -102,6 +104,7 @@ export default function ObjectBrowser({
       setEditingObjectVersion(null);
       setEditingDataFailed(false);
       setPreviewUri(null);
+      setHighlightSlot(null);
     }
   }, [editingObject]);
 
@@ -134,7 +137,12 @@ export default function ObjectBrowser({
     }
   };
 
-  const handleSaveObject = async (data: ObjectFormData, isEdit: boolean) => {
+  const handleSaveObject = async (
+    data: ObjectFormData,
+    isEdit: boolean
+  ): Promise<{
+    slotAssignment?: { objectId: string; version: number; fileUrl: string };
+  }> => {
     if (isEdit && editingObject) {
       if (data.name !== editingObject.name) {
         await renameObject({ id: editingObject.id, name: data.name });
@@ -146,8 +154,16 @@ export default function ObjectBrowser({
       if (data.isPublic !== editingObject.isPublic) {
         await updateObject(editingObject.id, { isPublic: data.isPublic });
       }
-      if (data.fileURL || data.sizeX || data.sizeY || data.sizeZ || data.objectProperties) {
-        await createObjectVersion(editingObject.id, {
+      const current = editingObjectVersion;
+      const changed =
+        data.fileURL !== (current?.fileURL ?? '') ||
+        parseFloat(data.sizeX) !== (current?.sizeX ?? 1) ||
+        parseFloat(data.sizeY) !== (current?.sizeY ?? 1) ||
+        parseFloat(data.sizeZ) !== (current?.sizeZ ?? 1) ||
+        data.objectProperties !== (current?.objectProperties ?? '');
+
+      if (changed) {
+        const versionResult = await createObjectVersion(editingObject.id, {
           fileURL: data.fileURL,
           sizeX: parseFloat(data.sizeX) || 1,
           sizeY: parseFloat(data.sizeY) || 1,
@@ -155,6 +171,15 @@ export default function ObjectBrowser({
           objectProperties: data.objectProperties || undefined,
           creatorId: data.creatorId || editingObject.creatorId,
         });
+        if (data.fileURL) {
+          return {
+            slotAssignment: {
+              objectId: editingObject.id,
+              version: versionResult.version,
+              fileUrl: data.fileURL,
+            },
+          };
+        }
       }
     } else {
       const meta = await createObject({
@@ -162,7 +187,7 @@ export default function ObjectBrowser({
         creatorId: data.creatorId,
         categoryId: data.categoryId || undefined,
       });
-      await createObjectVersion(meta.id, {
+      const versionResult = await createObjectVersion(meta.id, {
         fileURL: data.fileURL,
         sizeX: parseFloat(data.sizeX) || 1,
         sizeY: parseFloat(data.sizeY) || 1,
@@ -170,7 +195,23 @@ export default function ObjectBrowser({
         objectProperties: data.objectProperties || undefined,
         creatorId: data.creatorId,
       });
+      if (data.fileURL) {
+        return {
+          slotAssignment: {
+            objectId: meta.id,
+            version: versionResult.version,
+            fileUrl: data.fileURL,
+          },
+        };
+      }
     }
+    setEditingObject(null);
+    setShowCreator(false);
+    onRefresh();
+    return {};
+  };
+
+  const handleSaveComplete = () => {
     setEditingObject(null);
     setShowCreator(false);
     onRefresh();
@@ -266,10 +307,12 @@ export default function ObjectBrowser({
               }
             : undefined
         }
-        categories={categories}
-        objectId={editingObject?.id}
-        materialTypes={materialTypes}
-        onSave={handleSaveObject}
+categories={categories}
+          materialTypes={materialTypes}
+          objectId={editingObject?.id}
+          onHighlightSlot={setHighlightSlot}
+          onSave={handleSaveObject}
+        onSaveComplete={handleSaveComplete}
         onDelete={editingObject ? handleDeleteObject : undefined}
         onClose={() => {
           setEditingObject(null);
@@ -508,7 +551,7 @@ export default function ObjectBrowser({
 
   const renderPreview = () => (
     <View style={styles.workspaceColumn}>
-      <ObjectPreview uri={previewUri} />
+      <ObjectPreview uri={previewUri} highlightSlot={highlightSlot} />
     </View>
   );
 
@@ -533,7 +576,7 @@ export default function ObjectBrowser({
         <ScrollView>
           {isLoadingData ? renderLoading() : (
             <View style={styles.previewRow}>
-              <ObjectPreview uri={previewUri} />
+              <ObjectPreview uri={previewUri} highlightSlot={highlightSlot} />
             </View>
           )}
           {renderEditor()}

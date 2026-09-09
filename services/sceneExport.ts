@@ -2,7 +2,12 @@ import * as THREE from 'three';
 import { GLTFExporter, GLTFLoader } from 'three-stdlib';
 import { Room3dProps } from '@/components/DesignScreen/3dView/Room3d';
 import { DesignObject, TextureOverride } from '@/components/DesignScreen/3dView/DesignObjects';
-import { getMeshSlotName } from '@/services/materialSlots';
+import {
+  buildSlotIndexMaps,
+  resolveMeshSlot,
+  resolveSlotName,
+} from '@/services/materialSlots';
+import { extractGlbParts } from '@/services/glbParts';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { Alert, Platform } from 'react-native';
@@ -63,16 +68,17 @@ function addRoomToScene(scene: THREE.Scene, room3d: Room3dProps) {
   scene.add(floor);
 }
 
-function loadGLBFromUrl(url: string): Promise<THREE.Group> {
-  return new Promise<THREE.Group>(async (resolve, reject) => {
+function loadGLBFromUrl(url: string): Promise<{ group: THREE.Group; bytes: Uint8Array }> {
+  return new Promise<{ group: THREE.Group; bytes: Uint8Array }>(async (resolve, reject) => {
     try {
       const response = await fetch(url);
       const buffer = await response.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
       const loader = new GLTFLoader();
       loader.parse(
         buffer,
         '',
-        (gltf) => resolve(gltf.scene),
+        (gltf) => resolve({ group: gltf.scene, bytes }),
         (error) => reject(error)
       );
     } catch (err) {
@@ -83,18 +89,28 @@ function loadGLBFromUrl(url: string): Promise<THREE.Group> {
 
 function applyTextureOverrides(
   group: THREE.Group,
-  textureOverrides: TextureOverride[]
+  textureOverrides: TextureOverride[],
+  maps: ReturnType<typeof buildSlotIndexMaps>
 ) {
   if (!textureOverrides || textureOverrides.length === 0) return;
 
   const textureLoader = new THREE.TextureLoader();
 
+  const combined = new Map<number, TextureOverride>();
+  for (const override of textureOverrides) {
+    let slot = typeof override.slot === 'number' ? override.slot : -1;
+    if (slot < 0 && override.legacyMeshName) {
+      slot = resolveSlotName(override.legacyMeshName, maps) ?? -1;
+    }
+    if (slot < 0) continue;
+    combined.set(slot, override);
+  }
+
   group.traverse((child) => {
     if (child instanceof THREE.Mesh && child.material) {
-      const slotName = getMeshSlotName(child);
-      const override = textureOverrides.find(
-        (t) => t.meshName === slotName || t.meshName === child.name
-      );
+      const slot = resolveMeshSlot(child, maps);
+      if (slot === null) return;
+      const override = combined.get(slot);
       if (override && override.fileURL) {
         const texture = textureLoader.load(override.fileURL);
         texture.wrapS = THREE.RepeatWrapping;
@@ -126,7 +142,9 @@ async function addFurnitureToScene(
     const obj = designObjects[i];
 
     try {
-      const modelGroup = await loadGLBFromUrl(obj.modelUrl);
+      const { group: modelGroup, bytes } = await loadGLBFromUrl(obj.modelUrl);
+
+      const maps = buildSlotIndexMaps(extractGlbParts(bytes));
 
       const container = new THREE.Group();
       container.position.set(
@@ -139,7 +157,7 @@ async function addFurnitureToScene(
       modelGroup.rotation.set(0, -Math.PI / 2, 0);
       modelGroup.scale.set(0.01, 0.01, 0.01);
 
-      applyTextureOverrides(modelGroup, obj.textureOverrides || []);
+      applyTextureOverrides(modelGroup, obj.textureOverrides || [], maps);
 
       container.add(modelGroup);
       container.name = obj.name;
