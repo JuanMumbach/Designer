@@ -1,11 +1,13 @@
 import { useObjects } from '@/services/useObjects';
 import { useMaterialTypes } from '@/services/useMaterialTypes';
 import ObjectBrowser from '@/components/Editors/Objects/ObjectBrowser';
+import { useAuth } from '@/services/AuthContext';
 import React from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 export default function ObjectsScreen() {
-  const { objects, categories, isLoading, error, refresh } = useObjects();
+  const { selectedWorkspaceId } = useAuth();
+  const { objects, categories, isLoading, error, refresh } = useObjects(selectedWorkspaceId ?? undefined);
   const { materialTypes } = useMaterialTypes();
 
   if (isLoading) {

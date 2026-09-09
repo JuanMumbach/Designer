@@ -15,8 +15,22 @@ async function apiFetch(path: string, options: RequestInit = {}): Promise<Respon
   return fetch(`${API_BASE_URL}${path}`, { ...options, headers });
 }
 
+interface BackendUser {
+  id: string;
+  username: string;
+  firebaseUid: string;
+  emailAddress: string;
+  name?: string | null;
+  lastname?: string | null;
+}
+
 export async function syncUserWithBackend(user: User): Promise<string | null> {
   const token = await user.getIdToken();
+  const existing = await findBackendUserByIdentity(user, token);
+  if (existing) {
+    return existing.id;
+  }
+
   const firstName = user.displayName?.split(' ')[0];
   const lastName = user.displayName?.split(' ').slice(1).join(' ');
   const body: Record<string, string> = {
@@ -35,7 +49,7 @@ export async function syncUserWithBackend(user: User): Promise<string | null> {
     },
     body: JSON.stringify(body),
   });
-  if (!response.ok && response.status !== 409) {
+  if (!response.ok) {
     throw new Error(`User sync failed: ${response.status}`);
   }
   try {
@@ -44,6 +58,35 @@ export async function syncUserWithBackend(user: User): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+async function findBackendUserByIdentity(
+  user: User,
+  token: string
+): Promise<BackendUser | null> {
+  const response = await fetch(`${API_BASE_URL}/api/User`, {
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!response.ok) {
+    return null;
+  }
+  const users: BackendUser[] = await response.json();
+  const byUid = users.find((u) => u.firebaseUid && u.firebaseUid === user.uid);
+  if (byUid) {
+    return byUid;
+  }
+  if (!user.email) {
+    return null;
+  }
+  const normalizedEmail = user.email.toLowerCase();
+  return (
+    users.find(
+      (u) => u.emailAddress && u.emailAddress.toLowerCase() === normalizedEmail
+    ) ?? null
+  );
 }
 
 export interface ObjectModel {
@@ -663,7 +706,7 @@ export interface Workspace {
   createdAt: string;
   lastUpdate: string;
   projects?: Project[] | null;
-  members?: unknown[] | null;
+  members?: WorkspaceMember[] | null;
 }
 
 export async function fetchAllWorkspaces(): Promise<Workspace[]> {
@@ -686,6 +729,128 @@ export async function createWorkspace(body: {
     throw new Error(`Failed to create workspace: ${response.status}`);
   }
   return response.json();
+}
+
+// ── Workspace Members API ──
+
+export interface WorkspaceMember {
+  userId: string;
+  username: string | null;
+  workspaceId: string;
+  roleId: string;
+  roleName: string | null;
+}
+
+export async function fetchWorkspaceMembers(workspaceId: string): Promise<WorkspaceMember[]> {
+  const response = await apiFetch(
+    `/api/WorkspaceMember?workspaceId=${encodeURIComponent(workspaceId)}`
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to fetch workspace members: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function fetchWorkspaceMember(
+  userId: string,
+  workspaceId: string
+): Promise<WorkspaceMember> {
+  const response = await apiFetch(`/api/WorkspaceMember/${userId}-${workspaceId}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch workspace member: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function addWorkspaceMember(body: {
+  userId: string;
+  workspaceId: string;
+  roleId: string;
+}): Promise<WorkspaceMember> {
+  const response = await apiFetch('/api/WorkspaceMember', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to add workspace member: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function updateWorkspaceMember(
+  userId: string,
+  workspaceId: string,
+  body: { roleId: string }
+): Promise<void> {
+  const response = await apiFetch(`/api/WorkspaceMember/${userId}-${workspaceId}`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to update workspace member: ${response.status}`);
+  }
+}
+
+export async function removeWorkspaceMember(
+  userId: string,
+  workspaceId: string
+): Promise<void> {
+  const response = await apiFetch(`/api/WorkspaceMember/${userId}-${workspaceId}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to remove workspace member: ${response.status}`);
+  }
+}
+
+// ── Workspace Roles API ──
+
+export interface WorkspaceRole {
+  id: string;
+  name: string;
+  description: string;
+}
+
+export async function fetchAllWorkspaceRoles(): Promise<WorkspaceRole[]> {
+  const response = await apiFetch('/api/WorkspaceRole');
+  if (!response.ok) {
+    throw new Error(`Failed to fetch workspace roles: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function createWorkspaceRole(body: {
+  name: string;
+  description?: string;
+}): Promise<WorkspaceRole> {
+  const response = await apiFetch('/api/WorkspaceRole', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to create workspace role: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function updateWorkspaceRole(
+  id: string,
+  body: { name?: string; description?: string | null }
+): Promise<void> {
+  const response = await apiFetch(`/api/WorkspaceRole/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to update workspace role ${id}: ${response.status}`);
+  }
+}
+
+export async function deleteWorkspaceRole(id: string): Promise<void> {
+  const response = await apiFetch(`/api/WorkspaceRole/${id}`, { method: 'DELETE' });
+  if (!response.ok) {
+    throw new Error(`Failed to delete workspace role ${id}: ${response.status}`);
+  }
 }
 
 // ── Projects API ──

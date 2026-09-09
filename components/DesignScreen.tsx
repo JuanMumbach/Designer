@@ -23,9 +23,9 @@ const initialRoom3d: Room3dProps = {
 };
 
 export default function DesignScreen() {
-  const { backendUserId } = useAuth();
-  const { objectTemplates, categories: objectCategories, isLoading: modelsLoading, error: modelsError } = useObjectTemplates();
-  const { materials, categories: materialCategories, isLoading: materialsLoading } = useMaterials();
+  const { backendUserId, selectedWorkspaceId } = useAuth();
+  const { objectTemplates, categories: objectCategories, isLoading: modelsLoading, error: modelsError } = useObjectTemplates(selectedWorkspaceId ?? undefined);
+  const { materials, categories: materialCategories, isLoading: materialsLoading } = useMaterials(selectedWorkspaceId ?? undefined);
   const [room3d, setRoom3d] = useState<Room3dProps>(initialRoom3d);
   const [designObjects, setDesignObjects] = useState<DesignObject[]>([]);
   const [movingObject, setMovingObject] = useState<DesignObject | undefined>(undefined);

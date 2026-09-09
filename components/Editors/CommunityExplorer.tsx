@@ -41,7 +41,7 @@ type PendingAction =
   | null;
 
 export default function CommunityExplorer() {
-  const { backendUserId } = useAuth();
+  const { backendUserId, selectedWorkspaceId: contextSelectedWorkspaceId } = useAuth();
 
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
@@ -58,7 +58,16 @@ export default function CommunityExplorer() {
       .then((ws) => {
         if (!mounted) return;
         setWorkspaces(ws);
-        setSelectedWorkspaceId((prev) => prev ?? ws[0]?.id ?? null);
+        setSelectedWorkspaceId((prev) => {
+          if (prev) return prev;
+          if (
+            contextSelectedWorkspaceId &&
+            ws.some((w) => w.id === contextSelectedWorkspaceId)
+          ) {
+            return contextSelectedWorkspaceId;
+          }
+          return null;
+        });
       })
       .catch(() => {
         if (mounted) Alert.alert('Error', 'No se pudieron cargar los espacios de trabajo.');
@@ -69,7 +78,7 @@ export default function CommunityExplorer() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [contextSelectedWorkspaceId]);
 
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
 
@@ -201,104 +210,126 @@ export default function CommunityExplorer() {
     const materials = materialsQuery.publicMaterials;
     const objsLoading = objectsQuery.publicObjectsLoading;
     const matsLoading = materialsQuery.publicMaterialsLoading;
+    const objsError = objectsQuery.error;
+    const matsError = materialsQuery.error;
+
+    const renderObjectsSection = () => {
+      if (objsLoading) {
+        return (
+          <View style={styles.centerRow}>
+            <ActivityIndicator size="small" color="#2563eb" />
+          </View>
+        );
+      }
+      if (objsError) {
+        console.warn('Failed to load public objects:', objsError);
+        return <Text style={styles.emptyText}>No se pudieron cargar los objetos públicos.</Text>;
+      }
+      if (objects.length === 0) {
+        return <Text style={styles.emptyText}>No hay objetos públicos disponibles.</Text>;
+      }
+      return objects.map((item) => (
+        <View key={item.id} style={styles.resourceCard}>
+          <View style={styles.resourceInfo}>
+            <Text style={styles.resourceName}>{item.name}</Text>
+            <Text style={styles.resourceMeta}>
+              v{item.lastVersion} · {item.creatorId?.slice(0, 8)}…
+            </Text>
+          </View>
+          <View style={styles.resourceActions}>
+            <Button
+              label="Clone to my Workspace"
+              onPress={() =>
+                requestAction({
+                  type: 'cloneObject',
+                  id: item.id,
+                  name: item.name,
+                  versionId: item.lastVersion,
+                })
+              }
+            />
+            <Button
+              label="Add Shortcut"
+              onPress={() =>
+                requestAction({
+                  type: 'addObjectShortcut',
+                  id: item.id,
+                  name: item.name,
+                })
+              }
+            />
+          </View>
+        </View>
+      ));
+    };
+
+    const renderMaterialsSection = () => {
+      if (matsLoading) {
+        return (
+          <View style={styles.centerRow}>
+            <ActivityIndicator size="small" color="#2563eb" />
+          </View>
+        );
+      }
+      if (matsError) {
+        console.warn('Failed to load public materials:', matsError);
+        return <Text style={styles.emptyText}>No se pudieron cargar los materiales públicos.</Text>;
+      }
+      if (materials.length === 0) {
+        return <Text style={styles.emptyText}>No hay materiales públicos disponibles.</Text>;
+      }
+      return materials.map((item) => (
+        <View key={item.id} style={styles.resourceCard}>
+          <View style={styles.resourceInfo}>
+            <Text style={styles.resourceName}>{item.name}</Text>
+            <Text style={styles.resourceMeta}>
+              v{item.lastVersion} · {item.creatorId?.slice(0, 8)}…
+            </Text>
+            {item.type?.name && (
+              <Text style={styles.resourceType}>Type: {item.type.name}</Text>
+            )}
+          </View>
+          <View style={styles.resourceActions}>
+            <Button
+              label="Clone to my Workspace"
+              onPress={() =>
+                requestAction({
+                  type: 'cloneMaterial',
+                  id: item.id,
+                  name: item.name,
+                  versionId: item.lastVersion,
+                })
+              }
+            />
+            <Button
+              label="Add Shortcut"
+              onPress={() =>
+                requestAction({
+                  type: 'addMaterialShortcut',
+                  id: item.id,
+                  name: item.name,
+                })
+              }
+            />
+          </View>
+        </View>
+      ));
+    };
 
     return (
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         <Text style={styles.sectionTitle}>Objetos públicos</Text>
-        {objsLoading ? (
-          <View style={styles.centerRow}>
-            <ActivityIndicator size="small" color="#2563eb" />
-          </View>
-        ) : objects.length === 0 ? (
-          <Text style={styles.emptyText}>No hay objetos públicos disponibles.</Text>
-        ) : (
-          objects.map((item) => (
-            <View key={item.id} style={styles.resourceCard}>
-              <View style={styles.resourceInfo}>
-                <Text style={styles.resourceName}>{item.name}</Text>
-                <Text style={styles.resourceMeta}>
-                  v{item.lastVersion} · {item.creatorId.slice(0, 8)}…
-                </Text>
-              </View>
-              <View style={styles.resourceActions}>
-                <Button
-                  label="Clone to my Workspace"
-                  onPress={() =>
-                    requestAction({
-                      type: 'cloneObject',
-                      id: item.id,
-                      name: item.name,
-                      versionId: item.lastVersion,
-                    })
-                  }
-                />
-                <Button
-                  label="Add Shortcut"
-                  onPress={() =>
-                    requestAction({
-                      type: 'addObjectShortcut',
-                      id: item.id,
-                      name: item.name,
-                    })
-                  }
-                />
-              </View>
-            </View>
-          ))
-        )}
+        {renderObjectsSection()}
 
         <Text style={[styles.sectionTitle, styles.sectionSpacing]}>Materiales públicos</Text>
-        {matsLoading ? (
-          <View style={styles.centerRow}>
-            <ActivityIndicator size="small" color="#2563eb" />
-          </View>
-        ) : materials.length === 0 ? (
-          <Text style={styles.emptyText}>No hay materiales públicos disponibles.</Text>
-        ) : (
-          materials.map((item) => (
-            <View key={item.id} style={styles.resourceCard}>
-              <View style={styles.resourceInfo}>
-                <Text style={styles.resourceName}>{item.name}</Text>
-                <Text style={styles.resourceMeta}>
-                  v{item.lastVersion} · {item.creatorId.slice(0, 8)}…
-                </Text>
-                {item.type?.name && (
-                  <Text style={styles.resourceType}>Type: {item.type.name}</Text>
-                )}
-              </View>
-              <View style={styles.resourceActions}>
-                <Button
-                  label="Clone to my Workspace"
-                  onPress={() =>
-                    requestAction({
-                      type: 'cloneMaterial',
-                      id: item.id,
-                      name: item.name,
-                      versionId: item.lastVersion,
-                    })
-                  }
-                />
-                <Button
-                  label="Add Shortcut"
-                  onPress={() =>
-                    requestAction({
-                      type: 'addMaterialShortcut',
-                      id: item.id,
-                      name: item.name,
-                    })
-                  }
-                />
-              </View>
-            </View>
-          ))
-        )}
+        {renderMaterialsSection()}
       </ScrollView>
     );
   };
 
   return (
     <View style={styles.container}>
-      <ScrollView>{renderWorkspacePicker()}</ScrollView>
+      {renderWorkspacePicker()}
       <View style={styles.contentColumn}>{renderBrowserLists()}</View>
       {renderPendingModal()}
     </View>

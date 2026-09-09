@@ -1,6 +1,8 @@
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useAuth } from "../services/AuthContext";
+import { fetchAllWorkspaces, Workspace } from "../services/api";
+import WorkspaceSelectModal from "../components/WorkspaceSelectModal";
 import {
   SafeAreaView,
   ScrollView,
@@ -14,7 +16,35 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 
 export default function HubScreen() {
   const router = useRouter();
-  const { user, signOut } = useAuth();
+  const { user, signOut, backendUserId, selectedWorkspaceId, hasChosenWorkspace, selectWorkspace } = useAuth();
+  const [allWorkspaces, setAllWorkspaces] = useState<Workspace[]>([]);
+  const [showPicker, setShowPicker] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    fetchAllWorkspaces()
+      .then((ws) => {
+        if (mounted) setAllWorkspaces(ws);
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const myWorkspaces = backendUserId
+    ? allWorkspaces.filter(
+        (ws) =>
+          ws.creatorId === backendUserId ||
+          ws.members?.some((m) => m.userId === backendUserId)
+      )
+    : allWorkspaces;
+
+  const currentWorkspaceName =
+    selectedWorkspaceId === null
+      ? "Personal workspace"
+      : allWorkspaces.find((ws) => ws.id === selectedWorkspaceId)?.name ??
+        "Select workspace";
 
   const handleNavigate = (path: "/design" | "/materials" | "/roles") => {
     router.push(path);
@@ -42,6 +72,21 @@ export default function HubScreen() {
               ) : null}
             </TouchableOpacity>
           </View>
+          <TouchableOpacity
+            style={styles.workspaceChip}
+            activeOpacity={0.7}
+            onPress={() => setShowPicker(true)}
+          >
+            <Ionicons
+              name={selectedWorkspaceId === null ? "person" : "business"}
+              size={16}
+              color="#ffd33d"
+            />
+            <Text style={styles.workspaceChipText} numberOfLines={1}>
+              {currentWorkspaceName}
+            </Text>
+            <Ionicons name="chevron-down" size={14} color="#94a3b8" />
+          </TouchableOpacity>
           <View style={styles.divider} />
         </View>
 
@@ -107,6 +152,14 @@ export default function HubScreen() {
           <Text style={styles.footerText}>v1.0.0 • Expo Router Modular v2</Text>
         </View>
       </ScrollView>
+
+      <WorkspaceSelectModal
+        visible={!hasChosenWorkspace || showPicker}
+        workspaces={myWorkspaces}
+        selectedWorkspaceId={selectedWorkspaceId}
+        onSelect={selectWorkspace}
+        onClose={() => setShowPicker(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -164,6 +217,27 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#64748b",
     maxWidth: 80,
+  },
+  workspaceChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    alignSelf: "flex-start",
+    marginTop: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    backgroundColor: "rgba(255, 211, 61, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 211, 61, 0.25)",
+    maxWidth: "100%",
+  },
+  workspaceChipText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#e2e8f0",
+    flexShrink: 1,
+    maxWidth: 220,
   },
   divider: {
     width: 60,

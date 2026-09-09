@@ -1,10 +1,11 @@
 import React, { useEffect } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { AuthProvider, useAuth } from '../services/AuthContext';
 
 function RootNavigator() {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, hasChosenWorkspace } = useAuth();
   const router = useRouter();
   const segments = useSegments();
 
@@ -15,10 +16,18 @@ function RootNavigator() {
 
     if (!user && !inLoginScreen) {
       router.replace('/login');
-    } else if (user && inLoginScreen) {
+    } else if (user && (inLoginScreen || !hasChosenWorkspace)) {
       router.replace('/');
     }
-  }, [user, isLoading, segments]);
+  }, [user, isLoading, segments, hasChosenWorkspace]);
+
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#ffd33d" />
+      </View>
+    );
+  }
 
   return (
     <>
@@ -45,3 +54,12 @@ export default function RootLayout() {
     </AuthProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: '#12121e',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});

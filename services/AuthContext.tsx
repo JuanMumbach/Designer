@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import {
   onAuthStateChanged,
   signOut as firebaseSignOut,
@@ -13,6 +13,9 @@ interface AuthContextValue {
   isLoading: boolean;
   getToken: () => Promise<string | null>;
   signOut: () => Promise<void>;
+  selectedWorkspaceId: string | null;
+  hasChosenWorkspace: boolean;
+  selectWorkspace: (id: string | null) => void;
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -21,21 +24,35 @@ const AuthContext = createContext<AuthContextValue>({
   isLoading: true,
   getToken: async () => null,
   signOut: async () => {},
+  selectedWorkspaceId: null,
+  hasChosenWorkspace: false,
+  selectWorkspace: () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [backendUserId, setBackendUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [syncedUids, setSyncedUids] = useState<Set<string>>(new Set());
+  const syncedUidsRef = useRef<Set<string>>(new Set());
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
+    null
+  );
+  const [hasChosenWorkspace, setHasChosenWorkspace] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       setIsLoading(false);
 
-      if (firebaseUser && !syncedUids.has(firebaseUser.uid)) {
-        setSyncedUids((prev) => new Set(prev).add(firebaseUser.uid));
+      if (!firebaseUser) {
+        setBackendUserId(null);
+        setSelectedWorkspaceId(null);
+        setHasChosenWorkspace(false);
+        return;
+      }
+
+      if (!syncedUidsRef.current.has(firebaseUser.uid)) {
+        syncedUidsRef.current.add(firebaseUser.uid);
         try {
           const id = await syncUserWithBackend(firebaseUser);
           if (id) {
@@ -58,8 +75,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await firebaseSignOut(auth);
   };
 
+  const selectWorkspace = (id: string | null) => {
+    setSelectedWorkspaceId(id);
+    setHasChosenWorkspace(true);
+  };
+
   return (
-      <AuthContext.Provider value={{ user, backendUserId, isLoading, getToken, signOut }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        backendUserId,
+        isLoading,
+        getToken,
+        signOut,
+        selectedWorkspaceId,
+        hasChosenWorkspace,
+        selectWorkspace,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

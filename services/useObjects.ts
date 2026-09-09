@@ -44,6 +44,7 @@ export function useObjects(workspaceId?: string) {
     if (!workspaceId) return;
     try {
       setPublicObjectsLoading(true);
+      setPublicObjects([]);
       const data = await fetchPublicObjectModels(workspaceId);
       const seen = new Set<string>();
       setPublicObjects(data.filter((o) => {

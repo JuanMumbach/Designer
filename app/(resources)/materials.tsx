@@ -1,10 +1,12 @@
 import { useMaterials } from '@/services/useMaterials';
 import MaterialBrowser from '@/components/Editors/Materials/MaterialBrowser';
+import { useAuth } from '@/services/AuthContext';
 import React from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 export default function MaterialsScreen() {
-  const { materials, categories, isLoading, error, refresh } = useMaterials();
+  const { selectedWorkspaceId } = useAuth();
+  const { materials, categories, isLoading, error, refresh } = useMaterials(selectedWorkspaceId ?? undefined);
 
   if (isLoading) {
     return (

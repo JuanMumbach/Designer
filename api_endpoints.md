@@ -217,10 +217,8 @@
 | GET | `/api/Workspace` | — | List all workspaces |
 | GET | `/api/Workspace/{id}` | — | Get workspace |
 | POST | `/api/Workspace` | `{ name, creatorId }` | Create workspace |
-| POST | `/api/Workspace/User` | `{ userId, workspaceId, roleId }` | Subscribe user to workspace |
 | PUT | `/api/Workspace/{id}` | `{ name? }` | Update workspace |
 | DELETE | `/api/Workspace/{id}` | — | Delete workspace |
-| DELETE | `/api/Workspace/User` | `{ userId, workspaceId }` | Unsubscribe user from workspace |
 
 **Workspace Entity:**
 ```json
@@ -233,6 +231,29 @@
   "lastUpdate": "datetime",
   "projects": ["Project"],
   "members": ["WorkspaceMember"]
+}
+```
+
+---
+
+## WorkspaceMember — `api/WorkspaceMember`
+
+| Method | Endpoint | Body | Purpose |
+|--------|----------|------|---------|
+| GET | `/api/WorkspaceMember?workspaceId=` | — | List members of a workspace |
+| GET | `/api/WorkspaceMember/{userId}-{workspaceId}` | — | Get member by composite key (userId + workspaceId) |
+| POST | `/api/WorkspaceMember` | `{ userId, workspaceId, roleId }` | Add member to workspace |
+| PUT | `/api/WorkspaceMember/{userId}-{workspaceId}` | `{ roleId }` | Update member's role |
+| DELETE | `/api/WorkspaceMember/{userId}-{workspaceId}` | — | Remove member from workspace |
+
+**WorkspaceMember DTO (read):**
+```json
+{
+  "userId": "guid",
+  "username": "string | null",
+  "workspaceId": "guid",
+  "roleId": "guid",
+  "roleName": "string | null"
 }
 ```
 
@@ -414,11 +435,11 @@
 
 | Metric | Count |
 |--------|-------|
-| **Total controllers** | 14 |
-| **Total endpoints** | 93 |
-| **GET endpoints** | 36 |
+| **Total controllers** | 15 |
+| **Total endpoints** | 96 |
+| **GET endpoints** | 38 |
 | **POST endpoints** | 19 |
-| **PUT endpoints** | 21 |
+| **PUT endpoints** | 22 |
 | **DELETE endpoints** | 17 |
 
 ---
@@ -428,7 +449,7 @@
 - **No authentication/authorization** is currently enforced at any endpoint.
 - **Repository pattern** fully implemented — controllers never access `DbContext` directly.
 - **Base route prefix** is `api/` followed by the controller name.
-- **Composite keys**: `ObjectVersion` uses `(ObjectId, Version)`, `ProjectVersion` uses `(ProjectId, Version)`, and `MaterialData` uses `(MaterialId, Version)`.
+- **Composite keys**: `ObjectVersion` uses `(ObjectId, Version)`, `ProjectVersion` uses `(ProjectId, Version)`, `MaterialData` uses `(MaterialId, Version)`, and `WorkspaceMember` uses `(UserId, WorkspaceId)`. Composite-key resources use `{part1}-{part2}` route segments.
 - **Workspace scoping**: `public`, `catalog`, and `clone` endpoints take the current `workspaceId` as a **query string** parameter. `public` returns resources where `isPublic == true && workspaceId != current`. `catalog` returns a union of the workspace's natively-owned resources **plus** resources linked via the `WorkspaceExternalObject` / `WorkspaceExternalMaterial` shortcut tables. `clone` deep-copies the single specified version (`sourceId` + `versionId`) into a new record owned by `workspaceId` (with `lastVersion = 1`).
 - **Swagger** available at `/swagger` (Development only).
 - **CORS** is fully permissive (`AllowAnyOrigin/Header/Method`).

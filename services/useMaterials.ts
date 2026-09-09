@@ -46,6 +46,7 @@ export function useMaterials(workspaceId?: string) {
     if (!workspaceId) return;
     try {
       setPublicMaterialsLoading(true);
+      setPublicMaterials([]);
       const data = await fetchPublicMaterials(workspaceId);
       const seen = new Set<string>();
       setPublicMaterials(data.filter((m) => {

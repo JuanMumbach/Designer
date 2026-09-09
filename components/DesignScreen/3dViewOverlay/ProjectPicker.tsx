@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import Button from '../../Button';
+import { useAuth } from '../../../services/AuthContext';
 import {
   createWorkspace,
   fetchAllProjects,
@@ -36,6 +37,7 @@ export default function ProjectPicker({
   onClose,
   onSaved,
 }: ProjectPickerProps) {
+  const { selectedWorkspaceId: contextSelectedWorkspaceId } = useAuth();
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,9 +63,16 @@ export default function ProjectPicker({
         if (!mounted) return;
         setWorkspaces(ws);
         setProjects(pr);
-        if (ws.length > 0) {
-          setSelectedWorkspaceId((prev) => prev ?? ws[0].id);
-        }
+        setSelectedWorkspaceId((prev) => {
+          if (prev) return prev;
+          if (
+            contextSelectedWorkspaceId &&
+            ws.some((w) => w.id === contextSelectedWorkspaceId)
+          ) {
+            return contextSelectedWorkspaceId;
+          }
+          return null;
+        });
       } catch {
         if (mounted) Alert.alert('Error', 'Failed to load workspaces/projects.');
       } finally {
@@ -74,7 +83,7 @@ export default function ProjectPicker({
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [contextSelectedWorkspaceId]);
 
   const handleCreateWorkspace = async () => {
     const name = newWorkspaceName.trim();

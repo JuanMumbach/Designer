@@ -16,6 +16,8 @@ import {
   signInWithEmailAndPassword,
   GoogleAuthProvider,
   signInWithCredential,
+  linkWithCredential,
+  AuthCredential,
 } from 'firebase/auth';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
@@ -32,6 +34,9 @@ export default function LoginScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pendingGoogleCredential, setPendingGoogleCredential] = useState<AuthCredential | null>(null);
+  const [linkEmail, setLinkEmail] = useState('');
+  const [linkPassword, setLinkPassword] = useState('');
 
   const redirectUri = makeRedirectUri({ scheme: 'design', path: 'login' });
 
@@ -48,7 +53,24 @@ export default function LoginScreen() {
       const credential = GoogleAuthProvider.credential(id_token ?? null, access_token ?? null);
       setIsSubmitting(true);
       signInWithCredential(auth, credential)
-        .catch((e) => setError(friendlyError(e.code)))
+        .catch((e: unknown) => {
+          const code = (e as { code?: string }).code;
+          if (
+            code === 'auth/credential-already-in-use' ||
+            code === 'auth/account-exists-with-different-credential'
+          ) {
+            const email =
+              (e as { customData?: { email?: string } }).customData?.email ??
+              (e as { email?: string }).email ??
+              '';
+            setTab('signin');
+            setLinkEmail(email);
+            setPendingGoogleCredential(credential);
+            setError('');
+          } else {
+            setError(friendlyError(code));
+          }
+        })
         .finally(() => setIsSubmitting(false));
     }
   }, [googleResponse]);
@@ -78,6 +100,33 @@ export default function LoginScreen() {
     }
   };
 
+  const handleLinkGoogle = async () => {
+    if (!pendingGoogleCredential || !linkEmail.trim() || !linkPassword) {
+      setError('Enter your existing password to link your Google account.');
+      return;
+    }
+    setError('');
+    setIsSubmitting(true);
+    try {
+      const { user: existingFirebaseUser } = await signInWithEmailAndPassword(auth, linkEmail.trim(), linkPassword);
+      await linkWithCredential(existingFirebaseUser, pendingGoogleCredential);
+      setPendingGoogleCredential(null);
+      setLinkPassword('');
+    } catch (e: unknown) {
+      const code = (e as { code?: string }).code;
+      setError(friendlyError(code));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const clearPendingLink = () => {
+    setPendingGoogleCredential(null);
+    setLinkEmail('');
+    setLinkPassword('');
+    setError('');
+  };
+
   const friendlyError = (code?: string): string => {
     switch (code) {
       case 'auth/user-not-found':
@@ -86,6 +135,11 @@ export default function LoginScreen() {
         return 'Invalid email or password.';
       case 'auth/email-already-in-use':
         return 'An account with this email already exists.';
+      case 'auth/credential-already-in-use':
+      case 'auth/account-exists-with-different-credential':
+        return 'An account with this email already exists. Link your Google sign-in below.';
+      case 'auth/provider-already-linked':
+        return 'Google is already linked to this account.';
       case 'auth/weak-password':
         return 'Password must be at least 6 characters.';
       case 'auth/invalid-email':
@@ -119,7 +173,7 @@ export default function LoginScreen() {
             <View style={styles.tabRow}>
               <Pressable
                 style={[styles.tab, tab === 'signin' && styles.tabActive]}
-                onPress={() => { setTab('signin'); setError(''); }}
+                onPress={() => { setTab('signin'); setError(''); clearPendingLink(); }}
               >
                 <Text style={[styles.tabText, tab === 'signin' && styles.tabTextActive]}>
                   Sign In
@@ -127,7 +181,7 @@ export default function LoginScreen() {
               </Pressable>
               <Pressable
                 style={[styles.tab, tab === 'signup' && styles.tabActive]}
-                onPress={() => { setTab('signup'); setError(''); }}
+                onPress={() => { setTab('signup'); setError(''); clearPendingLink(); }}
               >
                 <Text style={[styles.tabText, tab === 'signup' && styles.tabTextActive]}>
                   Create Account
@@ -179,6 +233,42 @@ export default function LoginScreen() {
                 </View>
               )}
 
+              {pendingGoogleCredential && linkEmail !== '' && (
+                <View style={styles.linkBox}>
+                  <View style={styles.linkBoxHeader}>
+                    <Ionicons name="link-outline" size={16} color="#fbbf24" />
+                    <Text style={styles.linkBoxTitle}>Link Google account</Text>
+                  </View>
+                  <Text style={styles.linkBoxText}>
+                    There is already a Designer account for {linkEmail}. Enter its
+                    password to connect your Google sign-in.
+                  </Text>
+                  <Text style={styles.label}>Password</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={linkPassword}
+                    onChangeText={setLinkPassword}
+                    placeholder="••••••••"
+                    placeholderTextColor="#4b5563"
+                    secureTextEntry
+                  />
+                  <Pressable
+                    style={[styles.primaryBtn, isSubmitting && styles.btnDisabled]}
+                    onPress={handleLinkGoogle}
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <Text style={styles.primaryBtnText}>Link Google Account</Text>
+                    )}
+                  </Pressable>
+                  <Pressable style={styles.cancelLinkBtn} onPress={clearPendingLink}>
+                    <Text style={styles.cancelLinkText}>Cancel</Text>
+                  </Pressable>
+                </View>
+              )}
+
               <Pressable
                 style={[styles.primaryBtn, isSubmitting && styles.btnDisabled]}
                 onPress={handleEmailAuth}
@@ -201,7 +291,7 @@ export default function LoginScreen() {
 
               <Pressable
                 style={[styles.googleBtn, isSubmitting && styles.btnDisabled]}
-                onPress={() => promptGoogleAsync()}
+                onPress={() => { clearPendingLink(); promptGoogleAsync(); }}
                 disabled={isSubmitting}
               >
                 <Ionicons name="logo-google" size={20} color="#fff" style={styles.googleIcon} />
@@ -321,6 +411,40 @@ const styles = StyleSheet.create({
     color: '#f87171',
     fontSize: 13,
     flex: 1,
+  },
+  linkBox: {
+    marginTop: 12,
+    backgroundColor: 'rgba(251, 191, 36, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(251, 191, 36, 0.3)',
+    borderRadius: 8,
+    padding: 12,
+  },
+  linkBoxHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  linkBoxTitle: {
+    color: '#fbbf24',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  linkBoxText: {
+    color: '#e2e8f0',
+    fontSize: 13,
+    marginBottom: 4,
+  },
+  cancelLinkBtn: {
+    alignItems: 'center',
+    paddingVertical: 10,
+    marginTop: 4,
+  },
+  cancelLinkText: {
+    color: '#94a3b8',
+    fontSize: 13,
+    textDecorationLine: 'underline',
   },
   primaryBtn: {
     backgroundColor: '#2563eb',

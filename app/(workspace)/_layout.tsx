@@ -70,6 +70,19 @@ export default function WorkspaceLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="workspaces"
+        options={{
+          title: "Workspaces",
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons
+              name={focused ? "business" : "business-outline"}
+              color={color}
+              size={24}
+            />
+          ),
+        }}
+      />
     </Tabs>
   );
 }
