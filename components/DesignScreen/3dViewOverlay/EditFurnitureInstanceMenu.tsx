@@ -1,48 +1,39 @@
 import Button from "@/components/Button";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { DesignObject, TextureOverride } from "../3dView/DesignObjects";
-import { fetchModelMaterialTypes, MaterialCategory, MaterialMeta, MaterialData } from "../../../services/api";
+import { DesignObject, GlobalMaterials, MaterialOverrides, resolveGlobalMaterials } from "../3dView/DesignObjects";
+import { MaterialCategory, MaterialMeta, MaterialData, ObjectMaterialType } from "../../../services/api";
 import { MaterialSlotInfo } from "../../../services/materialSlots";
+import { DesignMaterialSlot, designSlotByKey, isMaterialRef, normalizeTypeName } from "../../../services/designMaterialDefaults";
 import MaterialPicker from "./MaterialPicker";
 
-export default function EditFurnitureInstanceMenu({object, onEditComplete, onDelete, materials, materialCategories} : {
+export default function EditFurnitureInstanceMenu({object, onEditComplete, onDelete, materials, materialCategories, globalMaterials, designSlots, slotTypesByModel, typeToDesignSlot} : {
         object : DesignObject,
-        onEditComplete : (id: string, updates: { name: string, position: [number, number, number], textureOverrides?: TextureOverride[] }) => void,
+        onEditComplete : (id: string, updates: { name: string, position: [number, number, number], materialOverrides?: MaterialOverrides }) => void,
         onDelete? : (id: string) => void,
         materials: MaterialMeta[],
         materialCategories: MaterialCategory[],
+        globalMaterials: GlobalMaterials,
+        designSlots: DesignMaterialSlot[],
+        slotTypesByModel: Record<string, ObjectMaterialType[]>,
+        typeToDesignSlot: Record<string, string>,
     }){
 
     const [name, onChangeName] = useState(object.name);
     const [positionX, setPositionX] = useState(object.position?.[0]?.toString() ?? '0');
     const [positionY, setPositionY] = useState(object.position?.[1]?.toString() ?? '0');
     const [positionZ, setPositionZ] = useState(object.position?.[2]?.toString() ?? '0');
-    const [dirtyOverrides, setDirtyOverrides] = useState<TextureOverride[]>(object.textureOverrides || []);
+    const [dirtyOverrides, setDirtyOverrides] = useState<Record<number, string>>(object.materialOverrides || {});
     const [editingSlot, setEditingSlot] = useState<number | null>(null);
-    const editingSlotRef = useRef<number | null>(null);
-    editingSlotRef.current = editingSlot;
+    const [pickerOpen, setPickerOpen] = useState(false);
 
-    const [backendSlots, setBackendSlots] = useState<MaterialSlotInfo[]>([]);
-
-    useEffect(() => {
-        let isMounted = true;
-        fetchModelMaterialTypes(object.modelId, object.version)
-            .then((types) => {
-                if (!isMounted) return;
-                setBackendSlots(types.map((t) => ({ slot: t.slot, displayName: t.displayName })));
-            })
-            .catch(() => {});
-        return () => {
-            isMounted = false;
-        };
-    }, [object.modelId, object.version]);
+    const slotTypeRows: ObjectMaterialType[] = slotTypesByModel[`${object.modelId}:${object.version}`] ?? [];
 
     const slotList: MaterialSlotInfo[] = (() => {
-        if (backendSlots.length > 0) {
-            return backendSlots.map((s) => ({
-                slot: s.slot,
-                displayName: s.displayName || `Slot ${s.slot}`,
+        if (slotTypeRows.length > 0) {
+            return slotTypeRows.map((t) => ({
+                slot: t.slot,
+                displayName: t.displayName || `Slot ${t.slot}`,
             }));
         }
         return object.slots ?? [];
@@ -56,17 +47,9 @@ export default function EditFurnitureInstanceMenu({object, onEditComplete, onDel
                 parseFloat(positionY) || 0,
                 parseFloat(positionZ) || 0
             ],
-            textureOverrides: dirtyOverrides,
+            materialOverrides: dirtyOverrides,
         });
     };
-
-    useEffect(() => {
-        onChangeName(object.name);
-        setPositionX(object.position?.[0]?.toString() ?? '0');
-        setPositionY(object.position?.[1]?.toString() ?? '0');
-        setPositionZ(object.position?.[2]?.toString() ?? '0');
-        setDirtyOverrides(object.textureOverrides || []);
-      }, [object]);
 
     const handleDelete = () => {
         if (Platform.OS === 'web') {
@@ -83,43 +66,113 @@ export default function EditFurnitureInstanceMenu({object, onEditComplete, onDel
         }
     };
 
-    const handleMaterialSelect = useCallback(async (_materialMeta: MaterialMeta, materialData: MaterialData) => {
-        const slot = editingSlotRef.current;
+    const handleMaterialSelect = useCallback(async (_materialMeta: MaterialMeta, _materialData: MaterialData) => {
+        const slot = editingSlot;
         if (slot === null || slot === undefined) return;
-        const newOverride: TextureOverride = {
-            slot,
-            materialId: _materialMeta.id,
-            version: materialData.version,
-            fileURL: materialData.fileURL,
-            scaleU: materialData.scaleU,
-            scaleV: materialData.scaleV,
-        };
-        setDirtyOverrides(prev => {
-            const existing = prev.findIndex(o => o.slot === slot);
-            if (existing >= 0) {
-                return prev.map((o, i) => i === existing ? newOverride : o);
-            }
-            return [...prev, newOverride];
-        });
+        setDirtyOverrides(prev => ({ ...prev, [slot]: _materialMeta.id }));
+        setPickerOpen(false);
         setEditingSlot(null);
-    }, []);
+    }, [editingSlot]);
+
+    const handleForceDesignSlot = (slot: number, designKey: string) => {
+        setDirtyOverrides(prev => ({ ...prev, [slot]: `ref:${designKey}` }));
+        setEditingSlot(null);
+    };
 
     const handleResetSlot = (slot: number) => {
-        setDirtyOverrides(prev => prev.filter(o => o.slot !== slot));
+        setDirtyOverrides(prev => {
+            const next = { ...prev };
+            delete next[slot];
+            return next;
+        });
     };
 
     const getMaterialName = (materialId: string): string => {
         return materials.find(m => m.id === materialId)?.name ?? 'Unknown';
     };
 
-    if (editingSlot) {
+    const resolvedGlobals = useMemo(() => resolveGlobalMaterials(globalMaterials), [globalMaterials]);
+
+    const getInheritedMaterialId = (slot: number, slotInfo: MaterialSlotInfo): { materialId: string, designKey?: string } | undefined => {
+        const slotType = slotTypeRows.find(t => t.slot === slot);
+        const typeName = slotType?.materialTypeName || slotType?.materialTypeId || '';
+        const designKey = typeName ? typeToDesignSlot[normalizeTypeName(typeName)] : undefined;
+        if (designKey) {
+            const gid = resolvedGlobals[designKey];
+            if (gid && !gid.startsWith('ref:')) return { materialId: gid, designKey };
+        }
+        const explicit = resolvedGlobals[slotInfo.displayName];
+        if (explicit && !explicit.startsWith('ref:')) return { materialId: explicit };
+        const sanitized = resolvedGlobals[slotInfo.displayName];
+        return sanitized && !sanitized.startsWith('ref:') ? { materialId: sanitized } : undefined;
+    };
+
+    const describeSlot = (slotInfo: MaterialSlotInfo): string => {
+        const override = dirtyOverrides[slotInfo.slot];
+        if (override === undefined) {
+            const inherited = getInheritedMaterialId(slotInfo.slot, slotInfo);
+            if (inherited) {
+                const designLabel = inherited.designKey ? designSlotByKey(designSlots, inherited.designKey)?.label : undefined;
+                return designLabel
+                    ? `Inherited: ${designLabel} (${getMaterialName(inherited.materialId)})`
+                    : `Inherited: ${getMaterialName(inherited.materialId)}`;
+            }
+            return 'Default';
+        }
+        if (isMaterialRef(override)) {
+            const designKey = override.substring(4);
+            const designLabel = designSlotByKey(designSlots, designKey)?.label ?? designKey;
+            const targetId = resolvedGlobals[designKey];
+            return targetId && !targetId.startsWith('ref:')
+                ? `Forced: ${designLabel} (${getMaterialName(targetId)})`
+                : `Forced: ${designLabel}`;
+        }
+        return `Custom: ${getMaterialName(override)}`;
+    };
+
+    if (pickerOpen && editingSlot !== null) {
         return (
             <MaterialPicker
                 materials={materials}
                 categories={materialCategories}
                 onSelect={handleMaterialSelect}
-                onClose={() => setEditingSlot(null)}
+                onClose={() => setPickerOpen(false)}
             />
+        );
+    }
+
+    if (editingSlot !== null) {
+        return (
+            <View style={styles.container}>
+                <View style={styles.chooseHeader}>
+                    <Pressable style={styles.backButton} onPress={() => setEditingSlot(null)}>
+                        <Text style={styles.backLabel}>← Back</Text>
+                    </Pressable>
+                    <Text style={styles.headerTitle}>Assign {slotList.find(s => s.slot === editingSlot)?.displayName || `Slot ${editingSlot}`}</Text>
+                </View>
+                <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+                    <Text style={styles.sectionTitle}>Design materials</Text>
+                    {designSlots.map(slot => {
+                        const isActive = dirtyOverrides[editingSlot] === `ref:${slot.key}`;
+                        const targetId = resolvedGlobals[slot.key];
+                        const summary = targetId && !targetId.startsWith('ref:') ? getMaterialName(targetId) : 'Not set';
+                        return (
+                            <Pressable
+                                key={slot.key}
+                                style={[styles.designSlotItem, isActive && styles.designSlotItemActive]}
+                                onPress={() => handleForceDesignSlot(editingSlot, slot.key)}
+                            >
+                                <Text style={styles.designSlotLabel}>{slot.label}</Text>
+                                <Text style={styles.designSlotSummary}>{summary}</Text>
+                            </Pressable>
+                        );
+                    })}
+                    <Text style={styles.sectionTitle}>Custom</Text>
+                    <Pressable style={styles.browseButton} onPress={() => setPickerOpen(true)}>
+                        <Text style={styles.browseLabel}>Browse catalog…</Text>
+                    </Pressable>
+                </ScrollView>
+            </View>
         );
     }
 
@@ -154,13 +207,13 @@ export default function EditFurnitureInstanceMenu({object, onEditComplete, onDel
             <>
                 <Text style={styles.sectionTitle}>Textures</Text>
                 {slotList.map(slotInfo => {
-                    const override = dirtyOverrides.find(o => o.slot === slotInfo.slot);
+                    const hasOverride = dirtyOverrides[slotInfo.slot] !== undefined;
                     return (
                         <View key={slotInfo.slot} style={styles.textureRow}>
                             <View style={styles.textureInfo}>
                                 <Text style={styles.textureMeshName}>{slotInfo.displayName || `Slot ${slotInfo.slot}`}</Text>
                                 <Text style={styles.textureStatus}>
-                                    {override ? getMaterialName(override.materialId) : 'Default'}
+                                    {describeSlot(slotInfo)}
                                 </Text>
                             </View>
                             <View style={styles.textureActions}>
@@ -170,7 +223,7 @@ export default function EditFurnitureInstanceMenu({object, onEditComplete, onDel
                                 >
                                     <Text style={styles.textureButtonLabel}>Change</Text>
                                 </Pressable>
-                                {override && (
+                                {hasOverride && (
                                     <Pressable
                                         style={styles.textureResetButton}
                                         onPress={() => handleResetSlot(slotInfo.slot)}
@@ -321,5 +374,66 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
-  }
+  },
+  chooseHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  backButton: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  backLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2563eb',
+  },
+  headerTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#111827',
+    marginRight: 40,
+  },
+  designSlotItem: {
+    backgroundColor: '#f9fafb',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  designSlotItemActive: {
+    borderColor: '#2563eb',
+    backgroundColor: '#eff6ff',
+  },
+  designSlotLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  designSlotSummary: {
+    fontSize: 11,
+    color: '#6b7280',
+    marginTop: 2,
+  },
+  browseButton: {
+    alignItems: 'center',
+    backgroundColor: '#eff6ff',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    marginBottom: 8,
+  },
+  browseLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#2563eb',
+  },
 });

@@ -1,14 +1,16 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Dimensions, ScaledSize, StyleSheet, View } from "react-native";
 import Button from "../Button";
-import { DesignObject, ObjectTemplate, TextureOverride } from "./3dView/DesignObjects";
+import { DesignObject, GlobalMaterials, MaterialOverrides, ObjectTemplate } from "./3dView/DesignObjects";
 import { Room3dProps } from "./3dView/Room3d";
 import AddFurnitureInstanceMenu from "./3dViewOverlay/AddFurnitureInstanceMenu";
 import CategoryBrowser from "./3dViewOverlay/CategoryBrowser";
 import EditFurnitureInstanceMenu from "./3dViewOverlay/EditFurnitureInstanceMenu";
 import FurnitureInstancesManager from "./3dViewOverlay/FurnitureInstancesManager";
+import GlobalMaterialSettings from "./3dViewOverlay/GlobalMaterialSettings";
 import RoomManager from "./3dViewOverlay/RoomManager";
-import { MaterialCategory, MaterialMeta, ObjectCategory } from "../../services/api";
+import { MaterialCategory, MaterialMeta, ObjectCategory, ObjectMaterialType } from "../../services/api";
+import { DesignMaterialSlot } from "../../services/designMaterialDefaults";
 
 const debugColors = false;
 
@@ -19,7 +21,7 @@ interface View3dOverlayProps {
   room3dProps: Room3dProps;
   setRoom3d: React.Dispatch<React.SetStateAction<Room3dProps>>;
   onObjectAdded: (newObject: DesignObject) => void;
-  onObjectEdited: (id: string, updates: { name: string, position: [number, number, number], rotation?: number, textureOverrides?: TextureOverride[] }) => void;
+  onObjectEdited: (id: string, updates: { name: string, position: [number, number, number], rotation?: number, materialOverrides?: MaterialOverrides }) => void;
   onObjectDeleted: (id: string) => void;
   movingObject?: DesignObject;
   setMovingObject: (object?: DesignObject) => void;
@@ -28,6 +30,11 @@ interface View3dOverlayProps {
   clearForceEdit: () => void;
   materials: MaterialMeta[];
   materialCategories: MaterialCategory[];
+  globalMaterials: GlobalMaterials;
+  setGlobalMaterials: React.Dispatch<React.SetStateAction<GlobalMaterials>>;
+  designSlots: DesignMaterialSlot[];
+  slotTypesByModel: Record<string, ObjectMaterialType[]>;
+  typeToDesignSlot: Record<string, string>;
   onSaveProject: () => void;
   onLoadProject: () => void;
   onSaveProjectCloud: () => void;
@@ -56,13 +63,14 @@ function useWindowDimensions() {
 
 
 
-export default function View3dOverlay({ objectTemplates, categories, designObjects, room3dProps, setRoom3d , onObjectAdded, onObjectEdited, onObjectDeleted, movingObject, setMovingObject, magnetEnabled, forceEditObject, clearForceEdit, materials, materialCategories, onSaveProject, onLoadProject, onSaveProjectCloud, onLoadProjectCloud, onExport3d, isExporting} : View3dOverlayProps) {
+export default function View3dOverlay({ objectTemplates, categories, designObjects, room3dProps, setRoom3d , onObjectAdded, onObjectEdited, onObjectDeleted, movingObject, setMovingObject, magnetEnabled, forceEditObject, clearForceEdit, materials, materialCategories, globalMaterials, setGlobalMaterials, designSlots, slotTypesByModel, typeToDesignSlot, onSaveProject, onLoadProject, onSaveProjectCloud, onLoadProjectCloud, onExport3d, isExporting} : View3dOverlayProps) {
 
   const { width } = useWindowDimensions();
   const [isObjectsManagerVisible, setIsObjectsManagerVisible] = useState(false);
   const [isListInstantiableObjectsVisible, setIsListInstantiableObjectsVisible] = useState(false);
   const [isRoomSettingsVisible, setIsRoomSettingsVisible] = useState(false);
   const [isAddObjectMenuVisible, setIsAddObjectMenuVisible] = useState(false);
+  const [isGlobalMaterialsVisible, setIsGlobalMaterialsVisible] = useState(false);
 
   const [newObjectTypeState, setNewObjectTypeState] = useState<ObjectTemplate | undefined>(undefined);
 
@@ -96,6 +104,7 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
     setIsEditObjectMenuVisible(false);
     setIsObjectsManagerVisible(false);
     setIsListInstantiableObjectsVisible(false);
+    setIsGlobalMaterialsVisible(false);
     setNewObjectTypeState(objectType);
     setIsAddObjectMenuVisible(true);
   }
@@ -105,6 +114,7 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
     setIsListInstantiableObjectsVisible(false);
     setIsRoomSettingsVisible(false);
     setIsObjectsManagerVisible(false);
+    setIsGlobalMaterialsVisible(false);
 
     setSelectedObjectState(object);
     setIsEditObjectMenuVisible(true);
@@ -115,7 +125,7 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
       setSelectedObjectState(undefined);
   };
 
-  const handleObjectEditAndClose = (id: string, updates: { name: string, position: [number, number, number], textureOverrides?: TextureOverride[] }) => {
+  const handleObjectEditAndClose = (id: string, updates: { name: string, position: [number, number, number], rotation?: number, materialOverrides?: MaterialOverrides }) => {
       onObjectEdited(id, updates);
       closeEditMenu();
   };
@@ -140,6 +150,20 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
       setIsObjectsManagerVisible(false);
       setIsAddObjectMenuVisible(false);
       setIsEditObjectMenuVisible(false);
+      setIsGlobalMaterialsVisible(false);
+    }
+  };
+
+  const toggleGlobalMaterials = () => {
+    const newState = !isGlobalMaterialsVisible;
+    setIsGlobalMaterialsVisible(newState);
+
+    if (newState) {
+      setIsRoomSettingsVisible(false);
+      setIsListInstantiableObjectsVisible(false);
+      setIsObjectsManagerVisible(false);
+      setIsAddObjectMenuVisible(false);
+      setIsEditObjectMenuVisible(false);
     }
   };
 
@@ -152,6 +176,7 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
       setIsObjectsManagerVisible(false);
       setIsAddObjectMenuVisible(false);
       setIsEditObjectMenuVisible(false);
+      setIsGlobalMaterialsVisible(false);
     }
   };
 
@@ -164,6 +189,7 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
       setIsListInstantiableObjectsVisible(false);
       setIsAddObjectMenuVisible(false);
       setIsEditObjectMenuVisible(false);
+      setIsGlobalMaterialsVisible(false);
     }
   };
 
@@ -176,7 +202,18 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
             {isRoomSettingsVisible && (
               <RoomManager room3dProps={room3dProps} setRoom3d={setRoom3d} onClose={() => setIsRoomSettingsVisible(false)}></RoomManager>
             )}
+            {isGlobalMaterialsVisible && (
+              <GlobalMaterialSettings
+                globalMaterials={globalMaterials}
+                onGlobalMaterialsChange={setGlobalMaterials}
+                materials={materials}
+                materialCategories={materialCategories}
+                designSlots={designSlots}
+                onClose={() => setIsGlobalMaterialsVisible(false)}
+              />
+            )}
             <Button label="Edit Room" onPress={() => toggleRoomSettings()} />
+            <Button label="Default Materials" onPress={() => toggleGlobalMaterials()} />
           </View>
         )}
 
@@ -211,6 +248,18 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
                 )
               ) ||
               (
+                isGlobalMaterialsVisible && (
+                  <GlobalMaterialSettings
+                    globalMaterials={globalMaterials}
+                    onGlobalMaterialsChange={setGlobalMaterials}
+                    materials={materials}
+                    materialCategories={materialCategories}
+                    designSlots={designSlots}
+                    onClose={() => setIsGlobalMaterialsVisible(false)}
+                  />
+                )
+              ) ||
+              (
                 isListInstantiableObjectsVisible && (
                   <CategoryBrowser objectTemplates={objectTemplates} categories={categories} addObjectAction={showAddObjectMenu} />
                 )
@@ -226,6 +275,10 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
                           onDelete={handleObjectDeleteAndClose}
                           materials={materials}
                           materialCategories={materialCategories}
+                          globalMaterials={globalMaterials}
+                          designSlots={designSlots}
+                          slotTypesByModel={slotTypesByModel}
+                          typeToDesignSlot={typeToDesignSlot}
                       />
                   )
               )
@@ -247,6 +300,10 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
                       onDelete={handleObjectDeleteAndClose}
                       materials={materials}
                       materialCategories={materialCategories}
+                      globalMaterials={globalMaterials}
+                      designSlots={designSlots}
+                      slotTypesByModel={slotTypesByModel}
+                      typeToDesignSlot={typeToDesignSlot}
                   />
               )
             )
@@ -257,6 +314,9 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
         <View style={[styles.mainControls, { backgroundColor: debugColors ? 'rgba(51, 255, 0, 0.25)' : 'transparent' }]}>
           {(width <= 768) &&
             (<Button label="Edit Room" onPress={() => toggleRoomSettings()} />)
+          }
+          {(width <= 768) &&
+            (<Button label="Materials" onPress={() => toggleGlobalMaterials()} />)
           }
           <Button label="New object" onPress={() => toggleAddObjectList()} />
           {(width <= 768) &&

@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { generateUUID } from 'three/src/math/MathUtils.js';
 import { DesignObject3D } from './remote3dModel';
 import { Room3dProps } from './Room3d';
-import { ObjectProperties } from '../../../services/api';
+import { ObjectMaterialType, ObjectProperties } from '../../../services/api';
 import { MaterialSlotInfo } from '../../../services/materialSlots';
+import { resolveInstanceOverrides } from '../../../services/designMaterialDefaults';
 
 export interface ObjectTemplate {
     id: string;
@@ -18,14 +19,40 @@ export interface ObjectTemplate {
     objectProperties?: ObjectProperties;
 }
 
-export interface TextureOverride {
-    slot: number;
-    materialId: string;
-    version: number;
+export interface AppliedMaterial {
     fileURL: string;
     scaleU: number;
     scaleV: number;
-    legacyMeshName?: string;
+}
+
+export interface MaterialOverrides {
+    [slot: number]: string;
+}
+
+export interface GlobalMaterials {
+    [slotName: string]: string;
+}
+
+export function isMaterialAlias(value: string): boolean {
+    return value.startsWith('ref:');
+}
+
+export function resolveGlobalMaterials(globalMaterials: GlobalMaterials): GlobalMaterials {
+    const resolveSlot = (slot: string, seen: Set<string>): string | undefined => {
+        const value = globalMaterials[slot];
+        if (!value) return undefined;
+        if (!isMaterialAlias(value)) return value;
+        if (seen.has(slot)) return undefined;
+        const target = value.substring(4);
+        return resolveSlot(target, new Set([...seen, slot]));
+    };
+
+    const resolved: GlobalMaterials = {};
+    for (const slot of Object.keys(globalMaterials)) {
+        const materialId = resolveSlot(slot, new Set());
+        if (materialId) resolved[slot] = materialId;
+    }
+    return resolved;
 }
 
 export interface DesignObject {
@@ -39,8 +66,8 @@ export interface DesignObject {
     color: string;
     modelUrl: string;
     objectProperties?: ObjectProperties;
-    textureOverrides?: TextureOverride[];
     slots?: MaterialSlotInfo[];
+    materialOverrides?: MaterialOverrides;
 }
 
 export function createDesignObject(template: ObjectTemplate, position?: [number, number, number]): DesignObject {
@@ -55,6 +82,7 @@ export function createDesignObject(template: ObjectTemplate, position?: [number,
         color: getRandomColor(),
         modelUrl: template.modelUrl,
         objectProperties: template.objectProperties,
+        materialOverrides: {},
     };
 }
 
@@ -121,12 +149,17 @@ export default function DesignObjectsRenderer({
   magnetEnabled,
   allObjects,
   onDragStateChange,
-  onSlotsDiscovered
+  onSlotsDiscovered,
+  globalMaterials,
+  globalMaterialsRaw,
+  materialDataById,
+  slotTypesByModel,
+  typeToDesignSlot
 }: {
   objects: DesignObject[],
   origin: [number, number, number],
   onObjectInteraction: (object: DesignObject) => void,
-  onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number], rotation?: number }) => void,
+  onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number], rotation?: number, materialOverrides?: MaterialOverrides }) => void,
   onObjectDeleted?: (id: string) => void,
   onEditObject?: (object: DesignObject) => void,
   movingObjectId?: string,
@@ -134,7 +167,12 @@ export default function DesignObjectsRenderer({
   magnetEnabled: boolean,
   allObjects: DesignObject[],
   onDragStateChange?: (isDragging: boolean) => void,
-  onSlotsDiscovered?: (id: string, slots: MaterialSlotInfo[]) => void
+  onSlotsDiscovered?: (id: string, slots: MaterialSlotInfo[]) => void,
+  globalMaterials?: Record<string, AppliedMaterial>,
+  globalMaterialsRaw?: GlobalMaterials,
+  materialDataById?: Record<string, AppliedMaterial>,
+  slotTypesByModel?: Record<string, ObjectMaterialType[]>,
+  typeToDesignSlot?: Record<string, string>
 }) {
 
     return (
@@ -143,7 +181,7 @@ export default function DesignObjectsRenderer({
                 let currentPosition : [number, number, number] = obj.position;
 
                  return (
-                         <DesignObject3D
+                         <DesignObjectWithMaterials
                              key={obj.id}
                              obj={obj}
                              onObjectInteraction={onObjectInteraction}
@@ -163,9 +201,95 @@ export default function DesignObjectsRenderer({
                              onDragStateChange={onDragStateChange}
                              onSlotsDiscovered={onSlotsDiscovered}
                              interactionDisabled={movingObjectId !== undefined && obj.id !== movingObjectId}
+                             globalMaterials={globalMaterials}
+                             globalMaterialsRaw={globalMaterialsRaw}
+                             materialDataById={materialDataById}
+                             slotTypesByModel={slotTypesByModel}
+                             typeToDesignSlot={typeToDesignSlot}
                          />
                      )
             })}
         </>
     );
+}
+
+function DesignObjectWithMaterials({
+  obj,
+  position,
+  origin,
+  dimensions,
+  modelUrl,
+  modelScale,
+  rotation,
+  isSelected,
+  onObjectInteraction,
+  onObjectEdited,
+  onObjectDeleted,
+  onEditObject,
+  room3d,
+  magnetEnabled,
+  allObjects,
+  onDragStateChange,
+  onSlotsDiscovered,
+  interactionDisabled,
+  globalMaterials,
+  globalMaterialsRaw,
+  materialDataById,
+  slotTypesByModel,
+  typeToDesignSlot
+}: {
+  obj: DesignObject,
+  position: [number, number, number],
+  origin: [number, number, number],
+  dimensions: [number, number, number],
+  modelUrl: string,
+  modelScale?: number,
+  rotation?: number,
+  isSelected?: boolean,
+  onObjectInteraction: (object: DesignObject) => void,
+  onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number], rotation?: number, materialOverrides?: MaterialOverrides }) => void,
+  onObjectDeleted?: (id: string) => void,
+  onEditObject?: (object: DesignObject) => void,
+  room3d: Room3dProps,
+  magnetEnabled: boolean,
+  allObjects: DesignObject[],
+  onDragStateChange?: (isDragging: boolean) => void,
+  onSlotsDiscovered?: (id: string, slots: MaterialSlotInfo[]) => void,
+  interactionDisabled?: boolean,
+  globalMaterials?: Record<string, AppliedMaterial>,
+  globalMaterialsRaw?: GlobalMaterials,
+  materialDataById?: Record<string, AppliedMaterial>,
+  slotTypesByModel?: Record<string, ObjectMaterialType[]>,
+  typeToDesignSlot?: Record<string, string>
+}) {
+  const instanceOverrides = useMemo<Record<number, AppliedMaterial>>(() => {
+    const overrides = obj.materialOverrides ?? {};
+    return resolveInstanceOverrides(overrides, globalMaterialsRaw ?? {}, materialDataById);
+  }, [obj.materialOverrides, globalMaterialsRaw, materialDataById]);
+
+  return (
+    <DesignObject3D
+      obj={obj}
+      onObjectInteraction={onObjectInteraction}
+      position={position}
+      origin={origin}
+      dimensions={dimensions}
+      modelScale={modelScale}
+      rotation={rotation}
+      isSelected={isSelected}
+      onObjectEdited={onObjectEdited}
+      onObjectDeleted={onObjectDeleted}
+      onEditObject={onEditObject}
+      room3d={room3d}
+      magnetEnabled={magnetEnabled}
+      allObjects={allObjects}
+      onDragStateChange={onDragStateChange}
+      onSlotsDiscovered={onSlotsDiscovered}
+      interactionDisabled={interactionDisabled}
+      instanceOverrides={instanceOverrides}
+      globalMaterials={globalMaterials}
+      slotTypesByModel={slotTypesByModel}
+      typeToDesignSlot={typeToDesignSlot}
+    />
+  );
 }

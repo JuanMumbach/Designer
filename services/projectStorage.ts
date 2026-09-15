@@ -1,6 +1,6 @@
-import { DesignObject, TextureOverride } from '@/components/DesignScreen/3dView/DesignObjects';
+import { DesignObject, GlobalMaterials, MaterialOverrides } from '@/components/DesignScreen/3dView/DesignObjects';
 import { Room3dProps } from '@/components/DesignScreen/3dView/Room3d';
-import { createProject, createProjectVersion, MaterialData, Project } from '@/services/api';
+import { createProject, createProjectVersion, Project } from '@/services/api';
 import { uploadFileToFirebase } from '@/services/firebaseSetup';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
@@ -38,15 +38,17 @@ export interface ProjectInstance {
   color: string;
   objectProperties?: any;
   textureOverrides?: ProjectTextureOverride[];
+  materialOverrides?: MaterialOverrides;
 }
 
 export interface ProjectStateDTO {
   metadata: ProjectMetadata;
   room: ProjectRoom;
   instances: ProjectInstance[];
+  globalMaterials?: GlobalMaterials;
 }
 
-export function serializeProjectState(room3d: Room3dProps, designObjects: DesignObject[]): ProjectStateDTO {
+export function serializeProjectState(room3d: Room3dProps, designObjects: DesignObject[], globalMaterials?: GlobalMaterials): ProjectStateDTO {
   return {
     metadata: {
       version: '2.1.0',
@@ -59,6 +61,7 @@ export function serializeProjectState(room3d: Room3dProps, designObjects: Design
       leftWall: room3d.leftWall,
       rightWall: room3d.rightWall,
     },
+    ...(globalMaterials ? { globalMaterials } : {}),
     instances: designObjects.map((obj) => ({
       id: obj.id,
       name: obj.name,
@@ -69,47 +72,29 @@ export function serializeProjectState(room3d: Room3dProps, designObjects: Design
       scale: obj.dimensions,
       color: obj.color,
       objectProperties: obj.objectProperties,
-      textureOverrides: (obj.textureOverrides ?? [])
-        .filter((ov) => typeof ov.slot === 'number' && !!ov.materialId && typeof ov.version === 'number')
-        .map((ov) => ({
-          slot: ov.slot,
-          materialId: ov.materialId,
-          version: ov.version,
-        })),
+      ...(obj.materialOverrides ? { materialOverrides: obj.materialOverrides } : {}),
     })),
   };
 }
 
 export async function deserializeProjectState(
   dto: ProjectStateDTO,
-  getModelUrl: (modelId: string, version: number) => Promise<string | undefined>,
-  getMaterialData: (materialId: string, version: number) => Promise<MaterialData | undefined>
-): Promise<{ room: Room3dProps; objects: DesignObject[] }> {
+  getModelUrl: (modelId: string, version: number) => Promise<string | undefined>
+): Promise<{ room: Room3dProps; objects: DesignObject[]; globalMaterials?: GlobalMaterials }> {
   const objects = await Promise.all(dto.instances.map(async (inst) => {
     const modelUrl = await getModelUrl(inst.modelId, inst.version);
 
-    const overrides = await Promise.all((inst.textureOverrides ?? []).map(async (ov) => {
-      if (!ov || !ov.materialId || typeof ov.version !== 'number') {
-        return null;
+    const legacyOverrides: MaterialOverrides = {};
+    for (const ov of inst.textureOverrides ?? []) {
+      if (typeof ov.slot === 'number' && ov.materialId) {
+        legacyOverrides[ov.slot] = ov.materialId;
+      } else if (typeof ov.slotName === 'string') {
+        console.warn(`Dropping legacy material override with unresolved slot name "${ov.slotName}".`);
       }
-      const materialData = await getMaterialData(ov.materialId, ov.version);
-      if (!materialData) {
-        console.warn(`Could not resolve material ${ov.materialId} v${ov.version} for slot ${ov.slot ?? ov.slotName}.`);
-        return null;
-      }
-      const override: TextureOverride = {
-        slot: typeof ov.slot === 'number' ? ov.slot : -1,
-        materialId: ov.materialId,
-        version: ov.version,
-        fileURL: materialData.fileURL,
-        scaleU: materialData.scaleU,
-        scaleV: materialData.scaleV,
-      };
-      if (typeof ov.slot !== 'number' && typeof ov.slotName === 'string') {
-        override.legacyMeshName = ov.slotName;
-      }
-      return override;
-    }));
+    }
+    const hasLegacyOverrides = Object.keys(legacyOverrides).length > 0;
+    const materialOverrides = inst.materialOverrides
+      ?? (hasLegacyOverrides ? legacyOverrides : undefined);
 
     return {
       id: inst.id,
@@ -122,7 +107,7 @@ export async function deserializeProjectState(
       color: inst.color || '#ffffff',
       modelUrl: modelUrl || '', // What if modelUrl is undefined?
       objectProperties: inst.objectProperties,
-      textureOverrides: overrides.filter((o): o is TextureOverride => o !== null),
+      materialOverrides,
     };
   }));
 
@@ -135,6 +120,7 @@ export async function deserializeProjectState(
       rightWall: dto.room.rightWall,
     },
     objects,
+    globalMaterials: dto.globalMaterials,
   };
 }
 

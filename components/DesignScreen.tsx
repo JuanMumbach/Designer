@@ -2,17 +2,18 @@ import ProjectLoader from "@/components/DesignScreen/3dViewOverlay/ProjectLoader
 import ProjectPicker from "@/components/DesignScreen/3dViewOverlay/ProjectPicker";
 import Design3dView from "@/components/DesignScreen/Design3dViewer";
 import View3dOverlay from "@/components/DesignScreen/View3dOverlay";
-import { fetchMaterialVersion } from "@/services/api";
+import { fetchAllMaterialTypes, fetchMaterialVersion, fetchModelMaterialTypes, MaterialType, ObjectMaterialType } from "@/services/api";
 import { useAuth } from "@/services/AuthContext";
 import { deserializeProjectState, loadProject, ProjectStateDTO, saveProject, serializeProjectState } from "@/services/projectStorage";
 import { exportSceneAsGLB } from "@/services/sceneExport";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Platform, StyleSheet, Text, View } from "react-native";
 import { useObjectTemplates } from "../services/useFurnitureModels";
 import { useMaterials } from "../services/useMaterials";
-import { createDesignObject, DesignObject, TextureOverride } from "./DesignScreen/3dView/DesignObjects";
+import { createDesignObject, AppliedMaterial, DesignObject, GlobalMaterials, MaterialOverrides, resolveGlobalMaterials } from "./DesignScreen/3dView/DesignObjects";
 import { Room3dProps } from "./DesignScreen/3dView/Room3d";
 import { MaterialSlotInfo } from "../services/materialSlots";
+import { collectDefaultGlobalMaterials, designMaterialsConfig, normalizeTypeName, resolveMaterialValue } from "../services/designMaterialDefaults";
 
 
 const initialRoom3d: Room3dProps = {
@@ -30,17 +31,22 @@ export default function DesignScreen() {
   const [room3d, setRoom3d] = useState<Room3dProps>(initialRoom3d);
   const [designObjects, setDesignObjects] = useState<DesignObject[]>([]);
   const [movingObject, setMovingObject] = useState<DesignObject | undefined>(undefined);
+  const [globalMaterials, setGlobalMaterials] = useState<GlobalMaterials>({});
+  const [materialDataById, setMaterialDataById] = useState<Record<string, AppliedMaterial>>({});
   const [magnetEnabled, _setMagnetEnabled] = useState<boolean>(true);
   const [isDraggingObject, setIsDraggingObject] = useState(false);
   const [forceEditObject, setForceEditObject] = useState<DesignObject | undefined>(undefined);
   const [isExporting, setIsExporting] = useState(false);
   const [isProjectPickerVisible, setIsProjectPickerVisible] = useState(false);
   const [isProjectLoaderVisible, setIsProjectLoaderVisible] = useState(false);
+  const [slotTypesByModel, setSlotTypesByModel] = useState<Record<string, ObjectMaterialType[]>>({});
+  const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([]);
+  const projectLoadedRef = useRef(false);
 
   const handleExport3d = async () => {
     setIsExporting(true);
     try {
-      await exportSceneAsGLB(room3d, designObjects);
+      await exportSceneAsGLB(room3d, designObjects, materialDataById, globalMaterials, slotTypesByModel, typeToDesignSlot);
     } catch (err) {
       console.error('Export failed:', err);
     } finally {
@@ -49,7 +55,7 @@ export default function DesignScreen() {
   };
 
   const handleSaveProject = async () => {
-    const serializedState = serializeProjectState(room3d, designObjects);
+    const serializedState = serializeProjectState(room3d, designObjects, globalMaterials);
     await saveProject(serializedState, 'my_designer_project.json');
   };
 
@@ -60,17 +66,11 @@ export default function DesignScreen() {
       return undefined;
     };
 
-    const getMaterialData = async (materialId: string, version: number) => {
-      try {
-        return await fetchMaterialVersion(materialId, version);
-      } catch {
-        return undefined;
-      }
-    };
-
-    const { room, objects } = await deserializeProjectState(projectData, getModelUrl, getMaterialData);
+    const { room, objects, globalMaterials: loadedGlobalMaterials } = await deserializeProjectState(projectData, getModelUrl);
+    projectLoadedRef.current = true;
     setRoom3d(room);
     setDesignObjects(objects);
+    setGlobalMaterials(loadedGlobalMaterials ?? {});
     setMovingObject(undefined);
   };
 
@@ -102,6 +102,130 @@ export default function DesignScreen() {
   const handleLoadedFromCloud = (projectData: ProjectStateDTO) => {
     applyProjectData(projectData);
   };
+
+  const referencedMaterialIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const obj of designObjects) {
+      for (const materialId of Object.values(obj.materialOverrides ?? {})) {
+        const resolvedId = resolveMaterialValue(materialId, globalMaterials);
+        if (resolvedId) ids.add(resolvedId);
+      }
+    }
+    for (const materialId of Object.values(resolveGlobalMaterials(globalMaterials))) {
+      if (materialId) ids.add(materialId);
+    }
+    return [...ids];
+  }, [designObjects, globalMaterials]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (referencedMaterialIds.length === 0) {
+      setMaterialDataById({});
+      return;
+    }
+
+    (async () => {
+      const resolved: Record<string, AppliedMaterial> = {};
+      for (const materialId of referencedMaterialIds) {
+        if (cancelled) return;
+        const meta = materials.find(m => m.id === materialId);
+        if (!meta) continue;
+        try {
+          const data = await fetchMaterialVersion(materialId, meta.lastVersion);
+          resolved[materialId] = {
+            fileURL: data.fileURL,
+            scaleU: data.scaleU,
+            scaleV: data.scaleV,
+          };
+        } catch (err) {
+          console.warn(`Could not resolve material ${materialId}:`, err);
+        }
+      }
+      if (!cancelled) setMaterialDataById(resolved);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [referencedMaterialIds, materials]);
+
+  const resolvedGlobalMaterials = useMemo(() => {
+    const resolved: Record<string, AppliedMaterial> = {};
+    const finalMaterials = resolveGlobalMaterials(globalMaterials);
+    for (const slotName of Object.keys(finalMaterials)) {
+      const materialId = finalMaterials[slotName];
+      const data = materialDataById[materialId];
+      if (data) resolved[slotName] = data;
+    }
+    return resolved;
+  }, [globalMaterials, materialDataById]);
+
+  const typeToDesignSlot = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const slot of designMaterialsConfig.designMaterialSlots) {
+      if (!slot.type) continue;
+      const key = normalizeTypeName(slot.type);
+      if (!map[key]) map[key] = slot.key;
+    }
+    return map;
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const types = await fetchAllMaterialTypes();
+        if (!cancelled) setMaterialTypes(types);
+      } catch (err) {
+        console.warn('Could not fetch material types:', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const modelKeys = useMemo(() => {
+    const keys = new Set<string>();
+    for (const obj of designObjects) {
+      if (obj.modelId) keys.add(`${obj.modelId}:${obj.version}`);
+    }
+    return [...keys];
+  }, [designObjects]);
+
+  useEffect(() => {
+    if (modelKeys.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      for (const key of modelKeys) {
+        if (cancelled) return;
+        const colonIndex = key.indexOf(':');
+        const modelId = key.substring(0, colonIndex);
+        const version = Number(key.substring(colonIndex + 1));
+        try {
+          const rows = await fetchModelMaterialTypes(modelId, version);
+          if (cancelled) return;
+          setSlotTypesByModel(prev => {
+            if (prev[key] && prev[key].length === rows.length) return prev;
+            return { ...prev, [key]: rows };
+          });
+        } catch (err) {
+          console.warn(`Could not fetch material types for ${key}:`, err);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [modelKeys]);
+
+  useEffect(() => {
+    if (projectLoadedRef.current) return;
+    if (Object.keys(globalMaterials).length > 0) return;
+    if (materials.length === 0 || designObjects.length === 0) return;
+    const defaults = collectDefaultGlobalMaterials(designMaterialsConfig.designMaterialSlots, materials, materialTypes);
+    if (Object.keys(defaults).length > 0) setGlobalMaterials(defaults);
+  }, [materials, designObjects, globalMaterials, materialTypes]);
 
   useEffect(() => {
     if (objectTemplates.length === 0) return;
@@ -146,14 +270,14 @@ export default function DesignScreen() {
     setDesignObjects(prev => [...prev, newObject]);
   };
 
-  const handleObjectEdited = (id: string, updates: { name: string, position: [number, number, number], rotation?: number, textureOverrides?: TextureOverride[] }) => {
+  const handleObjectEdited = (id: string, updates: { name: string, position: [number, number, number], rotation?: number, materialOverrides?: MaterialOverrides }) => {
     setDesignObjects(prev => prev.map(obj =>
       obj.id === id ? {
         ...obj,
         name: updates.name,
         position: updates.position,
         ...(updates.rotation !== undefined && { rotation: updates.rotation }),
-        ...(updates.textureOverrides !== undefined && { textureOverrides: updates.textureOverrides })
+        ...(updates.materialOverrides !== undefined && { materialOverrides: updates.materialOverrides }),
       } : obj
     ));
   };
@@ -215,6 +339,11 @@ export default function DesignScreen() {
         magnetEnabled={magnetEnabled}
         onDragStateChange={setIsDraggingObject}
         onSlotsDiscovered={handleSlotsDiscovered}
+        globalMaterials={resolvedGlobalMaterials}
+        globalMaterialsRaw={globalMaterials}
+        materialDataById={materialDataById}
+        slotTypesByModel={slotTypesByModel}
+        typeToDesignSlot={typeToDesignSlot}
       />
       <View3dOverlay
         objectTemplates={objectTemplates}
@@ -232,6 +361,11 @@ export default function DesignScreen() {
         clearForceEdit={() => setForceEditObject(undefined)}
         materials={materials}
         materialCategories={materialCategories}
+        globalMaterials={globalMaterials}
+        setGlobalMaterials={setGlobalMaterials}
+        designSlots={designMaterialsConfig.designMaterialSlots}
+        slotTypesByModel={slotTypesByModel}
+        typeToDesignSlot={typeToDesignSlot}
         onSaveProject={handleSaveProject}
         onLoadProject={handleLoadProject}
         onExport3d={handleExport3d}
@@ -244,7 +378,7 @@ export default function DesignScreen() {
       {isProjectPickerVisible && (
         <View style={styles.pickerOverlay}>
           <ProjectPicker
-            projectState={serializeProjectState(room3d, designObjects)}
+            projectState={serializeProjectState(room3d, designObjects, globalMaterials)}
             creatorId={backendUserId}
             onClose={() => setIsProjectPickerVisible(false)}
           />

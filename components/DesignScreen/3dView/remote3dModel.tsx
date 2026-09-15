@@ -5,7 +5,7 @@ import * as FileSystem from 'expo-file-system';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Platform } from 'react-native';
 import * as THREE from 'three';
-import { DesignObject } from './DesignObjects';
+import { AppliedMaterial, DesignObject } from './DesignObjects';
 import { Room3dProps } from './Room3d';
 import { MoveContext, computeDragMove } from './moveBehaviours';
 import {
@@ -13,10 +13,11 @@ import {
   collectSlots,
   MaterialSlotInfo,
   resolveMeshSlot,
-  resolveSlotName,
   SlotIndexMaps,
 } from '../../../services/materialSlots';
-import { extractGlbParts, readGlbBytes } from '../../../services/glbParts';
+import { extractGlbParts, readGlbBytes, sanitizeNodeName } from '../../../services/glbParts';
+import { ObjectMaterialType } from '../../../services/api';
+import { normalizeTypeName } from '../../../services/designMaterialDefaults';
 
 let globalIsDragging = false;
 
@@ -68,7 +69,7 @@ export function useDownload3dModel(remoteUrl: string, assetName: string = 'asset
 }
 
 export function DesignObject3D({
-    obj, position, origin, dimensions, modelScale, rotation, onObjectInteraction, isSelected, onObjectEdited, onObjectDeleted, onEditObject, room3d, magnetEnabled, allObjects, onDragStateChange, onSlotsDiscovered, interactionDisabled
+    obj, position, origin, dimensions, modelScale, rotation, onObjectInteraction, isSelected, onObjectEdited, onObjectDeleted, onEditObject, room3d, magnetEnabled, allObjects, onDragStateChange, onSlotsDiscovered, interactionDisabled, instanceOverrides, globalMaterials, slotTypesByModel, typeToDesignSlot
 }: {
     obj: DesignObject,
     position: [number, number, number],
@@ -86,7 +87,11 @@ export function DesignObject3D({
     allObjects: DesignObject[],
     onDragStateChange?: (isDragging: boolean) => void,
     onSlotsDiscovered?: (id: string, slots: MaterialSlotInfo[]) => void,
-    interactionDisabled?: boolean
+    interactionDisabled?: boolean,
+    instanceOverrides?: Record<number, AppliedMaterial>,
+    globalMaterials?: Record<string, AppliedMaterial>,
+    slotTypesByModel?: Record<string, ObjectMaterialType[]>,
+    typeToDesignSlot?: Record<string, string>
 }) {
     const url = obj.modelUrl;
     const { localUri, isLoading, error } = useDownload3dModel(url, obj.id);
@@ -168,6 +173,9 @@ export function DesignObject3D({
       }
     }, [groupReady, slotMapsReady, obj.id]);
 
+    const modelKey = `${obj.modelId}:${obj.version}`;
+    const objectSlotTypes = slotTypesByModel ? slotTypesByModel[modelKey] ?? null : null;
+
     useEffect(() => {
       const group = gltfRef.current;
       const maps = slotMapsRef.current;
@@ -176,48 +184,41 @@ export function DesignObject3D({
       overrideVersionRef.current++;
       const currentVersion = overrideVersionRef.current;
 
-      const overrides = obj.textureOverrides || [];
-      const combined = new Map<number, { fileURL: string; scaleU: number; scaleV: number }>();
-      for (const ov of overrides) {
-        let slot = typeof ov.slot === 'number' ? ov.slot : -1;
-        if (slot < 0 && ov.legacyMeshName) {
-          slot = resolveSlotName(ov.legacyMeshName, maps) ?? -1;
-        }
-        if (slot < 0) continue;
-        combined.set(slot, { fileURL: ov.fileURL, scaleU: ov.scaleU, scaleV: ov.scaleV });
-      }
-
       if (!textureLoaderRef.current) textureLoaderRef.current = new THREE.TextureLoader();
-
-      if (combined.size === 0) {
-        group.traverse((child) => {
-          if (child instanceof THREE.Mesh && child.material) {
-            const slot = resolveMeshSlot(child, maps);
-            if (slot === null) return;
-            const orig = originalMaterialsRef.current.get(slot);
-            if (orig && child.material !== orig) {
-              child.material = orig;
-            }
-          }
-        });
-        return;
-      }
 
       group.traverse((child) => {
         if (child instanceof THREE.Mesh && child.material) {
+          const material = child.material as THREE.Material;
+          const slotName = material.name || sanitizeNodeName(child.name);
           const slot = resolveMeshSlot(child, maps);
           if (slot === null) return;
-          const override = combined.get(slot);
+
+          let override: AppliedMaterial | undefined;
+          if (instanceOverrides && instanceOverrides[slot]) {
+            override = instanceOverrides[slot];
+          }
+          if (!override && globalMaterials) {
+            const slotType = objectSlotTypes?.find(t => t.slot === slot);
+            const typeName = slotType?.materialTypeName || slotType?.materialTypeId || '';
+            const designKey = typeName && typeToDesignSlot ? typeToDesignSlot[normalizeTypeName(typeName)] : undefined;
+            if (designKey && globalMaterials[designKey]) {
+              override = globalMaterials[designKey];
+            } else if (globalMaterials[slotName]) {
+              override = globalMaterials[slotName];
+            }
+          }
+
           if (override && override.fileURL) {
+            const orig = originalMaterialsRef.current.get(slot);
+            const origMat = (orig ?? child.material) as THREE.MeshStandardMaterial;
+            const newMat = origMat.clone();
+
             textureLoaderRef.current!.load(override.fileURL, (texture) => {
               if (currentVersion !== overrideVersionRef.current) return;
-              const newMat = (child.material as THREE.MeshStandardMaterial).clone();
 
-              const origMat = originalMaterialsRef.current.get(slot) as THREE.MeshStandardMaterial | undefined;
-              const origMap = origMat?.map;
-              if (origMap) {
-                texture.wrapS = origMap.wrapS;
-                texture.wrapT = origMap.wrapT;
+              if (origMat.map) {
+                texture.wrapS = origMat.map.wrapS;
+                texture.wrapT = origMat.map.wrapT;
               } else {
                 texture.wrapS = THREE.RepeatWrapping;
                 texture.wrapT = THREE.RepeatWrapping;
@@ -237,8 +238,8 @@ export function DesignObject3D({
 
               newMat.map = texture;
               newMat.needsUpdate = true;
-              child.material = newMat;
             });
+            child.material = newMat;
           } else {
             const orig = originalMaterialsRef.current.get(slot);
             if (orig && child.material !== orig) {
@@ -247,7 +248,7 @@ export function DesignObject3D({
           }
         }
       });
-    }, [obj.textureOverrides, localUri, dimensions, slotMapsReady, groupReady]);
+    }, [instanceOverrides, globalMaterials, localUri, dimensions, slotMapsReady, groupReady, objectSlotTypes, typeToDesignSlot]);
 
     useEffect(() => {
         if (Platform.OS === 'web') {
@@ -438,15 +439,15 @@ export function DesignObject3D({
      return (
          <group>
              <group position={modelPosition} rotation={[0, rotation || 0, 0]}>
-                 <Suspense fallback={null}>
-                     <Gltf
-                         ref={handleGltfReady}
-                         src={localUri}
-                         rotation={[0, -Math.PI / 2, 0]}
-                         scale={modelScale || 1}
-                         {...gltfHandlers}
-                     />
-                 </Suspense>
+<Suspense fallback={null}>
+                      <Gltf
+                          ref={handleGltfReady}
+                          src={localUri}
+                          rotation={[0, -Math.PI / 2, 0]}
+                          scale={modelScale || 1}
+                          {...gltfHandlers}
+                      />
+                  </Suspense>
 
                  {(isSelected &&
                      <group>

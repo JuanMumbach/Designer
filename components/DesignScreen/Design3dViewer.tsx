@@ -2,9 +2,10 @@ import { OrbitControls } from '@react-three/drei/native';
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import React, { useRef, useState } from 'react';
 import * as THREE from 'three';
-import DesignObjectsRenderer, { DesignObject } from "./3dView/DesignObjects";
+import DesignObjectsRenderer, { AppliedMaterial, DesignObject, GlobalMaterials } from "./3dView/DesignObjects";
 import Room3d, { Room3dProps, RoomOrigin } from "./3dView/Room3d";
 import { MaterialSlotInfo } from "../../services/materialSlots";
+import { ObjectMaterialType } from "../../services/api";
 
 const cameraControlsProps = {
     mouseButtons: {
@@ -47,7 +48,12 @@ export default function Design3dView({
   setMovingObject,
   magnetEnabled,
   onDragStateChange,
-  onSlotsDiscovered}:
+  onSlotsDiscovered,
+  globalMaterials,
+  globalMaterialsRaw,
+  materialDataById,
+  slotTypesByModel,
+  typeToDesignSlot}:
   {
   room3d: Room3dProps,
   designObjects: DesignObject[],
@@ -59,7 +65,12 @@ export default function Design3dView({
   setMovingObject?: (object?: DesignObject) => void,
   magnetEnabled: boolean,
   onDragStateChange?: (isDragging: boolean) => void,
-  onSlotsDiscovered?: (id: string, slots: MaterialSlotInfo[]) => void
+  onSlotsDiscovered?: (id: string, slots: MaterialSlotInfo[]) => void,
+  globalMaterials?: Record<string, AppliedMaterial>,
+  globalMaterialsRaw?: GlobalMaterials,
+  materialDataById?: Record<string, AppliedMaterial>,
+  slotTypesByModel?: Record<string, ObjectMaterialType[]>,
+  typeToDesignSlot?: Record<string, string>
 })
 {
   const isDragging = useRef(0);
@@ -100,6 +111,11 @@ export default function Design3dView({
             allObjects={designObjects}
             onDragStateChange={handleDragStateChange}
             onSlotsDiscovered={onSlotsDiscovered}
+            globalMaterials={globalMaterials}
+            globalMaterialsRaw={globalMaterialsRaw}
+            materialDataById={materialDataById}
+            slotTypesByModel={slotTypesByModel}
+            typeToDesignSlot={typeToDesignSlot}
         />
         <OrbitControls {...cameraControlsProps} enabled={isDragging.current === 0} />
         <fog attach="fog" args={["darkgray", 5, 20]} />

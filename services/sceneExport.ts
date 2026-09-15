@@ -1,13 +1,14 @@
 import * as THREE from 'three';
 import { GLTFExporter, GLTFLoader } from 'three-stdlib';
 import { Room3dProps } from '@/components/DesignScreen/3dView/Room3d';
-import { DesignObject, TextureOverride } from '@/components/DesignScreen/3dView/DesignObjects';
+import { AppliedMaterial, DesignObject, GlobalMaterials, MaterialOverrides, resolveGlobalMaterials } from '@/components/DesignScreen/3dView/DesignObjects';
 import {
   buildSlotIndexMaps,
   resolveMeshSlot,
-  resolveSlotName,
 } from '@/services/materialSlots';
-import { extractGlbParts } from '@/services/glbParts';
+import { extractGlbParts, sanitizeNodeName } from '@/services/glbParts';
+import { resolveMaterialValue } from '@/services/designMaterialDefaults';
+import { ObjectMaterialType } from '@/services/api';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { Alert, Platform } from 'react-native';
@@ -87,44 +88,58 @@ function loadGLBFromUrl(url: string): Promise<{ group: THREE.Group; bytes: Uint8
   });
 }
 
-function applyTextureOverrides(
+function applyMaterialOverrides(
   group: THREE.Group,
-  textureOverrides: TextureOverride[],
-  maps: ReturnType<typeof buildSlotIndexMaps>
+  materialOverrides: MaterialOverrides | undefined,
+  materialDataById: Record<string, AppliedMaterial> | undefined,
+  maps: ReturnType<typeof buildSlotIndexMaps>,
+  globalMaterials: GlobalMaterials,
+  slotTypes: ObjectMaterialType[] | null,
+  typeToDesignSlot: Record<string, string>
 ) {
-  if (!textureOverrides || textureOverrides.length === 0) return;
+  if ((!materialOverrides || Object.keys(materialOverrides).length === 0) && Object.keys(globalMaterials).length === 0) return;
 
   const textureLoader = new THREE.TextureLoader();
-
-  const combined = new Map<number, TextureOverride>();
-  for (const override of textureOverrides) {
-    let slot = typeof override.slot === 'number' ? override.slot : -1;
-    if (slot < 0 && override.legacyMeshName) {
-      slot = resolveSlotName(override.legacyMeshName, maps) ?? -1;
-    }
-    if (slot < 0) continue;
-    combined.set(slot, override);
-  }
+  const resolvedGlobals = resolveGlobalMaterials(globalMaterials);
 
   group.traverse((child) => {
     if (child instanceof THREE.Mesh && child.material) {
       const slot = resolveMeshSlot(child, maps);
       if (slot === null) return;
-      const override = combined.get(slot);
-      if (override && override.fileURL) {
-        const texture = textureLoader.load(override.fileURL);
-        texture.wrapS = THREE.RepeatWrapping;
-        texture.wrapT = THREE.RepeatWrapping;
 
-        if (override.scaleU > 0 && override.scaleV > 0) {
-          texture.repeat.set(override.scaleU, override.scaleV);
-        }
-
-        const newMat = (child.material as THREE.MeshStandardMaterial).clone();
-        newMat.map = texture;
-        newMat.needsUpdate = true;
-        child.material = newMat;
+      let materialId: string | undefined;
+      const overrideValue = materialOverrides?.[slot];
+      if (overrideValue) {
+        materialId = resolveMaterialValue(overrideValue, globalMaterials);
       }
+      if (!materialId && Object.keys(globalMaterials).length > 0) {
+        const slotType = slotTypes?.find(t => t.slot === slot);
+        const typeName = slotType?.materialTypeName || slotType?.materialTypeId || '';
+        const designKey = typeName ? typeToDesignSlot[typeName] : undefined;
+        if (designKey && resolvedGlobals[designKey]) {
+          materialId = resolvedGlobals[designKey];
+        } else {
+          const material = child.material as THREE.Material;
+          const slotName = material.name || sanitizeNodeName(child.name);
+          materialId = resolvedGlobals[slotName];
+        }
+      }
+
+      const override = materialId ? materialDataById?.[materialId] : undefined;
+      if (!override || !override.fileURL) return;
+
+      const texture = textureLoader.load(override.fileURL);
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
+
+      if (override.scaleU > 0 && override.scaleV > 0) {
+        texture.repeat.set(override.scaleU, override.scaleV);
+      }
+
+      const newMat = (child.material as THREE.MeshStandardMaterial).clone();
+      newMat.map = texture;
+      newMat.needsUpdate = true;
+      child.material = newMat;
     }
   });
 }
@@ -133,6 +148,10 @@ async function addFurnitureToScene(
   scene: THREE.Scene,
   designObjects: DesignObject[],
   room3d: Room3dProps,
+  materialDataById: Record<string, AppliedMaterial>,
+  globalMaterials: GlobalMaterials,
+  slotTypesByModel: Record<string, ObjectMaterialType[]>,
+  typeToDesignSlot: Record<string, string>,
   onProgress?: (current: number, total: number) => void
 ) {
   const origin: [number, number, number] = [-(room3d.width) / 2, 0, 0];
@@ -157,7 +176,8 @@ async function addFurnitureToScene(
       modelGroup.rotation.set(0, -Math.PI / 2, 0);
       modelGroup.scale.set(0.01, 0.01, 0.01);
 
-      applyTextureOverrides(modelGroup, obj.textureOverrides || [], maps);
+      const slotTypes = slotTypesByModel[`${obj.modelId}:${obj.version}`] ?? null;
+      applyMaterialOverrides(modelGroup, obj.materialOverrides, materialDataById, maps, globalMaterials, slotTypes, typeToDesignSlot);
 
       container.add(modelGroup);
       container.name = obj.name;
@@ -226,20 +246,28 @@ async function saveGLB(uint8Array: Uint8Array): Promise<void> {
 async function buildExportScene(
   room3d: Room3dProps,
   designObjects: DesignObject[],
+  materialDataById: Record<string, AppliedMaterial>,
+  globalMaterials: GlobalMaterials,
+  slotTypesByModel: Record<string, ObjectMaterialType[]>,
+  typeToDesignSlot: Record<string, string>,
   onProgress?: (current: number, total: number) => void
 ): Promise<THREE.Scene> {
   const scene = new THREE.Scene();
   addRoomToScene(scene, room3d);
-  await addFurnitureToScene(scene, designObjects, room3d, onProgress);
+  await addFurnitureToScene(scene, designObjects, room3d, materialDataById, globalMaterials, slotTypesByModel, typeToDesignSlot, onProgress);
   return scene;
 }
 
 export async function exportSceneAsGLB(
   room3d: Room3dProps,
   designObjects: DesignObject[],
+  materialDataById: Record<string, AppliedMaterial> = {},
+  globalMaterials: GlobalMaterials = {},
+  slotTypesByModel: Record<string, ObjectMaterialType[]> = {},
+  typeToDesignSlot: Record<string, string> = {},
   onProgress?: (current: number, total: number) => void
 ): Promise<void> {
-  const scene = await buildExportScene(room3d, designObjects, onProgress);
+  const scene = await buildExportScene(room3d, designObjects, materialDataById, globalMaterials, slotTypesByModel, typeToDesignSlot, onProgress);
 
   return new Promise<void>((resolve, reject) => {
     const exporter = new GLTFExporter();
