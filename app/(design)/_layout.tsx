@@ -2,6 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Tabs, useRouter } from "expo-router";
 import { TouchableOpacity, Text, StyleSheet } from "react-native";
 import React from "react";
+import { COLORS, RADII } from "@/constants/theme";
 
 export default function DesignLayout() {
   const router = useRouter();
@@ -9,23 +10,23 @@ export default function DesignLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: "#ffd33d",
-        tabBarInactiveTintColor: "#94a3b8",
+        tabBarActiveTintColor: COLORS.primary,
+        tabBarInactiveTintColor: COLORS.textFaint,
         headerStyle: {
-          backgroundColor: "#1e1e2f",
+          backgroundColor: COLORS.bgAlt,
         },
         headerShadowVisible: false,
-        headerTintColor: "#fff",
+        headerTintColor: COLORS.text,
         tabBarStyle: {
-          backgroundColor: "#1e1e2f",
-          borderTopColor: "#2d2d44",
+          backgroundColor: COLORS.bg,
+          borderTopColor: COLORS.border,
         },
         headerLeft: () => (
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => router.replace("/hub")}
           >
-            <Ionicons name="home" size={18} color="#ffd33d" />
+            <Ionicons name="home-outline" size={16} color={COLORS.primary} />
             <Text style={styles.backText}>Hub</Text>
           </TouchableOpacity>
         ),
@@ -81,11 +82,13 @@ const styles = StyleSheet.create({
     marginLeft: 16,
     paddingVertical: 6,
     paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    borderRadius: RADII.sm,
+    backgroundColor: COLORS.bg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   backText: {
-    color: "#ffffff",
+    color: COLORS.textHeading,
     fontSize: 14,
     fontWeight: "600",
     marginLeft: 6,

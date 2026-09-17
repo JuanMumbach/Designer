@@ -2,6 +2,7 @@ import React from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import MaterialTypeAdmin from '@/components/Editors/MaterialTypes/MaterialTypeAdmin';
 import { useMaterialTypes } from '@/services/useMaterialTypes';
+import { COLORS, commonStyles } from '@/constants/theme';
 
 export default function MaterialTypesScreen() {
   const { materialTypes, usageByType, isLoading, error, refresh } = useMaterialTypes();
@@ -9,7 +10,7 @@ export default function MaterialTypesScreen() {
   if (isLoading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#ffd33d" />
+        <ActivityIndicator size="large" color={COLORS.primary} />
         <Text style={styles.loadingText}>Loading material types...</Text>
       </View>
     );
@@ -34,18 +35,15 @@ export default function MaterialTypesScreen() {
 
 const styles = StyleSheet.create({
   center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#1a1a2e',
+    ...commonStyles.center,
   },
   loadingText: {
     marginTop: 12,
-    color: '#94a3b8',
+    color: COLORS.textMuted,
     fontSize: 14,
   },
   errorText: {
-    color: '#f87171',
+    color: COLORS.error,
     fontSize: 14,
     textAlign: 'center',
     paddingHorizontal: 24,

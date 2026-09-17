@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-nati
 import Button from "../../Button";
 import { ObjectTemplate } from "../3dView/DesignObjects";
 import { ObjectCategory } from "../../../services/api";
+import { COLORS, RADII } from "@/constants/theme";
 
 interface CategoryBrowserProps {
   objectTemplates: ObjectTemplate[];
@@ -179,8 +180,8 @@ const styles = StyleSheet.create({
     width: 300,
     maxHeight: "70%",
     minHeight: 260,
-    backgroundColor: "white",
-    borderRadius: 16,
+    backgroundColor: COLORS.bg,
+    borderRadius: RADII.xl,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.25,
@@ -194,25 +195,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
-    backgroundColor: "#f9fafb",
+    borderBottomColor: COLORS.border,
+    backgroundColor: COLORS.bgAlt,
   },
   backButton: {
     paddingVertical: 6,
     paddingHorizontal: 10,
-    borderRadius: 6,
-    backgroundColor: "#e5e7eb",
+    borderRadius: RADII.sm,
+    backgroundColor: COLORS.border,
     marginRight: 8,
   },
   backButtonText: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#374151",
+    color: COLORS.textHeading,
   },
   breadcrumb: {
     flex: 1,
     fontSize: 13,
-    color: "#6b7280",
+    color: COLORS.textMuted,
     fontWeight: "500",
   },
   scrollView: {
@@ -223,13 +224,13 @@ const styles = StyleSheet.create({
   folderItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#f3f4f6",
+    backgroundColor: COLORS.surfaceAlt,
     paddingVertical: 12,
     paddingHorizontal: 16,
-    borderRadius: 10,
+    borderRadius: RADII.lg,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: "#d1d5db",
+    borderColor: COLORS.borderStrong,
   },
   folderIcon: {
     fontSize: 18,
@@ -238,18 +239,18 @@ const styles = StyleSheet.create({
   folderText: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#1f2937",
+    color: COLORS.textBody,
   },
   objectItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "white",
+    backgroundColor: COLORS.bg,
     paddingVertical: 12,
     paddingHorizontal: 16,
-    borderRadius: 10,
+    borderRadius: RADII.lg,
     marginBottom: 8,
     borderWidth: 1,
-    borderBottomColor: "#e5e7eb",
+    borderBottomColor: COLORS.border,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -263,16 +264,16 @@ const styles = StyleSheet.create({
   objectName: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#1f2937",
+    color: COLORS.textBody,
     marginBottom: 4,
   },
   objectDimensions: {
     fontSize: 11,
-    color: "#6b7280",
+    color: COLORS.textMuted,
   },
   emptyText: {
     textAlign: "center",
-    color: "#6b7280",
+    color: COLORS.textMuted,
     fontSize: 14,
     paddingVertical: 30,
   },

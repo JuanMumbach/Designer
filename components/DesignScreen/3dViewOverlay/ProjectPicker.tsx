@@ -23,6 +23,7 @@ import {
   ProjectStateDTO,
   saveProjectToCloud,
 } from '../../../services/projectStorage';
+import { COLORS, RADII } from '@/constants/theme';
 
 interface ProjectPickerProps {
   projectState: ProjectStateDTO;
@@ -109,13 +110,13 @@ export default function ProjectPicker({
       Alert.alert('Validation', 'You must be logged in to save projects.');
       return;
     }
-    if (!selectedWorkspaceId) {
-      Alert.alert('Validation', 'Select or create a workspace first.');
-      return;
-    }
     const isNewProject = !selectedProjectId;
     if (isNewProject && !newProjectName.trim()) {
-      Alert.alert('Validation', 'Select a project or enter a new project name.');
+      Alert.alert('Validation', 'Enter a new project name.');
+      return;
+    }
+    if (!isNewProject && !selectedWorkspaceId) {
+      Alert.alert('Validation', 'Select a workspace first.');
       return;
     }
 
@@ -125,7 +126,7 @@ export default function ProjectPicker({
       if (isNewProject) {
         const result = await createProjectInCloud(projectState, {
           name: newProjectName.trim(),
-          workspaceId: selectedWorkspaceId,
+          workspaceId: selectedWorkspaceId ?? undefined,
           creatorId,
         });
         project = result.project;
@@ -163,7 +164,7 @@ export default function ProjectPicker({
 
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2563eb" />
+          <ActivityIndicator size="large" color={COLORS.primary} />
           <Text style={styles.loadingText}>Loading workspaces…</Text>
         </View>
       ) : (
@@ -289,8 +290,8 @@ const styles = StyleSheet.create({
   container: {
     width: 320,
     maxHeight: '80%',
-    backgroundColor: 'white',
-    borderRadius: 16,
+    backgroundColor: COLORS.bg,
+    borderRadius: RADII.xl,
     padding: 24,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
@@ -305,7 +306,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 10,
     fontSize: 13,
-    color: '#6b7280',
+    color: COLORS.textMuted,
   },
   scrollContent: {
     paddingBottom: 8,
@@ -313,14 +314,14 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#111827',
+    color: COLORS.text,
     textAlign: 'center',
     marginBottom: 16,
   },
   label: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#374151',
+    color: COLORS.textHeading,
     marginTop: 12,
     marginBottom: 6,
     textTransform: 'uppercase',
@@ -334,26 +335,26 @@ const styles = StyleSheet.create({
   chip: {
     paddingVertical: 6,
     paddingHorizontal: 12,
-    borderRadius: 16,
-    backgroundColor: '#f3f4f6',
+    borderRadius: RADII.xl,
+    backgroundColor: COLORS.surfaceAlt,
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: COLORS.borderStrong,
   },
   chipActive: {
-    backgroundColor: '#2563eb',
-    borderColor: '#2563eb',
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
   },
   chipText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#374151',
+    color: COLORS.textHeading,
   },
   chipTextActive: {
-    color: '#fff',
+    color: COLORS.white,
   },
   emptyText: {
     fontSize: 13,
-    color: '#6b7280',
+    color: COLORS.textMuted,
     marginVertical: 6,
   },
   inlineRow: {
@@ -368,13 +369,13 @@ const styles = StyleSheet.create({
   },
   input: {
     height: 44,
-    borderColor: '#e5e7eb',
+    borderColor: COLORS.border,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: RADII.md,
     paddingHorizontal: 12,
-    backgroundColor: '#f9fafb',
+    backgroundColor: COLORS.bgAlt,
     fontSize: 14,
-    color: '#111827',
+    color: COLORS.text,
     marginBottom: 10,
   },
   projectList: {
@@ -384,22 +385,22 @@ const styles = StyleSheet.create({
   projectRow: {
     paddingVertical: 10,
     paddingHorizontal: 12,
-    borderRadius: 8,
+    borderRadius: RADII.md,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#f9fafb',
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.bgAlt,
   },
   projectRowActive: {
-    backgroundColor: '#2563eb',
-    borderColor: '#2563eb',
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
   },
   projectName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1f2937',
+    color: COLORS.textBody,
   },
   projectNameActive: {
-    color: '#fff',
+    color: COLORS.white,
   },
   footer: {
     marginTop: 20,
@@ -412,19 +413,19 @@ const styles = StyleSheet.create({
   },
   cancelButtonLabel: {
     fontSize: 14,
-    color: '#6b7280',
+    color: COLORS.textMuted,
     fontWeight: '600',
   },
   smallButton: {
     height: 44,
     paddingHorizontal: 16,
-    borderRadius: 8,
-    backgroundColor: '#2563eb',
+    borderRadius: RADII.md,
+    backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
   smallButtonText: {
-    color: '#fff',
+    color: COLORS.white,
     fontSize: 13,
     fontWeight: '700',
   },

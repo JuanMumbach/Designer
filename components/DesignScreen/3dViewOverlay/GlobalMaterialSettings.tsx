@@ -5,6 +5,7 @@ import { MaterialCategory, MaterialMeta } from "../../../services/api";
 import { GlobalMaterials, isMaterialAlias } from "../3dView/DesignObjects";
 import { DesignMaterialSlot } from "../../../services/designMaterialDefaults";
 import MaterialPicker from "./MaterialPicker";
+import { COLORS, RADII } from "@/constants/theme";
 
 function getSlotLabel(designSlots: DesignMaterialSlot[], key: string): string {
     return designSlots.find(s => s.key === key)?.label ?? key;
@@ -122,8 +123,8 @@ const styles = StyleSheet.create({
     container: {
         width: 300,
         maxHeight: '100%',
-        backgroundColor: 'white',
-        borderRadius: 16,
+        backgroundColor: COLORS.bg,
+        borderRadius: RADII.xl,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.25,
@@ -142,7 +143,7 @@ const styles = StyleSheet.create({
     headerTitle: {
         fontSize: 18,
         fontWeight: 'bold',
-        color: '#111827',
+        color: COLORS.text,
         marginTop: 16,
         marginBottom: 4,
         textAlign: 'center',
@@ -150,7 +151,7 @@ const styles = StyleSheet.create({
     sectionHint: {
         fontSize: 12,
         fontWeight: '700',
-        color: '#374151',
+        color: COLORS.textHeading,
         marginTop: 14,
         marginBottom: 8,
         textAlign: 'center',
@@ -160,13 +161,13 @@ const styles = StyleSheet.create({
     row: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#f9fafb',
+        backgroundColor: COLORS.bgAlt,
         paddingVertical: 10,
         paddingHorizontal: 12,
-        borderRadius: 8,
+        borderRadius: RADII.md,
         marginBottom: 8,
         borderWidth: 1,
-        borderColor: '#e5e7eb',
+        borderColor: COLORS.border,
     },
     rowInfo: {
         flex: 1,
@@ -175,12 +176,12 @@ const styles = StyleSheet.create({
     rowLabel: {
         fontSize: 13,
         fontWeight: '600',
-        color: '#1f2937',
+        color: COLORS.textBody,
         marginBottom: 2,
     },
     rowStatus: {
         fontSize: 11,
-        color: '#6b7280',
+        color: COLORS.textMuted,
     },
     rowActions: {
         flexDirection: 'row',
@@ -189,46 +190,46 @@ const styles = StyleSheet.create({
     changeButton: {
         paddingVertical: 4,
         paddingHorizontal: 10,
-        borderRadius: 6,
-        backgroundColor: '#2563eb',
+        borderRadius: RADII.sm,
+        backgroundColor: COLORS.primary,
     },
     changeLabel: {
         fontSize: 12,
         fontWeight: '600',
-        color: '#fff',
+        color: COLORS.white,
     },
     resetButton: {
         paddingVertical: 4,
         paddingHorizontal: 10,
-        borderRadius: 6,
-        backgroundColor: '#f3f4f6',
+        borderRadius: RADII.sm,
+        backgroundColor: COLORS.surfaceAlt,
         borderWidth: 1,
-        borderColor: '#d1d5db',
+        borderColor: COLORS.borderStrong,
     },
     resetLabel: {
         fontSize: 12,
         fontWeight: '600',
-        color: '#6b7280',
+        color: COLORS.textMuted,
     },
     browseButton: {
         alignItems: 'center',
-        backgroundColor: '#eff6ff',
+        backgroundColor: COLORS.primarySoft,
         paddingVertical: 12,
         paddingHorizontal: 16,
-        borderRadius: 10,
+        borderRadius: RADII.lg,
         borderWidth: 1,
-        borderColor: '#bfdbfe',
+        borderColor: COLORS.primaryBorder,
         marginBottom: 8,
     },
     browseLabel: {
         fontSize: 14,
         fontWeight: '700',
-        color: '#2563eb',
+        color: COLORS.primary,
     },
     footer: {
         alignItems: 'center',
         paddingVertical: 12,
         borderTopWidth: 1,
-        borderTopColor: '#e5e7eb',
+        borderTopColor: COLORS.border,
     },
 });

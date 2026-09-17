@@ -1,6 +1,7 @@
 import CommunityExplorer from '@/components/Editors/CommunityExplorer';
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
+import { commonStyles } from '@/constants/theme';
 
 export default function ExplorerScreen() {
   return (
@@ -12,7 +13,6 @@ export default function ExplorerScreen() {
 
 const styles = StyleSheet.create({
   screen: {
-    flex: 1,
-    backgroundColor: '#1a1a2e',
+    ...commonStyles.screen,
   },
 });

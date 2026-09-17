@@ -15,13 +15,21 @@ async function apiFetch(path: string, options: RequestInit = {}): Promise<Respon
   return fetch(`${API_BASE_URL}${path}`, { ...options, headers });
 }
 
-interface BackendUser {
+export interface BackendUser {
   id: string;
   username: string;
   firebaseUid: string;
   emailAddress: string;
   name?: string | null;
   lastname?: string | null;
+}
+
+export async function fetchAllUsers(): Promise<BackendUser[]> {
+  const response = await apiFetch('/api/User');
+  if (!response.ok) {
+    throw new Error(`Failed to fetch users: ${response.status}`);
+  }
+  return response.json();
 }
 
 export async function syncUserWithBackend(user: User): Promise<string | null> {
@@ -861,7 +869,7 @@ export interface Project {
   createdAt: string;
   lastUpdate: string;
   lastVersion: number;
-  workspaceId: string;
+  workspaceId: string | null;
   workspace: Workspace | null;
   creatorId: string;
   creator: unknown | null;
@@ -874,6 +882,7 @@ export interface ProjectVersion {
   fileURL: string;
   creatorId: string;
   creator: unknown | null;
+  createdAt?: string;
 }
 
 export async function fetchAllProjects(): Promise<Project[]> {
@@ -894,7 +903,7 @@ export async function fetchProject(id: string): Promise<Project> {
 
 export async function createProject(body: {
   name: string;
-  workspaceId: string;
+  workspaceId?: string;
   creatorId: string;
 }): Promise<Project> {
   const response = await apiFetch('/api/Projects', {

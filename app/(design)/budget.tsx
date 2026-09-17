@@ -1,13 +1,14 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { COLORS } from "@/constants/theme";
 
 export default function BudgetScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.content}>
         <View style={styles.iconContainer}>
-          <Ionicons name="cash" size={48} color="#ffd33d" />
+          <Ionicons name="cash" size={48} color={COLORS.primary} />
         </View>
         <Text style={styles.title}>Presupuesto</Text>
         <Text style={styles.subtitle}>
@@ -21,7 +22,7 @@ export default function BudgetScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#1a1a2e",
+    backgroundColor: COLORS.bg,
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 32,
@@ -34,7 +35,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: "rgba(255, 211, 61, 0.1)",
+    backgroundColor: COLORS.primarySoft,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 20,
@@ -42,13 +43,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: "700",
-    color: "#ffffff",
+    color: COLORS.textHeading,
     marginBottom: 12,
     textAlign: "center",
   },
   subtitle: {
     fontSize: 14,
-    color: "#94a3b8",
+    color: COLORS.textMuted,
     textAlign: "center",
     lineHeight: 20,
   },

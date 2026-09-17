@@ -6,6 +6,7 @@ import DesignObjectsRenderer, { AppliedMaterial, DesignObject, GlobalMaterials }
 import Room3d, { Room3dProps, RoomOrigin } from "./3dView/Room3d";
 import { MaterialSlotInfo } from "../../services/materialSlots";
 import { ObjectMaterialType } from "../../services/api";
+import { COLORS } from "@/constants/theme";
 
 const cameraControlsProps = {
     mouseButtons: {
@@ -87,7 +88,7 @@ export default function Design3dView({
   return (
     <Canvas
     shadows
-    style={{ background: "darkgray" }}
+    style={{ background: COLORS.sceneBg }}
     camera={{ position: [0, 3, 3] }}
     onPointerMissed={() => {
         console.log("Canvas clicked. Deselecting objects.");
@@ -118,7 +119,7 @@ export default function Design3dView({
             typeToDesignSlot={typeToDesignSlot}
         />
         <OrbitControls {...cameraControlsProps} enabled={isDragging.current === 0} />
-        <fog attach="fog" args={["darkgray", 5, 20]} />
+        <fog attach="fog" args={[COLORS.sceneBg, 5, 20]} />
     </Canvas>
   );
 }

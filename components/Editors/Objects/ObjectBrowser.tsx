@@ -30,6 +30,7 @@ import {
 } from '../../../services/api';
 import ObjectEditor, { ObjectFormData } from './ObjectEditor';
 import ObjectPreview from './ObjectPreview';
+import { COLORS } from '@/constants/theme';
 
 function getBreadcrumbPath(
   categoryId: string | null,
@@ -557,7 +558,7 @@ categories={categories}
 
   const renderLoading = () => (
     <View style={styles.loadingContainer}>
-      <ActivityIndicator size="large" color="#2563eb" />
+      <ActivityIndicator size="large" color={COLORS.primary} />
       <Text style={styles.loadingText}>Loading object data…</Text>
     </View>
   );
@@ -606,7 +607,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     width: '100%',
-    backgroundColor: 'white',
+    backgroundColor: COLORS.bg,
   },
   rowContainer: {
     flex: 1,
@@ -620,7 +621,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
     borderRightWidth: 1,
-    borderRightColor: '#e5e7eb',
+    borderRightColor: COLORS.border,
   },
   previewRow: {
     height: 250,
@@ -632,32 +633,32 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-    backgroundColor: '#f9fafb',
+    borderBottomColor: COLORS.border,
+    backgroundColor: COLORS.bgAlt,
   },
   headerTitle: {
     flex: 1,
     fontSize: 16,
     fontWeight: '700',
-    color: '#111827',
+    color: COLORS.text,
     textAlign: 'center',
   },
   backButton: {
     paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: 6,
-    backgroundColor: '#e5e7eb',
+    backgroundColor: COLORS.border,
     marginRight: 8,
   },
   backButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#374151',
+    color: COLORS.textHeading,
   },
   breadcrumb: {
     flex: 1,
     fontSize: 13,
-    color: '#6b7280',
+    color: COLORS.textMuted,
     fontWeight: '500',
   },
   actionBar: {
@@ -666,17 +667,17 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     gap: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: COLORS.border,
   },
   actionButton: {
     flex: 1,
     paddingVertical: 8,
     borderRadius: 8,
-    backgroundColor: '#2563eb',
+    backgroundColor: COLORS.primary,
     alignItems: 'center',
   },
   actionButtonText: {
-    color: '#fff',
+    color: COLORS.white,
     fontSize: 13,
     fontWeight: '600',
   },
@@ -688,13 +689,13 @@ const styles = StyleSheet.create({
   folderItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f3f4f6',
+    backgroundColor: COLORS.surfaceAlt,
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 10,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: COLORS.borderStrong,
   },
   folderIcon: {
     fontSize: 18,
@@ -703,18 +704,18 @@ const styles = StyleSheet.create({
   folderText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#1f2937',
+    color: COLORS.textBody,
   },
   objectItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'white',
+    backgroundColor: COLORS.bg,
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 10,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: COLORS.border,
   },
   objectInfo: {
     flex: 1,
@@ -723,27 +724,27 @@ const styles = StyleSheet.create({
   objectName: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#1f2937',
+    color: COLORS.textBody,
     marginBottom: 4,
   },
   objectMeta: {
     fontSize: 11,
-    color: '#6b7280',
+    color: COLORS.textMuted,
   },
   editIcon: {
     fontSize: 18,
-    color: '#2563eb',
+    color: COLORS.primary,
   },
   emptyText: {
     textAlign: 'center',
-    color: '#6b7280',
+    color: COLORS.textMuted,
     fontSize: 14,
     paddingVertical: 30,
   },
   sectionTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#374151',
+    color: COLORS.textHeading,
     marginBottom: 12,
     marginTop: 4,
     textTransform: 'uppercase',
@@ -751,19 +752,19 @@ const styles = StyleSheet.create({
   },
   input: {
     height: 44,
-    borderColor: '#e5e7eb',
+    borderColor: COLORS.border,
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 12,
-    backgroundColor: '#f9fafb',
+    backgroundColor: COLORS.bgAlt,
     fontSize: 14,
-    color: '#111827',
+    color: COLORS.text,
     marginBottom: 10,
   },
   label: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#374151',
+    color: COLORS.textHeading,
     marginBottom: 6,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -778,32 +779,32 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 16,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: COLORS.surfaceAlt,
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: COLORS.borderStrong,
   },
   chipActive: {
-    backgroundColor: '#2563eb',
-    borderColor: '#2563eb',
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
   },
   chipText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#374151',
+    color: COLORS.textHeading,
   },
   chipTextActive: {
-    color: '#fff',
+    color: COLORS.white,
   },
   categoryRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f9fafb',
+    backgroundColor: COLORS.bgAlt,
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: 8,
     marginBottom: 6,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: COLORS.border,
   },
   catInfo: {
     flex: 1,
@@ -811,11 +812,11 @@ const styles = StyleSheet.create({
   catName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1f2937',
+    color: COLORS.textBody,
   },
   catParent: {
     fontSize: 11,
-    color: '#6b7280',
+    color: COLORS.textMuted,
     marginTop: 2,
   },
   editCatRow: {
@@ -828,16 +829,16 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: 6,
-    backgroundColor: '#e5e7eb',
+    backgroundColor: COLORS.border,
     marginLeft: 6,
   },
   deleteSmallButton: {
-    backgroundColor: '#fecaca',
+    backgroundColor: COLORS.danger,
   },
   smallButtonText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#374151',
+    color: COLORS.textHeading,
   },
   loadingContainer: {
     flex: 1,
@@ -847,6 +848,6 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
-    color: '#6b7280',
+    color: COLORS.textMuted,
   },
 });

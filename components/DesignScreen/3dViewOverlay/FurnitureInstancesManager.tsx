@@ -1,6 +1,7 @@
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import Button from "../../Button";
 import { DesignObject } from "../3dView/DesignObjects";
+import { COLORS, RADII } from "@/constants/theme";
 
 interface FurnitureInstancesManagerProps {
     furnitureInstances: DesignObject[];
@@ -51,8 +52,8 @@ const styles = StyleSheet.create({
     container: {
         width: 300,
         maxHeight: '70%',
-        backgroundColor: 'white',
-        borderRadius: 16,
+        backgroundColor: COLORS.bg,
+        borderRadius: RADII.xl,
         padding: 24,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 10 },
@@ -64,7 +65,7 @@ const styles = StyleSheet.create({
     headerTitle: {
         fontSize: 20,
         fontWeight: 'bold',
-        color: '#111827',
+        color: COLORS.text,
         marginBottom: 16,
         textAlign: 'center',
     },
@@ -72,15 +73,15 @@ const styles = StyleSheet.create({
         marginBottom: 10,
     },
     cardItem: {
-        backgroundColor: '#f9fafb',
-        borderRadius: 12,
+        backgroundColor: COLORS.bgAlt,
+        borderRadius: RADII.lg,
         padding: 12,
         marginBottom: 10,
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: '#f3f4f6',
+        borderColor: COLORS.surfaceAlt,
     },
     infoContainer: {
         flex: 1,
@@ -89,11 +90,11 @@ const styles = StyleSheet.create({
     itemName: {
         fontSize: 16,
         fontWeight: 'bold',
-        color: '#1f2937',
+        color: COLORS.textBody,
     },
     itemType: {
         fontSize: 12,
-        color: '#6b7280',
+        color: COLORS.textMuted,
         marginBottom: 4,
     },
     badgesRow: {
@@ -101,17 +102,17 @@ const styles = StyleSheet.create({
         marginTop: 4,
     },
     badge: {
-        backgroundColor: '#e5e7eb',
-        color: '#374151',
+        backgroundColor: COLORS.border,
+        color: COLORS.textHeading,
         fontSize: 10,
         paddingVertical: 2,
         paddingHorizontal: 6,
-        borderRadius: 4,
+        borderRadius: RADII.sm,
         overflow: 'hidden',
     },
     emptyText: {
         textAlign: 'center',
-        color: '#9ca3af',
+        color: COLORS.textFaint,
         marginTop: 20,
         fontStyle: 'italic',
     },
@@ -119,7 +120,7 @@ const styles = StyleSheet.create({
         marginTop: 10,
         alignItems: 'center',
         borderTopWidth: 1,
-        borderTopColor: '#f3f4f6',
+        borderTopColor: COLORS.surfaceAlt,
         paddingTop: 16,
     }
 });

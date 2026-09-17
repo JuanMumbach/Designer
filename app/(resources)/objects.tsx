@@ -4,6 +4,7 @@ import ObjectBrowser from '@/components/Editors/Objects/ObjectBrowser';
 import { useAuth } from '@/services/AuthContext';
 import React from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { COLORS, commonStyles } from '@/constants/theme';
 
 export default function ObjectsScreen() {
   const { selectedWorkspaceId } = useAuth();
@@ -13,7 +14,7 @@ export default function ObjectsScreen() {
   if (isLoading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#2563eb" />
+        <ActivityIndicator size="large" color={COLORS.primary} />
         <Text style={styles.loadingText}>Loading objects...</Text>
       </View>
     );
@@ -41,22 +42,18 @@ export default function ObjectsScreen() {
 
 const styles = StyleSheet.create({
   screen: {
-    flex: 1,
-    backgroundColor: '#1a1a2e',
+    ...commonStyles.screen,
   },
   center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#1a1a2e',
+    ...commonStyles.center,
   },
   loadingText: {
     marginTop: 12,
-    color: '#94a3b8',
+    color: COLORS.textMuted,
     fontSize: 14,
   },
   errorText: {
-    color: '#f87171',
+    color: COLORS.error,
     fontSize: 14,
     textAlign: 'center',
     paddingHorizontal: 24,

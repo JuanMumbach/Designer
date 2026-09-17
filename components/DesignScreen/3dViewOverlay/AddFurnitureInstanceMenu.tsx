@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import Button from "../../Button";
 import { DesignObject, ObjectTemplate, createDesignObject } from "../3dView/DesignObjects";
+import { COLORS, RADII } from "@/constants/theme";
 
 
 export default function AddFurnitureInstanceMenu({
@@ -103,8 +104,8 @@ const styles = StyleSheet.create({
     width: 300,
     maxHeight: '70%',
     minHeight: 260,
-    backgroundColor: 'white',
-    borderRadius: 16,
+    backgroundColor: COLORS.bg,
+    borderRadius: RADII.xl,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.25,
@@ -124,19 +125,19 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     fontSize: 12,
     fontWeight: '700',
-    color: '#374151',
+    color: COLORS.textHeading,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   input: {
     height: 44,
-    borderColor: '#e5e7eb',
+    borderColor: COLORS.border,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: RADII.md,
     paddingHorizontal: 12,
     marginBottom: 10,
-    backgroundColor: '#f9fafb',
+    backgroundColor: COLORS.bgAlt,
     fontSize: 14,
-    color: '#111827',
+    color: COLORS.text,
   }
 });

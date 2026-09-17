@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Dimensions, ScaledSize, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Dimensions, Pressable, ScaledSize, StyleSheet, Text, View } from "react-native";
 import Button from "../Button";
+import { COLORS, RADII } from "@/constants/theme";
 import { DesignObject, GlobalMaterials, MaterialOverrides, ObjectTemplate } from "./3dView/DesignObjects";
 import { Room3dProps } from "./3dView/Room3d";
 import AddFurnitureInstanceMenu from "./3dViewOverlay/AddFurnitureInstanceMenu";
@@ -62,6 +63,17 @@ function useWindowDimensions() {
 }
 
 
+
+function ToolbarButton({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <Pressable
+      style={({ pressed }) => [styles.toolbarButton, pressed && styles.toolbarButtonPressed]}
+      onPress={onPress}
+    >
+      <Text style={styles.toolbarButtonText}>{label}</Text>
+    </Pressable>
+  );
+}
 
 export default function View3dOverlay({ objectTemplates, categories, designObjects, room3dProps, setRoom3d , onObjectAdded, onObjectEdited, onObjectDeleted, movingObject, setMovingObject, magnetEnabled, forceEditObject, clearForceEdit, materials, materialCategories, globalMaterials, setGlobalMaterials, designSlots, slotTypesByModel, typeToDesignSlot, onSaveProject, onLoadProject, onSaveProjectCloud, onLoadProjectCloud, onExport3d, isExporting} : View3dOverlayProps) {
 
@@ -218,14 +230,14 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
         )}
 
       <View style={styles.topUtilityControls}>
-        <Button label="Save" onPress={onSaveProject} />
-        <Button label="Save Cloud" onPress={onSaveProjectCloud} />
-        <Button label="Load" onPress={onLoadProject} />
-        <Button label="Load Cloud" onPress={onLoadProjectCloud} />
+        <ToolbarButton label="Save" onPress={onSaveProject} />
+        <ToolbarButton label="Save Cloud" onPress={onSaveProjectCloud} />
+        <ToolbarButton label="Load" onPress={onLoadProject} />
+        <ToolbarButton label="Load Cloud" onPress={onLoadProjectCloud} />
         {isExporting ? (
-          <ActivityIndicator size="small" color="#2563eb" style={{ marginHorizontal: 8 }} />
+          <ActivityIndicator size="small" color={COLORS.primary} style={{ marginHorizontal: 8 }} />
         ) : (
-          <Button label="Export 3D" onPress={onExport3d} />
+          <ToolbarButton label="Export 3D" onPress={onExport3d} />
         )}
       </View>
 
@@ -383,15 +395,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'white',
+    backgroundColor: COLORS.bg,
     paddingVertical: 10,
     paddingHorizontal: 20,
-    borderRadius: 40,
+    borderRadius: RADII.pill,
     marginBottom: 30,
+    borderWidth: 1,
+    borderColor: COLORS.borderStrong,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4.65,
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
     elevation: 8,
     zIndex: 100,
   },
@@ -400,7 +414,37 @@ const styles = StyleSheet.create({
     top: 50,
     right: 20,
     flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     zIndex: 100,
     pointerEvents: "box-none",
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: RADII.pill,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: COLORS.borderStrong,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 8,
+  },
+  toolbarButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: RADII.md,
+    backgroundColor: COLORS.bgAlt,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  toolbarButtonPressed: {
+    backgroundColor: COLORS.surfaceAlt,
+  },
+  toolbarButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.textHeading,
+    letterSpacing: 0.3,
   },
 });

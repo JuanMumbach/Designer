@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { COLORS } from '@/constants/theme';
 
 interface ToggleProps {
   label: string;
@@ -37,18 +38,18 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#374151',
+    color: COLORS.textHeading,
   },
   track: {
     width: 48,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#d1d5db',
+    backgroundColor: COLORS.borderStrong,
     justifyContent: 'center',
     paddingHorizontal: 2,
   },
   trackActive: {
-    backgroundColor: '#2563eb',
+    backgroundColor: COLORS.primary,
   },
   trackDisabled: {
     opacity: 0.4,
@@ -57,7 +58,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#ffffff',
+    backgroundColor: COLORS.white,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,

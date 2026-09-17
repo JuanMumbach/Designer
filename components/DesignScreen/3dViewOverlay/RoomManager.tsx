@@ -1,6 +1,7 @@
 import { StyleSheet, Text, TextInput, View } from "react-native";
 import Button from "../../Button"; // Importamos tu botón personalizado
 import { Room3dProps } from "../3dView/Room3d";
+import { COLORS, RADII } from "@/constants/theme";
 
 interface RoomManagerProps {
     room3dProps: Room3dProps;
@@ -68,8 +69,8 @@ export default function RoomManager({ room3dProps, setRoom3d, onClose }: RoomMan
 const styles = StyleSheet.create({
     container: {
         width: 300, // Ancho fijo para que parezca una tarjeta
-        backgroundColor: 'white',
-        borderRadius: 16,
+        backgroundColor: COLORS.bg,
+        borderRadius: RADII.xl,
         padding: 24,
         // Sombra elegante
         shadowColor: "#000",
@@ -81,7 +82,7 @@ const styles = StyleSheet.create({
     headerTitle: {
         fontSize: 18,
         fontWeight: 'bold',
-        color: '#111827',
+        color: COLORS.text,
         marginBottom: 20,
         textAlign: 'center',
     },
@@ -91,20 +92,20 @@ const styles = StyleSheet.create({
     label: {
         fontSize: 12,
         fontWeight: '700',
-        color: '#374151',
+        color: COLORS.textHeading,
         marginBottom: 6,
         textTransform: 'uppercase',
         letterSpacing: 0.5,
     },
     input: { 
         height: 44, 
-        backgroundColor: '#f9fafb',
-        borderColor: '#e5e7eb', 
+        backgroundColor: COLORS.bgAlt,
+        borderColor: COLORS.border, 
         borderWidth: 1, 
-        borderRadius: 8,
+        borderRadius: RADII.md,
         paddingHorizontal: 12,
         fontSize: 14,
-        color: '#1f2937',
+        color: COLORS.textBody,
     },
     footer: {
         marginTop: 10,

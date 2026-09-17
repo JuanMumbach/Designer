@@ -1,3 +1,4 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -5,20 +6,19 @@ import {
   Platform,
   Pressable,
   SafeAreaView,
-  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { useAuth } from '../services/AuthContext';
-import { useWorkspaces } from '../services/useWorkspaces';
 import {
   fetchWorkspaceMembers,
   Workspace,
   WorkspaceMember,
 } from '../services/api';
+import { useAuth } from '../services/AuthContext';
+import { useWorkspaces } from '../services/useWorkspaces';
+import { COLORS, commonStyles, RADII } from '../constants/theme';
 
 export default function WorkspaceSelectScreen() {
   const router = useRouter();
@@ -133,23 +133,30 @@ export default function WorkspaceSelectScreen() {
           <View
             style={[
               styles.iconContainer,
-              { backgroundColor: isActive ? 'rgba(37, 99, 235, 0.25)' : `${accent}22` },
+              { backgroundColor: isActive ? COLORS.primarySoft : `${accent}22` },
             ]}
           >
-            <Ionicons name={icon} size={16} color={isActive ? '#93c5fd' : accent} />
+            <Ionicons
+              name={icon}
+              size={16}
+              color={isActive ? COLORS.primary : accent}
+            />
           </View>
           <Pressable
-            style={styles.openButton}
+            style={({ pressed }) => [
+              styles.openButton,
+              pressed && styles.openButtonPressed,
+            ]}
             onPress={() => handleOpen(id)}
             accessibilityRole="button"
             accessibilityLabel={`Open ${name}`}
           >
-            <Ionicons name="arrow-forward" size={14} color="#94a3b8" />
+            <Ionicons name="arrow-forward" size={14} color={COLORS.textMuted} />
           </Pressable>
         </View>
         <View style={styles.titleRow}>
           {isActive && (
-            <Ionicons name="checkmark-circle" size={14} color="#60a5fa" />
+            <Ionicons name="checkmark-circle" size={14} color={COLORS.primary} />
           )}
           <Text
             style={[styles.cardTitle, isActive && styles.cardTitleActive]}
@@ -186,63 +193,67 @@ export default function WorkspaceSelectScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" />
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.header}>
-          <View style={styles.headerRow}>
-            <View style={styles.headerTextGroup}>
-              <Text style={styles.brandTitle}>DESIGNER</Text>
-              <Text style={styles.brandSubtitle}>Modular 3D Furniture Studio</Text>
-            </View>
-            <View style={styles.headerActions}>
-              {isChanging && (
-                <Pressable
-                  style={styles.actionButton}
-                  onPress={() => router.replace('/hub')}
-                >
-                  <Ionicons name="close" size={14} color="#94a3b8" />
-                  <Text style={styles.cancelLabel}>Cancel</Text>
-                </Pressable>
-              )}
-              <Pressable style={styles.actionButton} onPress={handleSignOut}>
-                <Ionicons name="log-out-outline" size={16} color="#94a3b8" />
-                <Text style={styles.accountLabel} numberOfLines={1}>
-                  {user?.email ? user.email.split('@')[0] : 'Account'}
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-          <View style={styles.divider} />
-        </View>
+      <StatusBar barStyle="dark-content" />
+      <View style={commonStyles.header}>
+        {isChanging ? (
+          <Pressable
+            style={({ pressed }) => [
+              commonStyles.backButton,
+              pressed && commonStyles.backButtonPressed,
+            ]}
+            onPress={() => router.replace('/hub')}
+          >
+            <Text style={commonStyles.backButtonText}>← Hub</Text>
+          </Pressable>
+        ) : (
+          <View style={styles.headerSpacer} />
+        )}
+        <Text style={commonStyles.headerTitle} numberOfLines={1}>
+          Workspaces
+        </Text>
+        <Pressable
+          style={({ pressed }) => [
+            commonStyles.secondaryButton,
+            pressed && commonStyles.secondaryButtonPressed,
+          ]}
+          onPress={handleSignOut}
+        >
+          <Ionicons name="log-out-outline" size={14} color={COLORS.textMuted} />
+          <Text style={styles.signOutText} numberOfLines={1}>
+            {user?.email ? user.email.split('@')[0] : 'Account'}
+          </Text>
+        </Pressable>
+      </View>
 
-        <Text style={styles.sectionTitle}>Select your workspace</Text>
-        <Text style={styles.sectionSubtitle}>
+      <View style={styles.intro}>
+        <Text style={commonStyles.sectionTitle}>Select your workspace</Text>
+        <Text style={styles.subtitle}>
           Click a workspace to select it, then use the arrow button — or
           double-click — to open it.
         </Text>
+      </View>
 
-        {isLoading ? (
-          <ActivityIndicator color="#ffd33d" style={styles.loader} />
-        ) : (
-          <>
-            <View style={styles.grid}>
-              {renderWorkspaceCard(null, 'person', '#ffd33d')}
-              {myWorkspaces.map((ws) =>
-                renderWorkspaceCard(ws, 'business', '#60a5fa')
-              )}
-            </View>
-            {myWorkspaces.length === 0 && (
-              <Text style={styles.emptyText}>
-                You are not a member of any team workspace yet.
-              </Text>
+      {isLoading ? (
+        <ActivityIndicator color={COLORS.primary} style={styles.loader} />
+      ) : (
+        <>
+          <View style={styles.grid}>
+            {renderWorkspaceCard(null, 'person', COLORS.gold)}
+            {myWorkspaces.map((ws) =>
+              renderWorkspaceCard(ws, 'business', COLORS.primary)
             )}
-          </>
-        )}
+          </View>
+          {myWorkspaces.length === 0 && (
+            <Text style={styles.emptyText}>
+              You are not a member of any team workspace yet.
+            </Text>
+          )}
+        </>
+      )}
 
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>v1.0.0 • Expo Router Modular v2</Text>
-        </View>
-      </ScrollView>
+      <View style={styles.footer}>
+        <Text style={styles.footerText}>v1.0.0 • Expo Router Modular v2</Text>
+      </View>
     </SafeAreaView>
   );
 }
@@ -250,83 +261,26 @@ export default function WorkspaceSelectScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#12121e',
+    backgroundColor: COLORS.bg,
   },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingTop: 48,
-    paddingBottom: 24,
+  headerSpacer: {
+    width: 74,
   },
-  header: {
-    marginBottom: 32,
-    marginTop: 10,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-  },
-  headerTextGroup: {
-    flex: 1,
-  },
-  headerActions: {
-    alignItems: 'flex-end',
-    gap: 8,
-    marginTop: 4,
-  },
-  brandTitle: {
-    fontSize: 36,
-    fontWeight: '900',
-    color: '#ffffff',
-    letterSpacing: 6,
-    textTransform: 'uppercase',
-  },
-  brandSubtitle: {
-    fontSize: 14,
-    color: '#94a3b8',
-    marginTop: 8,
-    letterSpacing: 1.5,
-  },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderWidth: 1,
-    borderColor: '#2d2d44',
-  },
-  cancelLabel: {
+  signOutText: {
     fontSize: 12,
-    color: '#94a3b8',
-    fontWeight: '600',
-  },
-  accountLabel: {
-    fontSize: 12,
-    color: '#64748b',
+    color: COLORS.textMuted,
     maxWidth: 100,
   },
-  divider: {
-    width: 60,
-    height: 4,
-    backgroundColor: '#60a5fa',
-    borderRadius: 2,
-    marginTop: 20,
+  intro: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 8,
   },
-  sectionTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#ffffff',
-    marginBottom: 8,
-  },
-  sectionSubtitle: {
+  subtitle: {
     fontSize: 13,
-    color: '#94a3b8',
+    color: COLORS.textMuted,
     lineHeight: 19,
-    marginBottom: 24,
+    marginBottom: 8,
   },
   grid: {
     flexDirection: 'row',
@@ -334,29 +288,31 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     alignItems: 'flex-start',
     gap: 12,
+    paddingHorizontal: 16,
   },
   card: {
     flexBasis: '47%',
     flexGrow: 1,
     maxWidth: 200,
     minHeight: 76,
-    backgroundColor: '#1c1c2e',
-    borderRadius: 12,
+    backgroundColor: COLORS.surface,
+    borderRadius: RADII.lg,
     borderWidth: 1,
-    borderColor: '#2d2d44',
+    borderColor: COLORS.border,
     padding: 12,
     justifyContent: 'space-between',
   },
   cardActive: {
-    borderColor: '#2563eb',
-    backgroundColor: 'rgba(37, 99, 235, 0.12)',
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primarySoft,
   },
   iconContainer: {
     width: 32,
     height: 32,
-    borderRadius: 8,
+    borderRadius: RADII.sm,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: COLORS.surfaceAlt,
   },
   cardTop: {
     flexDirection: 'row',
@@ -366,12 +322,15 @@ const styles = StyleSheet.create({
   openButton: {
     width: 24,
     height: 24,
-    borderRadius: 6,
+    borderRadius: RADII.sm,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: COLORS.bgAlt,
     borderWidth: 1,
-    borderColor: '#2d2d44',
+    borderColor: COLORS.border,
+  },
+  openButtonPressed: {
+    backgroundColor: COLORS.surfaceAlt,
   },
   titleRow: {
     flexDirection: 'row',
@@ -383,16 +342,16 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     fontSize: 13,
     fontWeight: '700',
-    color: '#e2e8f0',
+    color: COLORS.textHeading,
   },
   cardTitleActive: {
-    color: '#ffffff',
+    color: COLORS.text,
   },
   infoBlock: {
     marginTop: 10,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: '#2d2d44',
+    borderTopColor: COLORS.border,
     gap: 2,
   },
   infoRow: {
@@ -403,31 +362,33 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 11,
-    color: '#64748b',
+    color: COLORS.textFaint,
   },
   infoValue: {
     flexShrink: 1,
     fontSize: 11,
     fontWeight: '600',
-    color: '#cbd5e1',
+    color: COLORS.textHeading,
   },
   loader: {
     marginVertical: 40,
   },
   emptyText: {
     fontSize: 13,
-    color: '#64748b',
+    color: COLORS.textMuted,
     lineHeight: 19,
     marginTop: 16,
+    paddingHorizontal: 16,
   },
   footer: {
     marginTop: 'auto',
     paddingTop: 32,
+    paddingBottom: 24,
     alignItems: 'center',
   },
   footerText: {
     fontSize: 12,
-    color: '#4b5563',
+    color: COLORS.textFaint,
     letterSpacing: 0.5,
   },
 });

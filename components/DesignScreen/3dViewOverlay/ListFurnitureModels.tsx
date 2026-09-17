@@ -1,6 +1,7 @@
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import Button from "../../Button";
 import { ObjectTemplate } from "../3dView/DesignObjects";
+import { COLORS, RADII } from "@/constants/theme";
 
 export default function ListFurnitureModels({
   designObjectTypes,
@@ -35,8 +36,8 @@ export default function ListFurnitureModels({
 const styles = StyleSheet.create({
     container: {
       width: 300,
-      backgroundColor: '#f9fafb',
-      borderRadius: 16,
+      backgroundColor: COLORS.bgAlt,
+      borderRadius: RADII.xl,
       padding: 12,
       shadowColor: "#000",
       shadowOffset: { width: 0, height: 10 },
@@ -48,10 +49,10 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        backgroundColor: 'white',
+        backgroundColor: COLORS.bg,
         marginBottom: 10,
         padding: 16,
-        borderRadius: 12,
+        borderRadius: RADII.lg,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.05,
@@ -65,16 +66,16 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 16,
         fontWeight: 'bold',
-        color: '#1f2937',
+        color: COLORS.textBody,
         marginBottom: 4,
     },
     details: {
         fontSize: 12,
-        color: '#6b7280',
+        color: COLORS.textMuted,
     },
     emptyText: {
         fontSize: 14,
-        color: '#6b7280',
+        color: COLORS.textMuted,
         textAlign: 'center',
         padding: 20,
     }

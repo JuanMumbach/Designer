@@ -1,4 +1,5 @@
 import { Dimensions, Pressable, StyleSheet, Text, View } from "react-native";
+import { COLORS } from "@/constants/theme";
 
 type Props = {
   label: string;
@@ -35,7 +36,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
-    backgroundColor: "#2563eb", // Un azul más moderno (puedes usar tu #3db8ffff si prefieres)
+    backgroundColor: COLORS.primary, // Un azul más moderno (puedes usar tu #3db8ffff si prefieres)
     // Sombras suaves para dar profundidad
     shadowColor: "#000",
     shadowOffset: {

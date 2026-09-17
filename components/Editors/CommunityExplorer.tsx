@@ -14,6 +14,7 @@ import { fetchAllWorkspaces, Workspace } from '../../services/api';
 import { useObjects } from '../../services/useObjects';
 import { useMaterials } from '../../services/useMaterials';
 import Button from '../Button';
+import { COLORS } from '@/constants/theme';
 
 type PendingAction =
   | {
@@ -181,7 +182,7 @@ export default function CommunityExplorer() {
         <Text style={styles.headerSubtitle}>Espacio de trabajo</Text>
         <View style={styles.chipRow}>
           {workspacesLoading ? (
-            <ActivityIndicator size="small" color="#2563eb" />
+            <ActivityIndicator size="small" color={COLORS.primary} />
           ) : workspaces.length === 0 ? (
             <Text style={styles.emptyText}>No hay espacios de trabajo disponibles.</Text>
           ) : (
@@ -217,7 +218,7 @@ export default function CommunityExplorer() {
       if (objsLoading) {
         return (
           <View style={styles.centerRow}>
-            <ActivityIndicator size="small" color="#2563eb" />
+            <ActivityIndicator size="small" color={COLORS.primary} />
           </View>
         );
       }
@@ -267,7 +268,7 @@ export default function CommunityExplorer() {
       if (matsLoading) {
         return (
           <View style={styles.centerRow}>
-            <ActivityIndicator size="small" color="#2563eb" />
+            <ActivityIndicator size="small" color={COLORS.primary} />
           </View>
         );
       }
@@ -340,7 +341,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     width: '100%',
-    backgroundColor: 'white',
+    backgroundColor: COLORS.bg,
   },
   contentColumn: {
     flex: 1,
@@ -349,19 +350,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-    backgroundColor: '#f9fafb',
+    borderBottomColor: COLORS.border,
+    backgroundColor: COLORS.bgAlt,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#111827',
+    color: COLORS.text,
     marginBottom: 12,
   },
   headerSubtitle: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#374151',
+    color: COLORS.textHeading,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 8,
@@ -376,21 +377,21 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 16,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: COLORS.surfaceAlt,
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: COLORS.borderStrong,
   },
   chipActive: {
-    backgroundColor: '#2563eb',
-    borderColor: '#2563eb',
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
   },
   chipText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#374151',
+    color: COLORS.textHeading,
   },
   chipTextActive: {
-    color: '#fff',
+    color: COLORS.white,
   },
   scrollView: {
     flex: 1,
@@ -408,7 +409,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#374151',
+    color: COLORS.textHeading,
     marginTop: 4,
     marginBottom: 12,
     textTransform: 'uppercase',
@@ -419,18 +420,18 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     textAlign: 'center',
-    color: '#6b7280',
+    color: COLORS.textMuted,
     fontSize: 14,
     paddingVertical: 20,
   },
   resourceCard: {
-    backgroundColor: 'white',
+    backgroundColor: COLORS.bg,
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 10,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: COLORS.border,
   },
   resourceInfo: {
     marginBottom: 10,
@@ -438,16 +439,16 @@ const styles = StyleSheet.create({
   resourceName: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#1f2937',
+    color: COLORS.textBody,
     marginBottom: 4,
   },
   resourceMeta: {
     fontSize: 11,
-    color: '#6b7280',
+    color: COLORS.textMuted,
   },
   resourceType: {
     fontSize: 11,
-    color: '#2563eb',
+    color: COLORS.primary,
     fontWeight: '600',
     marginTop: 2,
   },
@@ -457,7 +458,7 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: COLORS.overlay,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
@@ -465,7 +466,7 @@ const styles = StyleSheet.create({
   modalCard: {
     width: '100%',
     maxWidth: 420,
-    backgroundColor: 'white',
+    backgroundColor: COLORS.bg,
     borderRadius: 16,
     padding: 24,
     shadowColor: '#000',
@@ -477,12 +478,12 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#111827',
+    color: COLORS.text,
     marginBottom: 12,
   },
   modalText: {
     fontSize: 14,
-    color: '#4b5563',
+    color: COLORS.textMuted,
     lineHeight: 20,
     marginBottom: 20,
   },
@@ -497,18 +498,18 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   modalButtonPrimary: {
-    backgroundColor: '#2563eb',
+    backgroundColor: COLORS.primary,
   },
   modalButtonSecondary: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: COLORS.surfaceAlt,
   },
   modalButtonTextPrimary: {
-    color: '#fff',
+    color: COLORS.white,
     fontSize: 14,
     fontWeight: '600',
   },
   modalButtonTextSecondary: {
-    color: '#374151',
+    color: COLORS.textHeading,
     fontSize: 14,
     fontWeight: '600',
   },

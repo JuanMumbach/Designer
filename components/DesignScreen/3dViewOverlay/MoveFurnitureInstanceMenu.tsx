@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Button, StyleSheet, Text, TextInput, View } from 'react-native';
 import { DesignObject } from '../3dView/DesignObjects';
+import { COLORS, RADII } from '@/constants/theme';
 
 interface MoveFurnitureInstanceMenuProps {
     selectedObject: DesignObject;
@@ -57,9 +58,9 @@ const styles = StyleSheet.create({
         top: '50%',
         left: '50%',
         transform: [{ translateX: -100 }, { translateY: -100 }],
-        backgroundColor: 'rgba(255, 255, 255, 0.8)',
+        backgroundColor: COLORS.bg,
         padding: 20,
-        borderRadius: 10,
+        borderRadius: RADII.lg,
         width: 200,
     },
     radioContainer: {
@@ -74,7 +75,7 @@ const styles = StyleSheet.create({
     },
     input: {
         flex: 1,
-        borderColor: 'gray',
+        borderColor: COLORS.borderStrong,
         borderWidth: 1,
         padding: 5,
         marginRight: 5,

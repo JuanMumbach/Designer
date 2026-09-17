@@ -23,6 +23,7 @@ import {
   loadProjectFromCloud,
   ProjectStateDTO,
 } from '../../../services/projectStorage';
+import { COLORS, RADII } from '@/constants/theme';
 
 interface ProjectLoaderProps {
   requiresConfirm: boolean;
@@ -138,7 +139,7 @@ export default function ProjectLoader({
 
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2563eb" />
+          <ActivityIndicator size="large" color={COLORS.primary} />
           <Text style={styles.loadingText}>Loading workspaces…</Text>
         </View>
       ) : (
@@ -222,8 +223,8 @@ const styles = StyleSheet.create({
   container: {
     width: 320,
     maxHeight: '80%',
-    backgroundColor: 'white',
-    borderRadius: 16,
+    backgroundColor: COLORS.bg,
+    borderRadius: RADII.xl,
     padding: 24,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
@@ -238,7 +239,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 10,
     fontSize: 13,
-    color: '#6b7280',
+    color: COLORS.textMuted,
   },
   scrollContent: {
     paddingBottom: 8,
@@ -246,14 +247,14 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#111827',
+    color: COLORS.text,
     textAlign: 'center',
     marginBottom: 16,
   },
   label: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#374151',
+    color: COLORS.textHeading,
     marginTop: 12,
     marginBottom: 6,
     textTransform: 'uppercase',
@@ -267,26 +268,26 @@ const styles = StyleSheet.create({
   chip: {
     paddingVertical: 6,
     paddingHorizontal: 12,
-    borderRadius: 16,
-    backgroundColor: '#f3f4f6',
+    borderRadius: RADII.xl,
+    backgroundColor: COLORS.surfaceAlt,
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: COLORS.borderStrong,
   },
   chipActive: {
-    backgroundColor: '#2563eb',
-    borderColor: '#2563eb',
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
   },
   chipText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#374151',
+    color: COLORS.textHeading,
   },
   chipTextActive: {
-    color: '#fff',
+    color: COLORS.white,
   },
   emptyText: {
     fontSize: 13,
-    color: '#6b7280',
+    color: COLORS.textMuted,
     marginVertical: 6,
   },
   projectList: {
@@ -296,26 +297,26 @@ const styles = StyleSheet.create({
   projectRow: {
     paddingVertical: 10,
     paddingHorizontal: 12,
-    borderRadius: 8,
+    borderRadius: RADII.md,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#f9fafb',
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.bgAlt,
   },
   projectRowActive: {
-    backgroundColor: '#2563eb',
-    borderColor: '#2563eb',
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
   },
   projectName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1f2937',
+    color: COLORS.textBody,
   },
   projectNameActive: {
-    color: '#fff',
+    color: COLORS.white,
   },
   hint: {
     fontSize: 12,
-    color: '#6b7280',
+    color: COLORS.textMuted,
     marginTop: 10,
   },
   footer: {
@@ -329,7 +330,7 @@ const styles = StyleSheet.create({
   },
   cancelButtonLabel: {
     fontSize: 14,
-    color: '#6b7280',
+    color: COLORS.textMuted,
     fontWeight: '600',
   },
 });

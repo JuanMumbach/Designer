@@ -16,6 +16,7 @@ import {
   Workspace,
 } from '@/services/api';
 import { useAuth } from '@/services/AuthContext';
+import { COLORS, commonStyles, RADII } from '@/constants/theme';
 
 export default function WorkspacesScreen() {
   const { backendUserId, selectedWorkspaceId: contextSelectedWorkspaceId } = useAuth();
@@ -78,7 +79,7 @@ export default function WorkspacesScreen() {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#ffd33d" />
+        <ActivityIndicator size="large" color={COLORS.primary} />
         <Text style={styles.loadingText}>Loading workspaces…</Text>
       </View>
     );
@@ -98,22 +99,22 @@ export default function WorkspacesScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.pickerSection}>
-        <Text style={styles.label}>Workspace</Text>
+        <Text style={commonStyles.label}>Workspace</Text>
         {workspaces.length > 0 ? (
-          <View style={styles.chipRow}>
+          <View style={commonStyles.chipRow}>
             {workspaces.map((ws) => (
               <Pressable
                 key={ws.id}
                 style={[
-                  styles.chip,
-                  selectedWorkspaceId === ws.id && styles.chipActive,
+                  commonStyles.chip,
+                  selectedWorkspaceId === ws.id && commonStyles.chipActive,
                 ]}
                 onPress={() => setSelectedWorkspaceId(ws.id)}
               >
                 <Text
                   style={[
-                    styles.chipText,
-                    selectedWorkspaceId === ws.id && styles.chipTextActive,
+                    commonStyles.chipText,
+                    selectedWorkspaceId === ws.id && commonStyles.chipTextActive,
                   ]}
                 >
                   {ws.name}
@@ -121,11 +122,11 @@ export default function WorkspacesScreen() {
               </Pressable>
             ))}
             <Pressable
-              style={[styles.chip, showNewWorkspace && styles.chipActive]}
+              style={[commonStyles.chip, showNewWorkspace && commonStyles.chipActive]}
               onPress={() => setShowNewWorkspace((v) => !v)}
             >
               <Text
-                style={[styles.chipText, showNewWorkspace && styles.chipTextActive]}
+                style={[commonStyles.chipText, showNewWorkspace && commonStyles.chipTextActive]}
               >
                 + New
               </Text>
@@ -137,13 +138,16 @@ export default function WorkspacesScreen() {
         {(showNewWorkspace || workspaces.length === 0) && (
           <ScrollView keyboardShouldPersistTaps="handled">
             <TextInput
-              style={styles.inlineInput}
+              style={[commonStyles.input, styles.inlineInput]}
               value={newWorkspaceName}
               onChangeText={setNewWorkspaceName}
               placeholder="New workspace name"
             />
             <Pressable
-              style={styles.createButton}
+              style={({ pressed }) => [
+                styles.createButton,
+                pressed && styles.createButtonPressed,
+              ]}
               onPress={handleCreateWorkspace}
               disabled={creating}
             >
@@ -168,30 +172,25 @@ export default function WorkspacesScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: '#1a1a2e',
+    ...commonStyles.screen,
   },
   pickerSection: {
     paddingHorizontal: 24,
     paddingTop: 20,
     paddingBottom: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#2d2d44',
+    borderBottomColor: COLORS.border,
   },
   center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#1a1a2e',
-    paddingHorizontal: 24,
+    ...commonStyles.center,
   },
   loadingText: {
     marginTop: 12,
-    color: '#94a3b8',
+    color: COLORS.textMuted,
     fontSize: 14,
   },
   errorText: {
-    color: '#f87171',
+    color: COLORS.error,
     fontSize: 14,
     textAlign: 'center',
   },
@@ -199,62 +198,15 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingVertical: 8,
     paddingHorizontal: 16,
-    borderRadius: 8,
-    backgroundColor: '#334155',
+    borderRadius: RADII.md,
+    backgroundColor: COLORS.secondary,
   },
   retryText: {
-    color: '#ffffff',
+    color: COLORS.textHeading,
     fontSize: 13,
     fontWeight: '600',
-  },
-  label: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#94a3b8',
-    marginBottom: 6,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  chip: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-    backgroundColor: '#1e1e2f',
-    borderWidth: 1,
-    borderColor: '#2d2d44',
-  },
-  chipActive: {
-    backgroundColor: '#2563eb',
-    borderColor: '#2563eb',
-  },
-  chipText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#cbd5e1',
-  },
-  chipTextActive: {
-    color: '#fff',
-  },
-  emptyText: {
-    fontSize: 13,
-    color: '#64748b',
-    textAlign: 'center',
-    paddingVertical: 12,
   },
   inlineInput: {
-    height: 44,
-    borderColor: '#2d2d44',
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    backgroundColor: '#1e1e2f',
-    fontSize: 14,
-    color: '#ffffff',
     marginTop: 12,
     marginBottom: 10,
   },
@@ -262,13 +214,22 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     paddingVertical: 8,
     paddingHorizontal: 16,
-    borderRadius: 8,
-    backgroundColor: '#2563eb',
+    borderRadius: RADII.md,
+    backgroundColor: COLORS.primary,
     marginBottom: 8,
   },
+  createButtonPressed: {
+    backgroundColor: COLORS.primaryPressed,
+  },
   createButtonText: {
-    color: '#ffffff',
+    color: COLORS.white,
     fontSize: 13,
     fontWeight: '700',
+  },
+  emptyText: {
+    fontSize: 13,
+    color: COLORS.textMuted,
+    textAlign: 'center',
+    paddingVertical: 12,
   },
 });

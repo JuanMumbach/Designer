@@ -22,6 +22,7 @@ import {
   WorkspaceMember,
   WorkspaceRole,
 } from '../../../services/api';
+import { COLORS, commonStyles, RADII } from '../../../constants/theme';
 
 interface WorkspaceAdminProps {
   workspaceId: string;
@@ -193,12 +194,14 @@ export default function WorkspaceAdmin({ workspaceId }: WorkspaceAdminProps) {
         value={newRoleName}
         onChangeText={setNewRoleName}
         placeholder="Role name (e.g. Admin)"
+        placeholderTextColor={COLORS.textFaint}
       />
       <TextInput
         style={[styles.input, styles.multilineInput]}
         value={newRoleDescription}
         onChangeText={setNewRoleDescription}
         placeholder="Description (optional)"
+        placeholderTextColor={COLORS.textFaint}
         multiline
       />
       <Button label="Create Role" onPress={handleCreateRole} />
@@ -222,6 +225,7 @@ export default function WorkspaceAdmin({ workspaceId }: WorkspaceAdminProps) {
                       value={editingRoleDescription}
                       onChangeText={setEditingRoleDescription}
                       placeholder="Description"
+                      placeholderTextColor={COLORS.textFaint}
                     />
                     <View style={styles.editActions}>
                       <Pressable
@@ -285,6 +289,7 @@ export default function WorkspaceAdmin({ workspaceId }: WorkspaceAdminProps) {
         value={newMemberUserId}
         onChangeText={setNewMemberUserId}
         placeholder="User GUID to add"
+        placeholderTextColor={COLORS.textFaint}
         autoCapitalize="none"
       />
       <Text style={styles.label}>Role</Text>
@@ -360,26 +365,21 @@ export default function WorkspaceAdmin({ workspaceId }: WorkspaceAdminProps) {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: '#1a1a2e',
+    ...commonStyles.screen,
   },
   content: {
     padding: 24,
-    backgroundColor: '#1a1a2e',
+    backgroundColor: COLORS.bg,
   },
   center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#1a1a2e',
-    paddingHorizontal: 24,
+    ...commonStyles.center,
   },
   loadingText: {
-    color: '#94a3b8',
+    color: COLORS.textMuted,
     fontSize: 14,
   },
   errorText: {
-    color: '#f87171',
+    color: COLORS.error,
     fontSize: 14,
     textAlign: 'center',
   },
@@ -387,60 +387,42 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingVertical: 8,
     paddingHorizontal: 16,
-    borderRadius: 8,
-    backgroundColor: '#334155',
+    borderRadius: RADII.md,
+    backgroundColor: COLORS.secondary,
   },
   retryText: {
-    color: '#ffffff',
+    color: COLORS.textHeading,
     fontSize: 13,
     fontWeight: '600',
   },
   headerSubtitle: {
     fontSize: 13,
-    color: '#94a3b8',
+    color: COLORS.textMuted,
     marginBottom: 24,
     lineHeight: 19,
   },
   sectionTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#e2e8f0',
-    marginBottom: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    ...commonStyles.sectionTitle,
   },
   label: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#94a3b8',
-    marginBottom: 6,
+    ...commonStyles.label,
   },
   input: {
-    height: 44,
-    borderColor: '#2d2d44',
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    backgroundColor: '#1e1e2f',
-    fontSize: 14,
-    color: '#ffffff',
-    marginBottom: 10,
+    ...commonStyles.input,
   },
   multilineInput: {
-    height: 70,
-    paddingTop: 10,
-    textAlignVertical: 'top',
+    ...commonStyles.multilineInput,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1e1e2f',
+    backgroundColor: COLORS.bgAlt,
     paddingVertical: 10,
     paddingHorizontal: 12,
-    borderRadius: 8,
+    borderRadius: RADII.md,
     marginBottom: 6,
     borderWidth: 1,
-    borderColor: '#2d2d44',
+    borderColor: COLORS.border,
   },
   info: {
     flex: 1,
@@ -448,16 +430,16 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#ffffff',
+    color: COLORS.textBody,
   },
   description: {
     fontSize: 12,
-    color: '#94a3b8',
+    color: COLORS.textMuted,
     marginTop: 2,
   },
   usage: {
     fontSize: 11,
-    color: '#64748b',
+    color: COLORS.textFaint,
     marginTop: 2,
   },
   editRow: {
@@ -469,63 +451,43 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   smallButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-    backgroundColor: '#334155',
-    marginLeft: 6,
+    ...commonStyles.smallButton,
   },
   deleteSmallButton: {
-    backgroundColor: '#7f1d1d',
+    ...commonStyles.deleteSmallButton,
   },
   smallButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#f1f5f9',
+    ...commonStyles.smallButtonText,
   },
   emptyText: {
-    textAlign: 'center',
-    color: '#64748b',
-    fontSize: 14,
-    paddingVertical: 30,
-    lineHeight: 20,
+    ...commonStyles.emptyText,
   },
   chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
+    ...commonStyles.chipRow,
     marginBottom: 12,
   },
   chip: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-    backgroundColor: '#1e1e2f',
-    borderWidth: 1,
-    borderColor: '#2d2d44',
+    ...commonStyles.chip,
   },
   chipActive: {
-    backgroundColor: '#2563eb',
-    borderColor: '#2563eb',
+    ...commonStyles.chipActive,
   },
   chipText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#cbd5e1',
+    ...commonStyles.chipText,
   },
   chipTextActive: {
-    color: '#fff',
+    ...commonStyles.chipTextActive,
   },
   memberList: {
     gap: 8,
   },
   memberRow: {
-    backgroundColor: '#1e1e2f',
+    backgroundColor: COLORS.bgAlt,
     paddingVertical: 10,
     paddingHorizontal: 12,
-    borderRadius: 8,
+    borderRadius: RADII.md,
     borderWidth: 1,
-    borderColor: '#2d2d44',
+    borderColor: COLORS.border,
   },
   roleSelector: {
     marginTop: 8,

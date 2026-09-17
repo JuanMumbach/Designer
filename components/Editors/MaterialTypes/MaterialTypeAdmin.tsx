@@ -17,6 +17,7 @@ import {
   updateMaterialType,
 } from '../../../services/api';
 import { MaterialTypeUsage } from '../../../services/useMaterialTypes';
+import { COLORS, commonStyles, RADII } from '../../../constants/theme';
 
 interface MaterialTypeAdminProps {
   materialTypes: MaterialType[];
@@ -112,12 +113,14 @@ export default function MaterialTypeAdmin({
         value={newName}
         onChangeText={setNewName}
         placeholder="Type name (e.g. MDF)"
+        placeholderTextColor={COLORS.textFaint}
       />
       <TextInput
         style={[styles.input, styles.multilineInput]}
         value={newDescription}
         onChangeText={setNewDescription}
         placeholder="Description (optional)"
+        placeholderTextColor={COLORS.textFaint}
         multiline
       />
       <Button label="Create" onPress={handleCreate} />
@@ -144,6 +147,7 @@ export default function MaterialTypeAdmin({
                       value={editingDescription}
                       onChangeText={setEditingDescription}
                       placeholder="Description"
+                      placeholderTextColor={COLORS.textFaint}
                     />
                     <View style={styles.editActions}>
                       <Pressable
@@ -210,59 +214,43 @@ export default function MaterialTypeAdmin({
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: '#1a1a2e',
+    ...commonStyles.screen,
   },
   content: {
     padding: 24,
-    backgroundColor: '#1a1a2e',
+    backgroundColor: COLORS.bg,
   },
   headerTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#ffffff',
+    color: COLORS.text,
     marginBottom: 6,
   },
   headerSubtitle: {
     fontSize: 13,
-    color: '#94a3b8',
+    color: COLORS.textMuted,
     marginBottom: 24,
     lineHeight: 19,
   },
   sectionTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#e2e8f0',
-    marginBottom: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    ...commonStyles.sectionTitle,
   },
   input: {
-    height: 44,
-    borderColor: '#2d2d44',
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    backgroundColor: '#1e1e2f',
-    fontSize: 14,
-    color: '#ffffff',
-    marginBottom: 10,
+    ...commonStyles.input,
   },
   multilineInput: {
-    height: 70,
-    paddingTop: 10,
-    textAlignVertical: 'top',
+    ...commonStyles.multilineInput,
   },
   typeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1e1e2f',
+    backgroundColor: COLORS.bgAlt,
     paddingVertical: 10,
     paddingHorizontal: 12,
-    borderRadius: 8,
+    borderRadius: RADII.md,
     marginBottom: 6,
     borderWidth: 1,
-    borderColor: '#2d2d44',
+    borderColor: COLORS.border,
   },
   typeInfo: {
     flex: 1,
@@ -270,16 +258,16 @@ const styles = StyleSheet.create({
   typeName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#ffffff',
+    color: COLORS.textBody,
   },
   typeDescription: {
     fontSize: 12,
-    color: '#94a3b8',
+    color: COLORS.textMuted,
     marginTop: 2,
   },
   typeUsage: {
     fontSize: 11,
-    color: '#64748b',
+    color: COLORS.textFaint,
     marginTop: 2,
   },
   editRow: {
@@ -291,25 +279,15 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   smallButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-    backgroundColor: '#334155',
-    marginLeft: 6,
+    ...commonStyles.smallButton,
   },
   deleteSmallButton: {
-    backgroundColor: '#7f1d1d',
+    ...commonStyles.deleteSmallButton,
   },
   smallButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#f1f5f9',
+    ...commonStyles.smallButtonText,
   },
   emptyText: {
-    textAlign: 'center',
-    color: '#64748b',
-    fontSize: 14,
-    paddingVertical: 30,
-    lineHeight: 20,
+    ...commonStyles.emptyText,
   },
 });

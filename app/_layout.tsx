@@ -1,8 +1,9 @@
-import React, { useEffect } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import React, { useEffect } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { AuthProvider, useAuth } from '../services/AuthContext';
+import { COLORS } from '../constants/theme';
 
 function RootNavigator() {
   const { user, isLoading, hasChosenWorkspace } = useAuth();
@@ -24,7 +25,7 @@ function RootNavigator() {
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#ffd33d" />
+        <ActivityIndicator size="large" color={COLORS.primary} />
       </View>
     );
   }
@@ -38,12 +39,12 @@ function RootNavigator() {
       >
         <Stack.Screen name="index" />
         <Stack.Screen name="login" />
-        <Stack.Screen name="hub" />
+        <Stack.Screen name="projectManager" />
         <Stack.Screen name="(design)" />
         <Stack.Screen name="(resources)" />
         <Stack.Screen name="(workspace)" />
       </Stack>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
     </>
   );
 }
@@ -59,7 +60,7 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
-    backgroundColor: '#12121e',
+    backgroundColor: COLORS.bg,
     justifyContent: 'center',
     alignItems: 'center',
   },
