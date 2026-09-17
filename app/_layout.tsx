@@ -38,6 +38,7 @@ function RootNavigator() {
       >
         <Stack.Screen name="index" />
         <Stack.Screen name="login" />
+        <Stack.Screen name="hub" />
         <Stack.Screen name="(design)" />
         <Stack.Screen name="(resources)" />
         <Stack.Screen name="(workspace)" />

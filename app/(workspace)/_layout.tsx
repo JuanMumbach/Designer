@@ -23,7 +23,7 @@ export default function WorkspaceLayout() {
         headerLeft: () => (
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => router.replace("/")}
+            onPress={() => router.replace("/hub")}
           >
             <Ionicons name="home" size={18} color="#ffd33d" />
             <Text style={styles.backText}>Hub</Text>

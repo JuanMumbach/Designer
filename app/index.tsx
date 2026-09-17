@@ -1,165 +1,248 @@
-import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
-import { useAuth } from "../services/AuthContext";
-import { fetchAllWorkspaces, Workspace } from "../services/api";
-import WorkspaceSelectModal from "../components/WorkspaceSelectModal";
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
+  Platform,
+  Pressable,
   SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
-} from "react-native";
-import Ionicons from "@expo/vector-icons/Ionicons";
+} from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { useAuth } from '../services/AuthContext';
+import { useWorkspaces } from '../services/useWorkspaces';
+import {
+  fetchWorkspaceMembers,
+  Workspace,
+  WorkspaceMember,
+} from '../services/api';
 
-export default function HubScreen() {
+export default function WorkspaceSelectScreen() {
   const router = useRouter();
-  const { user, signOut, backendUserId, selectedWorkspaceId, hasChosenWorkspace, selectWorkspace } = useAuth();
-  const [allWorkspaces, setAllWorkspaces] = useState<Workspace[]>([]);
-  const [showPicker, setShowPicker] = useState(false);
+  const { change } = useLocalSearchParams<{ change?: string }>();
+  const isChanging = change != null;
+  const {
+    user,
+    signOut,
+    backendUserId,
+    selectedWorkspaceId,
+    hasChosenWorkspace,
+    selectWorkspace,
+  } = useAuth();
+  const { myWorkspaces, isLoading } = useWorkspaces();
+
+  const [highlightedId, setHighlightedId] = useState<string | null | undefined>(
+    undefined
+  );
+  const activeId =
+    highlightedId !== undefined ? highlightedId : selectedWorkspaceId;
+
+  const lastPressRef = useRef<{ id: string | null; at: number } | null>(null);
+  const [membersByWorkspace, setMembersByWorkspace] = useState<
+    Record<string, WorkspaceMember[]>
+  >({});
+  const [membersLoading, setMembersLoading] = useState(false);
 
   useEffect(() => {
+    if (hasChosenWorkspace && !isChanging) {
+      router.replace('/hub');
+    }
+  }, [hasChosenWorkspace, isChanging, router]);
+
+  useEffect(() => {
+    if (!activeId || membersByWorkspace[activeId]) return;
     let mounted = true;
-    fetchAllWorkspaces()
-      .then((ws) => {
-        if (mounted) setAllWorkspaces(ws);
+    setMembersLoading(true);
+    fetchWorkspaceMembers(activeId)
+      .then((members) => {
+        if (mounted) {
+          setMembersByWorkspace((prev) => ({ ...prev, [activeId]: members }));
+        }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        if (mounted) setMembersLoading(false);
+      });
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [activeId, membersByWorkspace]);
 
-  const myWorkspaces = backendUserId
-    ? allWorkspaces.filter(
-        (ws) =>
-          ws.creatorId === backendUserId ||
-          ws.members?.some((m) => m.userId === backendUserId)
-      )
-    : allWorkspaces;
+  const handleOpen = (id: string | null) => {
+    selectWorkspace(id);
+    router.replace('/hub');
+  };
 
-  const currentWorkspaceName =
-    selectedWorkspaceId === null
-      ? "Personal workspace"
-      : allWorkspaces.find((ws) => ws.id === selectedWorkspaceId)?.name ??
-        "Select workspace";
+  const handleHighlight = (id: string | null) => {
+    setHighlightedId(id);
+  };
 
-  const handleNavigate = (path: "/design" | "/materials" | "/roles") => {
-    router.push(path);
+  const handleCardPress = (id: string | null) => {
+    if (Platform.OS === 'web') {
+      const last = lastPressRef.current;
+      if (last && last.id === id && Date.now() - last.at < 300) {
+        lastPressRef.current = null;
+        handleOpen(id);
+        return;
+      }
+      lastPressRef.current = { id, at: Date.now() };
+    }
+    handleHighlight(id);
   };
 
   const handleSignOut = async () => {
     await signOut();
   };
 
+  const webNoSelect =
+    Platform.OS === 'web' ? ({ userSelect: 'none' } as any) : undefined;
+
+  const renderWorkspaceCard = (
+    ws: Workspace | null,
+    icon: 'person' | 'business',
+    accent: string
+  ) => {
+    const id = ws?.id ?? null;
+    const name = ws?.name ?? 'Personal workspace';
+    const isPersonal = ws === null;
+    const isActive = activeId === id;
+
+    const members = id ? membersByWorkspace[id] : undefined;
+    const pendingMembers = !isPersonal && membersLoading && !members;
+    const myMembership = members?.find((m) => m.userId === backendUserId);
+    const role = pendingMembers
+      ? '…'
+      : myMembership?.roleName ??
+        (isPersonal || ws?.creatorId === backendUserId ? 'Owner' : 'Member');
+    const owner = pendingMembers
+      ? '…'
+      : isPersonal || ws?.creatorId === backendUserId
+      ? 'You'
+      : members?.find((m) => m.userId === ws?.creatorId)?.username ?? 'Unknown';
+
+    return (
+      <Pressable
+        key={id ?? 'personal'}
+        style={[styles.card, isActive && styles.cardActive, webNoSelect]}
+        onPress={() => handleCardPress(id)}
+      >
+        <View style={styles.cardTop}>
+          <View
+            style={[
+              styles.iconContainer,
+              { backgroundColor: isActive ? 'rgba(37, 99, 235, 0.25)' : `${accent}22` },
+            ]}
+          >
+            <Ionicons name={icon} size={16} color={isActive ? '#93c5fd' : accent} />
+          </View>
+          <Pressable
+            style={styles.openButton}
+            onPress={() => handleOpen(id)}
+            accessibilityRole="button"
+            accessibilityLabel={`Open ${name}`}
+          >
+            <Ionicons name="arrow-forward" size={14} color="#94a3b8" />
+          </Pressable>
+        </View>
+        <View style={styles.titleRow}>
+          {isActive && (
+            <Ionicons name="checkmark-circle" size={14} color="#60a5fa" />
+          )}
+          <Text
+            style={[styles.cardTitle, isActive && styles.cardTitleActive]}
+            numberOfLines={1}
+          >
+            {name}
+          </Text>
+        </View>
+        {isActive && (
+          <View style={styles.infoBlock}>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Type</Text>
+              <Text style={styles.infoValue}>
+                {isPersonal ? 'Personal' : 'Team'}
+              </Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Role</Text>
+              <Text style={styles.infoValue} numberOfLines={1}>
+                {role}
+              </Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Owner</Text>
+              <Text style={styles.infoValue} numberOfLines={1}>
+                {owner}
+              </Text>
+            </View>
+          </View>
+        )}
+      </Pressable>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Header Section */}
         <View style={styles.header}>
           <View style={styles.headerRow}>
             <View style={styles.headerTextGroup}>
               <Text style={styles.brandTitle}>DESIGNER</Text>
               <Text style={styles.brandSubtitle}>Modular 3D Furniture Studio</Text>
             </View>
-            <TouchableOpacity style={styles.signOutBtn} onPress={handleSignOut}>
-              <Ionicons name="log-out-outline" size={20} color="#64748b" />
-              {user?.email ? (
-                <Text style={styles.signOutLabel} numberOfLines={1}>{user.email.split('@')[0]}</Text>
-              ) : null}
-            </TouchableOpacity>
+            <View style={styles.headerActions}>
+              {isChanging && (
+                <Pressable
+                  style={styles.actionButton}
+                  onPress={() => router.replace('/hub')}
+                >
+                  <Ionicons name="close" size={14} color="#94a3b8" />
+                  <Text style={styles.cancelLabel}>Cancel</Text>
+                </Pressable>
+              )}
+              <Pressable style={styles.actionButton} onPress={handleSignOut}>
+                <Ionicons name="log-out-outline" size={16} color="#94a3b8" />
+                <Text style={styles.accountLabel} numberOfLines={1}>
+                  {user?.email ? user.email.split('@')[0] : 'Account'}
+                </Text>
+              </Pressable>
+            </View>
           </View>
-          <TouchableOpacity
-            style={styles.workspaceChip}
-            activeOpacity={0.7}
-            onPress={() => setShowPicker(true)}
-          >
-            <Ionicons
-              name={selectedWorkspaceId === null ? "person" : "business"}
-              size={16}
-              color="#ffd33d"
-            />
-            <Text style={styles.workspaceChipText} numberOfLines={1}>
-              {currentWorkspaceName}
-            </Text>
-            <Ionicons name="chevron-down" size={14} color="#94a3b8" />
-          </TouchableOpacity>
           <View style={styles.divider} />
         </View>
 
-        {/* Dashboard Grid/List */}
-        <View style={styles.grid}>
-          {/* Card 1: Design Area */}
-          <TouchableOpacity
-            style={styles.card}
-            activeOpacity={0.7}
-            onPress={() => handleNavigate("/design")}
-          >
-            <View style={[styles.iconContainer, styles.designIconBg]}>
-              <Ionicons name="cube" size={28} color="#60a5fa" />
-            </View>
-            <View style={styles.cardTextContainer}>
-              <Text style={styles.cardTitle}>Área de Diseño</Text>
-              <Text style={styles.cardDescription}>
-                Espacio de modelado 3D interactivo, cálculo de presupuestos y vistas técnicas con medidas.
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#4b5563" style={styles.chevron} />
-          </TouchableOpacity>
+        <Text style={styles.sectionTitle}>Select your workspace</Text>
+        <Text style={styles.sectionSubtitle}>
+          Click a workspace to select it, then use the arrow button — or
+          double-click — to open it.
+        </Text>
 
-          {/* Card 2: Resources Area */}
-          <TouchableOpacity
-            style={styles.card}
-            activeOpacity={0.7}
-            onPress={() => handleNavigate("/materials")}
-          >
-            <View style={[styles.iconContainer, styles.resourcesIconBg]}>
-              <Ionicons name="layers" size={28} color="#fbbf24" />
+        {isLoading ? (
+          <ActivityIndicator color="#ffd33d" style={styles.loader} />
+        ) : (
+          <>
+            <View style={styles.grid}>
+              {renderWorkspaceCard(null, 'person', '#ffd33d')}
+              {myWorkspaces.map((ws) =>
+                renderWorkspaceCard(ws, 'business', '#60a5fa')
+              )}
             </View>
-            <View style={styles.cardTextContainer}>
-              <Text style={styles.cardTitle}>Gestión de Recursos</Text>
-              <Text style={styles.cardDescription}>
-                Catálogos interactivos de materiales, texturas, acabados y módulos de mobiliario estándar.
+            {myWorkspaces.length === 0 && (
+              <Text style={styles.emptyText}>
+                You are not a member of any team workspace yet.
               </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#4b5563" style={styles.chevron} />
-          </TouchableOpacity>
+            )}
+          </>
+        )}
 
-          {/* Card 3: Workspace Area */}
-          <TouchableOpacity
-            style={styles.card}
-            activeOpacity={0.7}
-            onPress={() => handleNavigate("/roles")}
-          >
-            <View style={[styles.iconContainer, styles.workspaceIconBg]}>
-              <Ionicons name="settings" size={28} color="#34d399" />
-            </View>
-            <View style={styles.cardTextContainer}>
-              <Text style={styles.cardTitle}>Ajustes de Entorno</Text>
-              <Text style={styles.cardDescription}>
-                Configuración de perfiles y roles de usuario, y reglas generales de ensamble o fabricación.
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#4b5563" style={styles.chevron} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Footer/System Info */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>v1.0.0 • Expo Router Modular v2</Text>
         </View>
       </ScrollView>
-
-      <WorkspaceSelectModal
-        visible={!hasChosenWorkspace || showPicker}
-        workspaces={myWorkspaces}
-        selectedWorkspaceId={selectedWorkspaceId}
-        onSelect={selectWorkspace}
-        onClose={() => setShowPicker(false)}
-      />
     </SafeAreaView>
   );
 }
@@ -167,145 +250,184 @@ export default function HubScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#12121e",
+    backgroundColor: '#12121e',
   },
   scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: 24,
     paddingTop: 48,
     paddingBottom: 24,
-    minHeight: "100%",
-    justifyContent: "space-between",
   },
   header: {
-    marginBottom: 40,
+    marginBottom: 32,
     marginTop: 10,
   },
   headerRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
   },
   headerTextGroup: {
     flex: 1,
   },
+  headerActions: {
+    alignItems: 'flex-end',
+    gap: 8,
+    marginTop: 4,
+  },
   brandTitle: {
     fontSize: 36,
-    fontWeight: "900",
-    color: "#ffffff",
+    fontWeight: '900',
+    color: '#ffffff',
     letterSpacing: 6,
-    textTransform: "uppercase",
+    textTransform: 'uppercase',
   },
   brandSubtitle: {
     fontSize: 14,
-    color: "#94a3b8",
+    color: '#94a3b8',
     marginTop: 8,
     letterSpacing: 1.5,
   },
-  signOutBtn: {
-    flexDirection: "row",
-    alignItems: "center",
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 6,
     paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: 8,
-    backgroundColor: "rgba(255,255,255,0.04)",
+    backgroundColor: 'rgba(255,255,255,0.04)',
     borderWidth: 1,
-    borderColor: "#2d2d44",
-    marginTop: 4,
+    borderColor: '#2d2d44',
   },
-  signOutLabel: {
+  cancelLabel: {
     fontSize: 12,
-    color: "#64748b",
-    maxWidth: 80,
+    color: '#94a3b8',
+    fontWeight: '600',
   },
-  workspaceChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    alignSelf: "flex-start",
-    marginTop: 16,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 20,
-    backgroundColor: "rgba(255, 211, 61, 0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 211, 61, 0.25)",
-    maxWidth: "100%",
-  },
-  workspaceChipText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#e2e8f0",
-    flexShrink: 1,
-    maxWidth: 220,
+  accountLabel: {
+    fontSize: 12,
+    color: '#64748b',
+    maxWidth: 100,
   },
   divider: {
     width: 60,
     height: 4,
-    backgroundColor: "#60a5fa",
+    backgroundColor: '#60a5fa',
     borderRadius: 2,
     marginTop: 20,
   },
+  sectionTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#ffffff',
+    marginBottom: 8,
+  },
+  sectionSubtitle: {
+    fontSize: 13,
+    color: '#94a3b8',
+    lineHeight: 19,
+    marginBottom: 24,
+  },
   grid: {
-    flex: 1,
-    gap: 20,
-    marginBottom: 40,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-start',
+    gap: 12,
   },
   card: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#1c1c2e",
-    borderRadius: 16,
-    padding: 20,
+    flexBasis: '47%',
+    flexGrow: 1,
+    maxWidth: 200,
+    minHeight: 76,
+    backgroundColor: '#1c1c2e',
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#2d2d44",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+    borderColor: '#2d2d44',
+    padding: 12,
+    justifyContent: 'space-between',
+  },
+  cardActive: {
+    borderColor: '#2563eb',
+    backgroundColor: 'rgba(37, 99, 235, 0.12)',
   },
   iconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 16,
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  designIconBg: {
-    backgroundColor: "rgba(96, 165, 250, 0.15)",
+  cardTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
   },
-  resourcesIconBg: {
-    backgroundColor: "rgba(251, 191, 36, 0.15)",
+  openButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: '#2d2d44',
   },
-  workspaceIconBg: {
-    backgroundColor: "rgba(52, 211, 153, 0.15)",
-  },
-  cardTextContainer: {
-    flex: 1,
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
   },
   cardTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#ffffff",
-    marginBottom: 4,
-  },
-  cardDescription: {
+    flexShrink: 1,
     fontSize: 13,
-    color: "#94a3b8",
-    lineHeight: 18,
+    fontWeight: '700',
+    color: '#e2e8f0',
   },
-  chevron: {
-    marginLeft: 8,
+  cardTitleActive: {
+    color: '#ffffff',
+  },
+  infoBlock: {
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#2d2d44',
+    gap: 2,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  infoLabel: {
+    fontSize: 11,
+    color: '#64748b',
+  },
+  infoValue: {
+    flexShrink: 1,
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#cbd5e1',
+  },
+  loader: {
+    marginVertical: 40,
+  },
+  emptyText: {
+    fontSize: 13,
+    color: '#64748b',
+    lineHeight: 19,
+    marginTop: 16,
   },
   footer: {
-    alignItems: "center",
-    marginTop: 20,
+    marginTop: 'auto',
+    paddingTop: 32,
+    alignItems: 'center',
   },
   footerText: {
     fontSize: 12,
-    color: "#4b5563",
+    color: '#4b5563',
     letterSpacing: 0.5,
   },
 });
