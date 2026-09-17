@@ -2,11 +2,11 @@ import ProjectLoader from "@/components/DesignScreen/3dViewOverlay/ProjectLoader
 import ProjectPicker from "@/components/DesignScreen/3dViewOverlay/ProjectPicker";
 import Design3dView from "@/components/DesignScreen/Design3dViewer";
 import View3dOverlay from "@/components/DesignScreen/View3dOverlay";
-import { fetchAllMaterialTypes, fetchMaterialVersion, fetchModelMaterialTypes, MaterialType, ObjectMaterialType } from "@/services/api";
+import { fetchAllMaterialTypes, fetchMaterialVersion, fetchModelMaterialTypes, fetchProject, fetchProjectVersion, MaterialType, ObjectMaterialType } from "@/services/api";
 import { useAuth } from "@/services/AuthContext";
-import { deserializeProjectState, loadProject, ProjectStateDTO, saveProject, serializeProjectState } from "@/services/projectStorage";
+import { deserializeProjectState, loadProject, loadProjectFromCloud, ProjectStateDTO, saveProject, serializeProjectState } from "@/services/projectStorage";
 import { exportSceneAsGLB } from "@/services/sceneExport";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Platform, StyleSheet, Text, View } from "react-native";
 import { useObjectTemplates } from "../services/useFurnitureModels";
 import { useMaterials } from "../services/useMaterials";
@@ -24,7 +24,7 @@ const initialRoom3d: Room3dProps = {
   rightWall: true
 };
 
-export default function DesignScreen() {
+export default function DesignScreen({ projectId }: { projectId?: string }) {
   const { backendUserId, selectedWorkspaceId } = useAuth();
   const { objectTemplates, categories: objectCategories, isLoading: modelsLoading, error: modelsError } = useObjectTemplates(selectedWorkspaceId ?? undefined);
   const { materials, categories: materialCategories, isLoading: materialsLoading } = useMaterials(selectedWorkspaceId ?? undefined);
@@ -39,9 +39,11 @@ export default function DesignScreen() {
   const [isExporting, setIsExporting] = useState(false);
   const [isProjectPickerVisible, setIsProjectPickerVisible] = useState(false);
   const [isProjectLoaderVisible, setIsProjectLoaderVisible] = useState(false);
+  const [isProjectLoading, setIsProjectLoading] = useState(false);
   const [slotTypesByModel, setSlotTypesByModel] = useState<Record<string, ObjectMaterialType[]>>({});
   const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([]);
   const projectLoadedRef = useRef(false);
+  const loadedProjectIdRef = useRef<string | null>(null);
 
   const handleExport3d = async () => {
     setIsExporting(true);
@@ -59,7 +61,7 @@ export default function DesignScreen() {
     await saveProject(serializedState, 'my_designer_project.json');
   };
 
-  const applyProjectData = async (projectData: ProjectStateDTO) => {
+  const applyProjectData = useCallback(async (projectData: ProjectStateDTO) => {
     const getModelUrl = async (modelId: string, version: number) => {
       const template = objectTemplates.find(t => t.id === modelId && t.version === version);
       if (template) return template.modelUrl;
@@ -72,7 +74,7 @@ export default function DesignScreen() {
     setDesignObjects(objects);
     setGlobalMaterials(loadedGlobalMaterials ?? {});
     setMovingObject(undefined);
-  };
+  }, [objectTemplates]);
 
   const confirmReplaceScene = (action: () => void) => {
     if (designObjects.length === 0) {
@@ -228,6 +230,7 @@ export default function DesignScreen() {
   }, [materials, designObjects, globalMaterials, materialTypes]);
 
   useEffect(() => {
+    if (projectId) return;
     if (objectTemplates.length === 0) return;
 
     const defaults: DesignObject[] = [];
@@ -254,7 +257,37 @@ export default function DesignScreen() {
     }
 
     setDesignObjects(defaults);
-  }, [objectTemplates]);
+  }, [objectTemplates, projectId]);
+
+  const loadProjectById = useCallback(async (id: string) => {
+    setIsProjectLoading(true);
+    setDesignObjects([]);
+    try {
+      const project = await fetchProject(id);
+      if (!project.lastVersion) {
+        Alert.alert('Info', 'This project has no saved versions.');
+        return;
+      }
+      const version = await fetchProjectVersion(project.id, project.lastVersion);
+      const projectState = await loadProjectFromCloud(version.fileURL);
+      if (projectState) {
+        await applyProjectData(projectState);
+        loadedProjectIdRef.current = id;
+      }
+    } catch (err) {
+      console.error('Cloud load failed:', err);
+      Alert.alert('Error', 'Failed to load project from cloud.');
+    } finally {
+      setIsProjectLoading(false);
+    }
+  }, [applyProjectData]);
+
+  useEffect(() => {
+    if (!projectId) return;
+    if (objectTemplates.length === 0) return;
+    if (loadedProjectIdRef.current === projectId) return;
+    loadProjectById(projectId);
+  }, [projectId, objectTemplates, loadProjectById]);
 
   const handleObjectInteraction = (object: DesignObject) => {
     console.log("Interacted with object:", object.id);
@@ -394,6 +427,13 @@ export default function DesignScreen() {
           />
         </View>
       )}
+
+      {isProjectLoading && (
+        <View style={styles.pickerOverlay}>
+          <ActivityIndicator size="large" color="#ffffff" />
+          <Text style={styles.loadingProjectText}>Loading project...</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -409,5 +449,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.3)',
     zIndex: 200,
+  },
+  loadingProjectText: {
+    marginTop: 12,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#ffffff',
   },
 });

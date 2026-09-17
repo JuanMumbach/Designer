@@ -109,13 +109,13 @@ export default function ProjectPicker({
       Alert.alert('Validation', 'You must be logged in to save projects.');
       return;
     }
-    if (!selectedWorkspaceId) {
-      Alert.alert('Validation', 'Select or create a workspace first.');
-      return;
-    }
     const isNewProject = !selectedProjectId;
     if (isNewProject && !newProjectName.trim()) {
-      Alert.alert('Validation', 'Select a project or enter a new project name.');
+      Alert.alert('Validation', 'Enter a new project name.');
+      return;
+    }
+    if (!isNewProject && !selectedWorkspaceId) {
+      Alert.alert('Validation', 'Select a workspace first.');
       return;
     }
 
@@ -125,7 +125,7 @@ export default function ProjectPicker({
       if (isNewProject) {
         const result = await createProjectInCloud(projectState, {
           name: newProjectName.trim(),
-          workspaceId: selectedWorkspaceId,
+          workspaceId: selectedWorkspaceId ?? undefined,
           creatorId,
         });
         project = result.project;

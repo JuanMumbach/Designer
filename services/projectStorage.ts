@@ -255,7 +255,7 @@ export async function createProjectInCloud(
   projectState: ProjectStateDTO,
   options: {
     name: string;
-    workspaceId: string;
+    workspaceId?: string;
     creatorId: string;
     description?: string;
   }

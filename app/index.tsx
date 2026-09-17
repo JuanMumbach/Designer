@@ -96,7 +96,7 @@ export default function HubScreen() {
           <TouchableOpacity
             style={styles.card}
             activeOpacity={0.7}
-            onPress={() => handleNavigate("/design")}
+            onPress={() => router.push("/projectManager")}
           >
             <View style={[styles.iconContainer, styles.designIconBg]}>
               <Ionicons name="cube" size={28} color="#60a5fa" />
@@ -104,7 +104,7 @@ export default function HubScreen() {
             <View style={styles.cardTextContainer}>
               <Text style={styles.cardTitle}>Área de Diseño</Text>
               <Text style={styles.cardDescription}>
-                Espacio de modelado 3D interactivo, cálculo de presupuestos y vistas técnicas con medidas.
+                Gestiona tus proyectos de mobiliario y accede al modelado 3D interactivo, presupuestos y vistas técnicas con medidas.
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#4b5563" style={styles.chevron} />
