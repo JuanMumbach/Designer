@@ -24,6 +24,7 @@ import * as Google from 'expo-auth-session/providers/google';
 import { makeRedirectUri } from 'expo-auth-session';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { auth } from '../services/firebaseConfig';
+import { COLORS, RADII } from '../constants/theme';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -161,15 +162,16 @@ export default function LoginScreen() {
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.logoArea}>
-            <View style={styles.logoIcon}>
-              <Ionicons name="cube-outline" size={40} color="#60a5fa" />
+          <View style={styles.content}>
+            <View style={styles.logoArea}>
+              <View style={styles.logoIcon}>
+                <Ionicons name="cube-outline" size={40} color={COLORS.primary} />
+              </View>
+              <Text style={styles.brandTitle}>DESIGNER</Text>
+              <Text style={styles.brandSubtitle}>Modular 3D Furniture Studio</Text>
             </View>
-            <Text style={styles.brandTitle}>DESIGNER</Text>
-            <Text style={styles.brandSubtitle}>Modular 3D Furniture Studio</Text>
-          </View>
 
-          <View style={styles.card}>
+            <View style={styles.card}>
             <View style={styles.tabRow}>
               <Pressable
                 style={[styles.tab, tab === 'signin' && styles.tabActive]}
@@ -196,7 +198,7 @@ export default function LoginScreen() {
                 value={email}
                 onChangeText={setEmail}
                 placeholder="you@example.com"
-                placeholderTextColor="#4b5563"
+                placeholderTextColor={COLORS.textFaint}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -207,10 +209,10 @@ export default function LoginScreen() {
                 style={styles.input}
                 value={password}
                 onChangeText={setPassword}
-                placeholder="••••••••"
-                placeholderTextColor="#4b5563"
-                secureTextEntry
-              />
+placeholder="••••••••"
+                    placeholderTextColor={COLORS.textFaint}
+                    secureTextEntry
+                  />
 
               {tab === 'signup' && (
                 <>
@@ -220,7 +222,7 @@ export default function LoginScreen() {
                     value={confirmPassword}
                     onChangeText={setConfirmPassword}
                     placeholder="••••••••"
-                    placeholderTextColor="#4b5563"
+                    placeholderTextColor={COLORS.textFaint}
                     secureTextEntry
                   />
                 </>
@@ -228,7 +230,7 @@ export default function LoginScreen() {
 
               {error !== '' && (
                 <View style={styles.errorBox}>
-                  <Ionicons name="alert-circle-outline" size={16} color="#f87171" />
+                  <Ionicons name="alert-circle-outline" size={16} color={COLORS.error} />
                   <Text style={styles.errorText}>{error}</Text>
                 </View>
               )}
@@ -236,7 +238,7 @@ export default function LoginScreen() {
               {pendingGoogleCredential && linkEmail !== '' && (
                 <View style={styles.linkBox}>
                   <View style={styles.linkBoxHeader}>
-                    <Ionicons name="link-outline" size={16} color="#fbbf24" />
+                    <Ionicons name="link-outline" size={16} color={COLORS.gold} />
                     <Text style={styles.linkBoxTitle}>Link Google account</Text>
                   </View>
                   <Text style={styles.linkBoxText}>
@@ -249,7 +251,7 @@ export default function LoginScreen() {
                     value={linkPassword}
                     onChangeText={setLinkPassword}
                     placeholder="••••••••"
-                    placeholderTextColor="#4b5563"
+                    placeholderTextColor={COLORS.textFaint}
                     secureTextEntry
                   />
                   <Pressable
@@ -258,7 +260,7 @@ export default function LoginScreen() {
                     disabled={isSubmitting}
                   >
                     {isSubmitting ? (
-                      <ActivityIndicator color="#fff" />
+                      <ActivityIndicator color={COLORS.white} />
                     ) : (
                       <Text style={styles.primaryBtnText}>Link Google Account</Text>
                     )}
@@ -275,7 +277,7 @@ export default function LoginScreen() {
                 disabled={isSubmitting}
               >
                 {isSubmitting ? (
-                  <ActivityIndicator color="#fff" />
+                  <ActivityIndicator color={COLORS.white} />
                 ) : (
                   <Text style={styles.primaryBtnText}>
                     {tab === 'signin' ? 'Sign In' : 'Create Account'}
@@ -294,9 +296,10 @@ export default function LoginScreen() {
                 onPress={() => { clearPendingLink(); promptGoogleAsync(); }}
                 disabled={isSubmitting}
               >
-                <Ionicons name="logo-google" size={20} color="#fff" style={styles.googleIcon} />
+                <Ionicons name="logo-google" size={20} color={COLORS.textHeading} style={styles.googleIcon} />
                 <Text style={styles.googleBtnText}>Continue with Google</Text>
               </Pressable>
+            </View>
             </View>
           </View>
         </ScrollView>
@@ -308,10 +311,15 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#12121e',
+    backgroundColor: COLORS.bgAlt,
   },
   flex: {
     flex: 1,
+  },
+  content: {
+    width: '100%',
+    maxWidth: 420,
+    alignSelf: 'center',
   },
   scroll: {
     flexGrow: 1,
@@ -326,10 +334,10 @@ const styles = StyleSheet.create({
   logoIcon: {
     width: 72,
     height: 72,
-    borderRadius: 20,
-    backgroundColor: 'rgba(96, 165, 250, 0.12)',
+    borderRadius: RADII.lg,
+    backgroundColor: COLORS.primarySoft,
     borderWidth: 1,
-    borderColor: 'rgba(96, 165, 250, 0.3)',
+    borderColor: COLORS.primaryBorder,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
@@ -337,26 +345,31 @@ const styles = StyleSheet.create({
   brandTitle: {
     fontSize: 28,
     fontWeight: '900',
-    color: '#ffffff',
+    color: COLORS.text,
     letterSpacing: 6,
   },
   brandSubtitle: {
     fontSize: 13,
-    color: '#64748b',
+    color: COLORS.textMuted,
     marginTop: 6,
     letterSpacing: 1.2,
   },
   card: {
-    backgroundColor: '#1c1c2e',
-    borderRadius: 20,
+    backgroundColor: COLORS.bg,
+    borderRadius: RADII.pill,
     borderWidth: 1,
-    borderColor: '#2d2d44',
+    borderColor: COLORS.borderStrong,
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 24,
+    elevation: 6,
   },
   tabRow: {
     flexDirection: 'row',
     borderBottomWidth: 1,
-    borderBottomColor: '#2d2d44',
+    borderBottomColor: COLORS.border,
   },
   tab: {
     flex: 1,
@@ -365,15 +378,15 @@ const styles = StyleSheet.create({
   },
   tabActive: {
     borderBottomWidth: 2,
-    borderBottomColor: '#60a5fa',
+    borderBottomColor: COLORS.primary,
   },
   tabText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#4b5563',
+    color: COLORS.textMuted,
   },
   tabTextActive: {
-    color: '#60a5fa',
+    color: COLORS.primary,
   },
   form: {
     padding: 24,
@@ -382,42 +395,42 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#94a3b8',
+    color: COLORS.textHeading,
     marginBottom: 6,
     marginTop: 12,
   },
   input: {
-    backgroundColor: '#0f0f1a',
+    backgroundColor: COLORS.bgAlt,
     borderWidth: 1,
-    borderColor: '#2d2d44',
-    borderRadius: 10,
+    borderColor: COLORS.border,
+    borderRadius: RADII.lg,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 15,
-    color: '#ffffff',
+    color: COLORS.text,
   },
   errorBox: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: 'rgba(248, 113, 113, 0.1)',
+    backgroundColor: COLORS.errorSoft,
     borderWidth: 1,
-    borderColor: 'rgba(248, 113, 113, 0.3)',
-    borderRadius: 8,
+    borderColor: COLORS.errorBorder,
+    borderRadius: RADII.md,
     padding: 10,
     marginTop: 12,
   },
   errorText: {
-    color: '#f87171',
+    color: COLORS.error,
     fontSize: 13,
     flex: 1,
   },
   linkBox: {
     marginTop: 12,
-    backgroundColor: 'rgba(251, 191, 36, 0.08)',
+    backgroundColor: COLORS.goldSoft,
     borderWidth: 1,
-    borderColor: 'rgba(251, 191, 36, 0.3)',
-    borderRadius: 8,
+    borderColor: COLORS.goldBorder,
+    borderRadius: RADII.md,
     padding: 12,
   },
   linkBoxHeader: {
@@ -427,12 +440,12 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   linkBoxTitle: {
-    color: '#fbbf24',
+    color: COLORS.gold,
     fontSize: 14,
     fontWeight: '700',
   },
   linkBoxText: {
-    color: '#e2e8f0',
+    color: COLORS.textBody,
     fontSize: 13,
     marginBottom: 4,
   },
@@ -442,13 +455,13 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   cancelLinkText: {
-    color: '#94a3b8',
+    color: COLORS.textMuted,
     fontSize: 13,
     textDecorationLine: 'underline',
   },
   primaryBtn: {
-    backgroundColor: '#2563eb',
-    borderRadius: 10,
+    backgroundColor: COLORS.primary,
+    borderRadius: RADII.lg,
     paddingVertical: 14,
     alignItems: 'center',
     marginTop: 20,
@@ -457,7 +470,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   primaryBtnText: {
-    color: '#ffffff',
+    color: COLORS.white,
     fontSize: 15,
     fontWeight: '700',
     letterSpacing: 0.5,
@@ -471,20 +484,20 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#2d2d44',
+    backgroundColor: COLORS.border,
   },
   dividerLabel: {
     fontSize: 13,
-    color: '#4b5563',
+    color: COLORS.textMuted,
   },
   googleBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#1e293b',
+    backgroundColor: COLORS.bg,
     borderWidth: 1,
-    borderColor: '#334155',
-    borderRadius: 10,
+    borderColor: COLORS.borderStrong,
+    borderRadius: RADII.lg,
     paddingVertical: 13,
     gap: 10,
   },
@@ -492,7 +505,7 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   googleBtnText: {
-    color: '#e2e8f0',
+    color: COLORS.textBody,
     fontSize: 15,
     fontWeight: '600',
   },

@@ -19,6 +19,8 @@ export const COLORS = {
   textFaint: '#9ca3af',
   white: '#ffffff',
   error: '#f87171',
+  errorSoft: 'rgba(248, 113, 113, 0.1)',
+  errorBorder: 'rgba(248, 113, 113, 0.3)',
   danger: '#fecaca',
   dangerText: '#7f1d1d',
   dangerStrong: '#dc2626',
@@ -26,6 +28,7 @@ export const COLORS = {
   sceneBg: '#eef1f5',
   gold: '#fbbf24',
   goldSoft: 'rgba(251, 191, 36, 0.15)',
+  goldBorder: 'rgba(251, 191, 36, 0.3)',
   green: '#34d399',
   greenSoft: 'rgba(52, 211, 153, 0.15)',
 } as const;
