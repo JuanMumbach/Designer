@@ -901,6 +901,16 @@ export async function fetchProject(id: string): Promise<Project> {
   return response.json();
 }
 
+export async function renameProject(body: { id: string; name: string }): Promise<void> {
+  const response = await apiFetch('/api/Projects/name', {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to rename project: ${response.status}`);
+  }
+}
+
 export async function createProject(body: {
   name: string;
   workspaceId?: string;

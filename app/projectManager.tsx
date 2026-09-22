@@ -202,6 +202,14 @@ export default function ProjectManagerScreen() {
       ? "Personal workspace"
       : workspaceNameById[selectedWorkspaceId ?? ''] ?? "Select workspace";
 
+  const goBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace("/");
+    }
+  };
+
   const openProject = (project: Project) => {
     router.push({ pathname: "/design", params: { projectId: project.id } });
   };
@@ -329,9 +337,9 @@ export default function ProjectManagerScreen() {
             styles.backButton,
             pressed && styles.backButtonPressed,
           ]}
-          onPress={() => router.replace("/")}
+          onPress={goBack}
         >
-          <Text style={styles.backButtonText}>← Inicio</Text>
+          <Text style={styles.backButtonText}>{router.canGoBack() ? "← Volver" : "← Inicio"}</Text>
         </Pressable>
         <Text style={styles.headerTitle} numberOfLines={1}>
           Proyectos

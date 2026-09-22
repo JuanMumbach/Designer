@@ -1,4 +1,3 @@
-import ProjectLoader from "@/components/DesignScreen/3dViewOverlay/ProjectLoader";
 import ProjectPicker from "@/components/DesignScreen/3dViewOverlay/ProjectPicker";
 import Design3dView from "@/components/DesignScreen/Design3dViewer";
 import View3dOverlay from "@/components/DesignScreen/View3dOverlay";
@@ -11,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Platform, StyleSheet, Text, View } from "react-native";
 import { useObjectTemplates } from "../services/useFurnitureModels";
 import { useMaterials } from "../services/useMaterials";
+import { useCurrentProject } from "../services/currentProject";
 import { createDesignObject, AppliedMaterial, DesignObject, GlobalMaterials, MaterialOverrides, resolveGlobalMaterials } from "./DesignScreen/3dView/DesignObjects";
 import { Room3dProps } from "./DesignScreen/3dView/Room3d";
 import { MaterialSlotInfo } from "../services/materialSlots";
@@ -27,6 +27,7 @@ const initialRoom3d: Room3dProps = {
 
 export default function DesignScreen({ projectId }: { projectId?: string }) {
   const { backendUserId, selectedWorkspaceId } = useAuth();
+  const { setProject } = useCurrentProject();
   const { objectTemplates, categories: objectCategories, isLoading: modelsLoading, error: modelsError } = useObjectTemplates(selectedWorkspaceId ?? undefined);
   const { materials, categories: materialCategories, isLoading: materialsLoading } = useMaterials(selectedWorkspaceId ?? undefined);
   const [room3d, setRoom3d] = useState<Room3dProps>(initialRoom3d);
@@ -39,7 +40,6 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
   const [forceEditObject, setForceEditObject] = useState<DesignObject | undefined>(undefined);
   const [isExporting, setIsExporting] = useState(false);
   const [isProjectPickerVisible, setIsProjectPickerVisible] = useState(false);
-  const [isProjectLoaderVisible, setIsProjectLoaderVisible] = useState(false);
   const [isProjectLoading, setIsProjectLoading] = useState(false);
   const [slotTypesByModel, setSlotTypesByModel] = useState<Record<string, ObjectMaterialType[]>>({});
   const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([]);
@@ -100,10 +100,6 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
         applyProjectData(projectData);
       });
     }
-  };
-
-  const handleLoadedFromCloud = (projectData: ProjectStateDTO) => {
-    applyProjectData(projectData);
   };
 
   const referencedMaterialIds = useMemo(() => {
@@ -274,6 +270,7 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
       if (projectState) {
         await applyProjectData(projectState);
         loadedProjectIdRef.current = id;
+        setProject(project);
       }
     } catch (err) {
       console.error('Cloud load failed:', err);
@@ -281,7 +278,7 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
     } finally {
       setIsProjectLoading(false);
     }
-  }, [applyProjectData]);
+  }, [applyProjectData, setProject]);
 
   useEffect(() => {
     if (!projectId) return;
@@ -404,7 +401,6 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
         onLoadProject={handleLoadProject}
         onExport3d={handleExport3d}
         onSaveProjectCloud={() => setIsProjectPickerVisible(true)}
-        onLoadProjectCloud={() => setIsProjectLoaderVisible(true)}
         isExporting={isExporting}
       >
       </View3dOverlay>
@@ -414,17 +410,8 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
           <ProjectPicker
             projectState={serializeProjectState(room3d, designObjects, globalMaterials)}
             creatorId={backendUserId}
+            onSaved={(project) => setProject(project)}
             onClose={() => setIsProjectPickerVisible(false)}
-          />
-        </View>
-      )}
-
-      {isProjectLoaderVisible && (
-        <View style={styles.pickerOverlay}>
-          <ProjectLoader
-            requiresConfirm={designObjects.length > 0}
-            onLoaded={handleLoadedFromCloud}
-            onClose={() => setIsProjectLoaderVisible(false)}
           />
         </View>
       )}

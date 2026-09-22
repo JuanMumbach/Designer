@@ -1,7 +1,10 @@
+import { COLORS, RADII } from "@/constants/theme";
+import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Dimensions, Pressable, ScaledSize, StyleSheet, Text, View } from "react-native";
+import { MaterialCategory, MaterialMeta, ObjectCategory, ObjectMaterialType } from "../../services/api";
+import { DesignMaterialSlot } from "../../services/designMaterialDefaults";
 import Button from "../Button";
-import { COLORS, RADII } from "@/constants/theme";
 import { DesignObject, GlobalMaterials, MaterialOverrides, ObjectTemplate } from "./3dView/DesignObjects";
 import { Room3dProps } from "./3dView/Room3d";
 import AddFurnitureInstanceMenu from "./3dViewOverlay/AddFurnitureInstanceMenu";
@@ -10,8 +13,6 @@ import EditFurnitureInstanceMenu from "./3dViewOverlay/EditFurnitureInstanceMenu
 import FurnitureInstancesManager from "./3dViewOverlay/FurnitureInstancesManager";
 import GlobalMaterialSettings from "./3dViewOverlay/GlobalMaterialSettings";
 import RoomManager from "./3dViewOverlay/RoomManager";
-import { MaterialCategory, MaterialMeta, ObjectCategory, ObjectMaterialType } from "../../services/api";
-import { DesignMaterialSlot } from "../../services/designMaterialDefaults";
 
 const debugColors = false;
 
@@ -39,7 +40,6 @@ interface View3dOverlayProps {
   onSaveProject: () => void;
   onLoadProject: () => void;
   onSaveProjectCloud: () => void;
-  onLoadProjectCloud: () => void;
   onExport3d: () => void;
   isExporting: boolean;
 }
@@ -75,14 +75,52 @@ function ToolbarButton({ label, onPress }: { label: string; onPress: () => void 
   );
 }
 
-export default function View3dOverlay({ objectTemplates, categories, designObjects, room3dProps, setRoom3d , onObjectAdded, onObjectEdited, onObjectDeleted, movingObject, setMovingObject, magnetEnabled, forceEditObject, clearForceEdit, materials, materialCategories, globalMaterials, setGlobalMaterials, designSlots, slotTypesByModel, typeToDesignSlot, onSaveProject, onLoadProject, onSaveProjectCloud, onLoadProjectCloud, onExport3d, isExporting} : View3dOverlayProps) {
+function DropdownItem({
+  label,
+  onPress,
+  busy,
+  chevronOpen,
+  submenu,
+}: {
+  label: string;
+  onPress?: () => void;
+  busy?: boolean;
+  chevronOpen?: boolean;
+  submenu?: boolean;
+}) {
+  return (
+    <Pressable
+      style={({ pressed }) => [
+        styles.dropdownItem,
+        submenu && styles.dropdownSubmenuItem,
+        pressed && !busy && styles.dropdownItemPressed,
+      ]}
+      onPress={onPress}
+      disabled={busy}
+    >
+      {busy ? (
+        <ActivityIndicator size="small" color={COLORS.primary} />
+      ) : (
+        <Text style={styles.dropdownItemText}>{label}</Text>
+      )}
+      {chevronOpen !== undefined && (
+        <Text style={styles.dropdownChevron}>{chevronOpen ? '▾' : '▸'}</Text>
+      )}
+    </Pressable>
+  );
+}
 
+export default function View3dOverlay({ objectTemplates, categories, designObjects, room3dProps, setRoom3d , onObjectAdded, onObjectEdited, onObjectDeleted, movingObject, setMovingObject, magnetEnabled, forceEditObject, clearForceEdit, materials, materialCategories, globalMaterials, setGlobalMaterials, designSlots, slotTypesByModel, typeToDesignSlot, onSaveProject, onLoadProject, onSaveProjectCloud, onExport3d, isExporting} : View3dOverlayProps) {
+
+  const router = useRouter();
   const { width } = useWindowDimensions();
   const [isObjectsManagerVisible, setIsObjectsManagerVisible] = useState(false);
   const [isListInstantiableObjectsVisible, setIsListInstantiableObjectsVisible] = useState(false);
   const [isRoomSettingsVisible, setIsRoomSettingsVisible] = useState(false);
   const [isAddObjectMenuVisible, setIsAddObjectMenuVisible] = useState(false);
   const [isGlobalMaterialsVisible, setIsGlobalMaterialsVisible] = useState(false);
+  const [isOptionsMenuVisible, setIsOptionsMenuVisible] = useState(false);
+  const [isExportMenuVisible, setIsExportMenuVisible] = useState(false);
 
   const [newObjectTypeState, setNewObjectTypeState] = useState<ObjectTemplate | undefined>(undefined);
 
@@ -205,6 +243,21 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
     }
   };
 
+  const toggleOptionsMenu = () => {
+    const newState = !isOptionsMenuVisible;
+    setIsOptionsMenuVisible(newState);
+    if (!newState) setIsExportMenuVisible(false);
+  };
+
+  const toggleExportMenu = () => {
+    setIsExportMenuVisible(prev => !prev);
+  };
+
+  const closeOptionsMenu = () => {
+    setIsOptionsMenuVisible(false);
+    setIsExportMenuVisible(false);
+  };
+
   return (
     <View style={styles.overlay}>
       {/*---------------------------------Menu lateral (Solo desktop)-------------------------------------*/}
@@ -229,15 +282,33 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
           </View>
         )}
 
-      <View style={styles.topUtilityControls}>
-        <ToolbarButton label="Save" onPress={onSaveProject} />
-        <ToolbarButton label="Save Cloud" onPress={onSaveProjectCloud} />
-        <ToolbarButton label="Load" onPress={onLoadProject} />
-        <ToolbarButton label="Load Cloud" onPress={onLoadProjectCloud} />
-        {isExporting ? (
-          <ActivityIndicator size="small" color={COLORS.primary} style={{ marginHorizontal: 8 }} />
-        ) : (
-          <ToolbarButton label="Export 3D" onPress={onExport3d} />
+      {isOptionsMenuVisible && (
+        <Pressable style={styles.menuBackdrop} onPress={closeOptionsMenu} />
+      )}
+      <View style={[styles.optionsContainer, width > 768 ? styles.optionsContainerLeft : styles.optionsContainerRight]}>
+        <ToolbarButton label="Options" onPress={toggleOptionsMenu} />
+        {isOptionsMenuVisible && (
+          <View style={styles.dropdownPanel}>
+            <DropdownItem label="Save project" onPress={() => { closeOptionsMenu(); onSaveProjectCloud(); }} />
+            <DropdownItem label="Load project" onPress={() => { closeOptionsMenu(); router.push('/projectManager'); }} />
+            <View style={styles.dropdownDivider} />
+            <DropdownItem label="Import from file" onPress={() => { closeOptionsMenu(); onLoadProject(); }} />
+            <View style={styles.dropdownExportItem}>
+              <DropdownItem label="Export" chevronOpen={isExportMenuVisible} onPress={toggleExportMenu} />
+              {isExportMenuVisible && width > 768 && (
+                <View style={styles.dropdownSideSubmenu}>
+                  <DropdownItem label="Project file" onPress={() => { closeOptionsMenu(); onSaveProject(); }} />
+                  <DropdownItem label="3d model (.glb)" busy={isExporting} onPress={() => { closeOptionsMenu(); onExport3d(); }} />
+                </View>
+              )}
+            </View>
+            {isExportMenuVisible && width <= 768 && (
+              <View style={styles.dropdownSubmenu}>
+                <DropdownItem submenu label="Project file" onPress={() => { closeOptionsMenu(); onSaveProject(); }} />
+                <DropdownItem submenu label="3d model (.glb)" busy={isExporting} onPress={() => { closeOptionsMenu(); onExport3d(); }} />
+              </View>
+            )}
+          </View>
         )}
       </View>
 
@@ -409,26 +480,102 @@ const styles = StyleSheet.create({
     elevation: 8,
     zIndex: 100,
   },
-  topUtilityControls: {
+  menuBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 90,
+  },
+  optionsContainer: {
     position: 'absolute',
     top: 50,
-    right: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
     zIndex: 100,
-    pointerEvents: "box-none",
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: RADII.pill,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    flexDirection: 'column',
+    alignItems: 'center',
+    pointerEvents: 'box-none',
+  },
+  optionsContainerLeft: {
+    left: 20,
+    alignItems: 'flex-start',
+  },
+  optionsContainerRight: {
+    right: 20,
+    alignItems: 'flex-end',
+  },
+  dropdownPanel: {
+    marginTop: 8,
+    minWidth: 220,
+    backgroundColor: COLORS.bg,
+    borderRadius: RADII.lg,
     borderWidth: 1,
     borderColor: COLORS.borderStrong,
+    paddingVertical: 6,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 8,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 44,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  dropdownItemPressed: {
+    backgroundColor: COLORS.surfaceAlt,
+  },
+  dropdownSubmenuItem: {
+    paddingLeft: 28,
+  },
+  dropdownItemText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textHeading,
+    letterSpacing: 0.3,
+  },
+  dropdownChevron: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginLeft: 8,
+  },
+  dropdownDivider: {
+    height: 1,
+    backgroundColor: COLORS.border,
+    marginVertical: 4,
+  },
+  dropdownSubmenu: {
+    backgroundColor: COLORS.bgAlt,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    marginHorizontal: 8,
+    marginBottom: 6,
+    borderRadius: RADII.md,
+    paddingVertical: 4,
+  },
+  dropdownExportItem: {
+    position: 'relative',
+  },
+  dropdownSideSubmenu: {
+    position: 'absolute',
+    left: '100%',
+    top: 0,
+    marginLeft: 8,
+    minWidth: 200,
+    backgroundColor: COLORS.bg,
+    borderRadius: RADII.lg,
+    borderWidth: 1,
+    borderColor: COLORS.borderStrong,
+    paddingVertical: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 10,
   },
   toolbarButton: {
     paddingVertical: 8,

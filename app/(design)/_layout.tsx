@@ -3,48 +3,51 @@ import { Tabs, useRouter } from "expo-router";
 import { TouchableOpacity, Text, StyleSheet } from "react-native";
 import React from "react";
 import { COLORS, RADII } from "@/constants/theme";
+import ProjectNameEditor from "@/components/DesignScreen/ProjectNameEditor";
+import { CurrentProjectProvider } from "@/services/currentProject";
 
 export default function DesignLayout() {
   const router = useRouter();
 
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: COLORS.textFaint,
-        headerStyle: {
-          backgroundColor: COLORS.bgAlt,
-        },
-        headerShadowVisible: false,
-        headerTintColor: COLORS.text,
-        tabBarStyle: {
-          backgroundColor: COLORS.bg,
-          borderTopColor: COLORS.border,
-        },
-        headerLeft: () => (
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.replace("/hub")}
-          >
-            <Ionicons name="home-outline" size={16} color={COLORS.primary} />
-            <Text style={styles.backText}>Hub</Text>
-          </TouchableOpacity>
-        ),
-      }}
-    >
-      <Tabs.Screen
-        name="design"
-        options={{
-          title: "Diseño 3D",
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? "cube" : "cube-outline"}
-              color={color}
-              size={24}
-            />
+    <CurrentProjectProvider>
+      <Tabs
+        screenOptions={{
+          tabBarActiveTintColor: COLORS.primary,
+          tabBarInactiveTintColor: COLORS.textFaint,
+          headerStyle: {
+            backgroundColor: COLORS.bgAlt,
+          },
+          headerShadowVisible: false,
+          headerTintColor: COLORS.text,
+          tabBarStyle: {
+            backgroundColor: COLORS.bg,
+            borderTopColor: COLORS.border,
+          },
+          headerLeft: () => (
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => router.replace("/hub")}
+            >
+              <Ionicons name="home-outline" size={16} color={COLORS.primary} />
+              <Text style={styles.backText}>Hub</Text>
+            </TouchableOpacity>
           ),
         }}
-      />
+      >
+        <Tabs.Screen
+          name="design"
+          options={{
+            headerTitle: () => <ProjectNameEditor />,
+            tabBarIcon: ({ color, focused }) => (
+              <Ionicons
+                name={focused ? "cube" : "cube-outline"}
+                color={color}
+                size={24}
+              />
+            ),
+          }}
+        />
       <Tabs.Screen
         name="budget"
         options={{
@@ -72,6 +75,7 @@ export default function DesignLayout() {
         }}
       />
     </Tabs>
+    </CurrentProjectProvider>
   );
 }
 
