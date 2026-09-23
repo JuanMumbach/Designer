@@ -25,7 +25,7 @@ export const COLORS = {
   dangerText: '#7f1d1d',
   dangerStrong: '#dc2626',
   overlay: 'rgba(0, 0, 0, 0.4)',
-  sceneBg: '#eef1f5',
+  sceneBg: '#a2a2a2',
   gold: '#fbbf24',
   goldSoft: 'rgba(251, 191, 36, 0.15)',
   goldBorder: 'rgba(251, 191, 36, 0.3)',
