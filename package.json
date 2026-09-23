@@ -2,7 +2,13 @@
   "name": "design",
   "main": "expo-router/entry",
   "version": "1.0.0",
+  "packageManager": "yarn@1.22.22",
+  "engines": {
+    "node": ">=20.0.0",
+    "yarn": ">=1.22.22 <2.0.0"
+  },
   "scripts": {
+    "preinstall": "node scripts/only-allow.js",
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",

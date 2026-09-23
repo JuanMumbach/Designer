@@ -30,6 +30,11 @@ npm run lint           # Run ESLint (expo lint)
 # No test files exist in the codebase
 ```
 
+## Package Manager
+
+- This project uses **Yarn Classic (1.x)**. Never use npm, pnpm, bun, or npx for package manager operations.
+- To install a package: `yarn add <pkg>` / `yarn add -D <pkg>`
+
 ## Code Style Guidelines
 
 ### Imports
