@@ -139,6 +139,11 @@ function getRandomColor() {
     return "#ffffff";
 }
 
+export interface WallCulling {
+    left: boolean;
+    right: boolean;
+}
+
 export default function DesignObjectsRenderer({
   objects,
   origin,
@@ -156,7 +161,8 @@ export default function DesignObjectsRenderer({
   globalMaterialsRaw,
   materialDataById,
   slotTypesByModel,
-  typeToDesignSlot
+  typeToDesignSlot,
+  wallCulling
 }: {
   objects: DesignObject[],
   origin: [number, number, number],
@@ -174,7 +180,8 @@ export default function DesignObjectsRenderer({
   globalMaterialsRaw?: GlobalMaterials,
   materialDataById?: Record<string, AppliedMaterial>,
   slotTypesByModel?: Record<string, ObjectMaterialType[]>,
-  typeToDesignSlot?: Record<string, string>
+  typeToDesignSlot?: Record<string, string>,
+  wallCulling?: WallCulling
 }) {
 
     return (
@@ -208,11 +215,37 @@ export default function DesignObjectsRenderer({
                              materialDataById={materialDataById}
                              slotTypesByModel={slotTypesByModel}
                              typeToDesignSlot={typeToDesignSlot}
+                             forcedHidden={isAttachedToCulledWall(obj, room3d, wallCulling)}
                          />
                      )
             })}
         </>
     );
+}
+
+function isAttachedToCulledWall(obj: DesignObject, room3d: Room3dProps, wallCulling?: WallCulling): boolean {
+    if (!wallCulling) return false;
+    const ROTATION_EPSILON = 0.1;
+    const POSITION_TOLERANCE = 0.05;
+    const rotation = obj.rotation ?? 0;
+
+    if (
+        wallCulling.left &&
+        Math.abs(rotation - Math.PI / 2) < ROTATION_EPSILON &&
+        Math.abs(obj.position[0]) < POSITION_TOLERANCE
+    ) {
+        return true;
+    }
+
+    if (
+        wallCulling.right &&
+        Math.abs(rotation + Math.PI / 2) < ROTATION_EPSILON &&
+        Math.abs(obj.position[0] - room3d.width) < POSITION_TOLERANCE
+    ) {
+        return true;
+    }
+
+    return false;
 }
 
 function DesignObjectWithMaterials({
@@ -238,7 +271,8 @@ function DesignObjectWithMaterials({
   globalMaterialsRaw,
   materialDataById,
   slotTypesByModel,
-  typeToDesignSlot
+  typeToDesignSlot,
+  forcedHidden
 }: {
   obj: DesignObject,
   position: [number, number, number],
@@ -262,7 +296,8 @@ function DesignObjectWithMaterials({
   globalMaterialsRaw?: GlobalMaterials,
   materialDataById?: Record<string, AppliedMaterial>,
   slotTypesByModel?: Record<string, ObjectMaterialType[]>,
-  typeToDesignSlot?: Record<string, string>
+  typeToDesignSlot?: Record<string, string>,
+  forcedHidden?: boolean
 }) {
   const instanceOverrides = useMemo<Record<number, AppliedMaterial>>(() => {
     const overrides = obj.materialOverrides ?? {};
@@ -292,6 +327,7 @@ function DesignObjectWithMaterials({
       globalMaterials={globalMaterials}
       slotTypesByModel={slotTypesByModel}
       typeToDesignSlot={typeToDesignSlot}
+      forcedHidden={forcedHidden}
     />
   );
 }

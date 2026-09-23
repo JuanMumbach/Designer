@@ -71,7 +71,7 @@ export function useDownload3dModel(remoteUrl: string, assetName: string = 'asset
 }
 
 export function DesignObject3D({
-    obj, position, origin, dimensions, modelScale, rotation, onObjectInteraction, isSelected, onObjectEdited, onObjectDeleted, onEditObject, room3d, magnetEnabled, allObjects, onDragStateChange, onSlotsDiscovered, interactionDisabled, instanceOverrides, globalMaterials, slotTypesByModel, typeToDesignSlot
+    obj, position, origin, dimensions, modelScale, rotation, onObjectInteraction, isSelected, onObjectEdited, onObjectDeleted, onEditObject, room3d, magnetEnabled, allObjects, onDragStateChange, onSlotsDiscovered, interactionDisabled, instanceOverrides, globalMaterials, slotTypesByModel, typeToDesignSlot, forcedHidden
 }: {
     obj: DesignObject,
     position: [number, number, number],
@@ -93,7 +93,8 @@ export function DesignObject3D({
     instanceOverrides?: Record<number, AppliedMaterial>,
     globalMaterials?: Record<string, AppliedMaterial>,
     slotTypesByModel?: Record<string, ObjectMaterialType[]>,
-    typeToDesignSlot?: Record<string, string>
+    typeToDesignSlot?: Record<string, string>,
+    forcedHidden?: boolean
 }) {
     const url = obj.modelUrl;
     const { localUri, isLoading, error } = useDownload3dModel(url, obj.id);
@@ -186,13 +187,14 @@ export function DesignObject3D({
     useEffect(() => {
       const group = gltfRef.current;
       if (!group) return;
+      const hide = !!obj.hidden || !!forcedHidden;
       group.traverse((child) => {
-        if (child instanceof THREE.Mesh) child.visible = !obj.hidden;
+        if (child instanceof THREE.Mesh) child.visible = !hide;
       });
       edgeLinesRef.current.forEach((line) => {
-        line.visible = !!obj.hidden;
+        line.visible = hide;
       });
-    }, [obj.hidden, groupReady]);
+    }, [obj.hidden, groupReady, forcedHidden]);
 
     useEffect(() => {
       if (!localUri) return;
