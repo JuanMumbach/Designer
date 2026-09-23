@@ -1,25 +1,27 @@
-import { Box, Gltf, useTexture } from '@react-three/drei/native';
-import ObjectMeasurements3D from './ObjectMeasurements3D';
+import { Billboard, Box, Gltf, ScreenSizer, Text, useTexture } from '@react-three/drei/native';
 import { Asset } from 'expo-asset';
 import * as FileSystem from 'expo-file-system';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Platform } from 'react-native';
 import * as THREE from 'three';
-import { AppliedMaterial, DesignObject } from './DesignObjects';
-import { Room3dProps } from './Room3d';
-import { MoveContext, computeDragMove } from './moveBehaviours';
-import {
-  buildSlotIndexMaps,
-  collectSlots,
-  MaterialSlotInfo,
-  resolveMeshSlot,
-  SlotIndexMaps,
-} from '../../../services/materialSlots';
-import { extractGlbParts, readGlbBytes, sanitizeNodeName } from '../../../services/glbParts';
 import { ObjectMaterialType } from '../../../services/api';
 import { normalizeTypeName } from '../../../services/designMaterialDefaults';
+import { extractGlbParts, readGlbBytes, sanitizeNodeName } from '../../../services/glbParts';
+import {
+    buildSlotIndexMaps,
+    collectSlots,
+    MaterialSlotInfo,
+    resolveMeshSlot,
+    SlotIndexMaps,
+} from '../../../services/materialSlots';
+import { AppliedMaterial, DesignObject } from './DesignObjects';
+import ObjectMeasurements3D from './ObjectMeasurements3D';
+import { Room3dProps } from './Room3d';
+import { computeDragMove, MoveContext } from './moveBehaviours';
 
 let globalIsDragging = false;
+
+const uiPixelScale = 10;
 
 export function useDownload3dModel(remoteUrl: string, assetName: string = 'asset') {
     const [assetUri, setAssetUri] = useState<string | null>(null);
@@ -79,7 +81,7 @@ export function DesignObject3D({
     rotation?: number,
     onObjectInteraction: (object: DesignObject) => void,
     isSelected?: boolean,
-    onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number], rotation?: number }) => void,
+    onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number], rotation?: number, hidden?: boolean }) => void,
     onObjectDeleted?: (id: string) => void,
     onEditObject?: (object: DesignObject) => void,
     room3d: Room3dProps,
@@ -98,6 +100,7 @@ export function DesignObject3D({
     const [isDesktop, setIsDesktop] = useState(false);
 
     const [isDragging, setIsDragging] = useState(false);
+    const [optionsOpen, setOptionsOpen] = useState(false);
     const dragStartPoint = useRef<THREE.Vector3>(new THREE.Vector3());
     const initialPosition = useRef<[number, number, number]>([0, 0, 0]);
 
@@ -110,7 +113,17 @@ export function DesignObject3D({
     const editAsset = Asset.fromModule(require('../../../assets/images/edit-icon.png'));
     const editIconTexture = useTexture(editAsset.uri);
 
+    const eyeAsset = Asset.fromModule(require('../../../assets/images/eye-icon.png'));
+    const eyeIconTexture = useTexture(eyeAsset.uri);
+
+    const menuAsset = Asset.fromModule(require('../../../assets/images/menu-icon.png'));
+    const menuIconTexture = useTexture(menuAsset.uri);
+
+    const menuPanelAsset = Asset.fromModule(require('../../../assets/images/menu-panel.png'));
+    const menuPanelTexture = useTexture(menuPanelAsset.uri);
+
     const gltfRef = useRef<THREE.Group | null>(null);
+    const edgeLinesRef = useRef<THREE.LineSegments[]>([]);
     const originalMaterialsRef = useRef<Map<number, THREE.Material>>(new Map());
     const slotMapsRef = useRef<SlotIndexMaps | null>(null);
     const overrideVersionRef = useRef(0);
@@ -136,6 +149,50 @@ export function DesignObject3D({
 
       setGroupReady(true);
     }, []);
+
+    useEffect(() => {
+      const group = gltfRef.current;
+      if (!group || !groupReady) return;
+
+      const lines: THREE.LineSegments[] = [];
+      group.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          const edgeGeometry = new THREE.EdgesGeometry(child.geometry, 30);
+          const line = new THREE.LineSegments(edgeGeometry, new THREE.LineBasicMaterial({ color: 'white' }));
+          line.position.copy(child.position);
+          line.rotation.copy(child.rotation);
+          line.scale.copy(child.scale);
+          line.visible = false;
+          child.parent?.add(line);
+          lines.push(line);
+        }
+      });
+      edgeLinesRef.current = lines;
+
+      return () => {
+        lines.forEach((line) => {
+          line.parent?.remove(line);
+          line.geometry.dispose();
+          (line.material as THREE.Material).dispose();
+        });
+        edgeLinesRef.current = [];
+      };
+    }, [groupReady]);
+
+    useEffect(() => {
+      if (!isSelected) setOptionsOpen(false);
+    }, [isSelected]);
+
+    useEffect(() => {
+      const group = gltfRef.current;
+      if (!group) return;
+      group.traverse((child) => {
+        if (child instanceof THREE.Mesh) child.visible = !obj.hidden;
+      });
+      edgeLinesRef.current.forEach((line) => {
+        line.visible = !!obj.hidden;
+      });
+    }, [obj.hidden, groupReady]);
 
     useEffect(() => {
       if (!localUri) return;
@@ -368,6 +425,51 @@ export function DesignObject3D({
         });
     };
 
+    const handleCardPress = (e: any) => {
+        e.stopPropagation();
+        const local = e.object.worldToLocal(e.point.clone());
+        const rows: [number, (ev: any) => void][] = [
+            [-0.55, handleEditRowClick],
+            [0, handleHideRowClick],
+            [0.55, handleDeleteRowClick],
+        ];
+        const hit = rows.find(([y]) => Math.abs(local.y - y) <= 0.25);
+        if (hit) hit[1](e);
+    };
+
+    const handleEditRowClick = (e: any) => {
+        e.stopPropagation();
+        setOptionsOpen(false);
+        if (onEditObject) onEditObject(obj);
+    };
+
+    const handleHideRowClick = (e: any) => {
+        e.stopPropagation();
+        setOptionsOpen(false);
+        if (onObjectEdited) onObjectEdited(obj.id, {
+            name: obj.name,
+            position: obj.position,
+            hidden: !obj.hidden,
+        });
+    };
+
+    const handleDeleteRowClick = (e: any) => {
+        e.stopPropagation();
+        setOptionsOpen(false);
+        if (Platform.OS === 'web') {
+            if (window.confirm('Are you sure you want to delete this object?')) {
+                if (onObjectDeleted) onObjectDeleted(obj.id);
+            }
+        } else {
+            Alert.alert('Delete Object', 'Are you sure you want to delete this object?', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Delete', style: 'destructive', onPress: () => {
+                    if (onObjectDeleted) onObjectDeleted(obj.id);
+                }},
+            ]);
+        }
+    };
+
     if (isLoading) {
         return (
             <Box key={obj.id} position={boxPosition} args={dimensions} >
@@ -451,9 +553,9 @@ export function DesignObject3D({
 
                  {(isSelected &&
                      <group>
-                         <sprite
+                         <ScreenSizer
                              position={[dimensions[0] / 2, -0.2, dimensions[2] + 0.2]}
-                             scale={[.75, .75, .75]}
+                             scale={0.75 * uiPixelScale}
                              onPointerDown={(e) => {
                                  e.stopPropagation();
                                  setIsDragging(true);
@@ -463,56 +565,142 @@ export function DesignObject3D({
                                  if (onDragStateChange) onDragStateChange(true);
                              }}
                          >
-                             <spriteMaterial
-                                 map={dragIconTexture}
-                                 color="white"
-                                 depthTest={false}
-                                 transparent={true}
-                             />
-                         </sprite>
-                         <sprite
-                             position={[dimensions[0] - 0.1, dimensions[1] + 0.2, 0]}
-                             scale={[0.2, 0.2, 0.2]}
-                             onPointerDown={(e) => {
-                                 e.stopPropagation();
-                                 if (Platform.OS === 'web') {
-                                     if (window.confirm('Are you sure you want to delete this object?')) {
-                                         if (onObjectDeleted) onObjectDeleted(obj.id);
-                                     }
-                                 } else {
-                                     Alert.alert('Delete Object', 'Are you sure you want to delete this object?', [
-                                         { text: 'Cancel', style: 'cancel' },
-                                         { text: 'Delete', style: 'destructive', onPress: () => {
-                                             if (onObjectDeleted) onObjectDeleted(obj.id);
-                                         }},
-                                     ]);
-                                 }
-                             }}
-                         >
-                             <spriteMaterial
-                                 map={deleteIconTexture}
-                                 color="#ffffffff"
-                                 depthTest={false}
-                                 transparent={true}
-                             />
-                         </sprite>
-                         <sprite
-                             position={[0.1, dimensions[1] + 0.2, 0]}
-                             scale={[0.26, 0.26, 0.26]}
-                             onPointerDown={(e) => {
-                                 e.stopPropagation();
-                                 if (onEditObject) onEditObject(obj);
-                             }}
-                         >
-                             <spriteMaterial
-                                 map={editIconTexture}
-                                 color="#ffffffff"
-                                 depthTest={false}
-                                 transparent={true}
-                             />
-                         </sprite>
-                         
-                         {/* Measurements - show when object is selected */}
+                             <sprite scale={[1, 1, 1]}>
+                                 <spriteMaterial
+                                     map={dragIconTexture}
+                                     color="white"
+                                     depthTest={false}
+                                     transparent={true}
+                                 />
+                             </sprite>
+                         </ScreenSizer>
+                         {!optionsOpen && (
+                            <ScreenSizer
+                                position={[dimensions[0] / 2, dimensions[1] + 0.2, 0]}
+                                scale={0.66 * uiPixelScale}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setOptionsOpen(true);
+                                }}
+                            >
+                                <sprite scale={[1, 1, 1]}>
+                                    <spriteMaterial
+                                        map={menuIconTexture}
+                                        color="#111827"
+                                        depthTest={false}
+                                        transparent={true}
+                                    />
+                                </sprite>
+                            </ScreenSizer>
+                        )}
+                        {optionsOpen && (
+                            <ScreenSizer
+                                position={[dimensions[0] / 2, dimensions[1] + 1, 0]}
+                                scale={uiPixelScale}
+                            >
+                                <Billboard>
+                                    <sprite
+                                        position={[0, 0, 0]}
+                                        scale={[2, 2, 1]}
+                                        renderOrder={1}
+                                    >
+                                        <spriteMaterial
+                                            map={menuPanelTexture}
+                                            depthTest={false}
+                                            transparent={true}
+                                            opacity={1}
+                                        />
+                                    </sprite>
+                                    <mesh
+                                        position={[0, 0, 0.05]}
+                                        onClick={handleCardPress}
+                                        onPointerDown={(e) => {
+                                            e.stopPropagation();
+                                        }}
+                                    >
+                                        <planeGeometry args={[2, 2]} />
+                                        <meshBasicMaterial transparent opacity={0} depthTest={false} side={2} />
+                                    </mesh>
+                                    <group position={[-0.5, -0.55, 0]}>
+                                        <sprite
+                                            scale={[0.28, 0.28, 0.28]}
+                                            renderOrder={2}
+                                        >
+                                            <spriteMaterial
+                                                map={editIconTexture}
+                                                color="#111827"
+                                                depthTest={false}
+                                                transparent={true}
+                                            />
+                                        </sprite>
+                                        <Text
+                                            position={[0.32, 0, 0]}
+                                            fontSize={0.2}
+                                            color="#111827"
+                                            anchorX="left"
+                                            anchorY="middle"
+                                            renderOrder={3}
+                                            material-depthTest={false}
+                                            material-transparent={true}
+                                        >
+                                            Edit
+                                        </Text>
+                                    </group>
+                                    <group position={[-0.5, 0, 0]}>
+                                        <sprite
+                                            scale={[0.28, 0.28, 0.28]}
+                                            renderOrder={2}
+                                        >
+                                            <spriteMaterial
+                                                map={eyeIconTexture}
+                                                color="#111827"
+                                                depthTest={false}
+                                                transparent={true}
+                                            />
+                                        </sprite>
+                                        <Text
+                                            position={[0.32, 0, 0]}
+                                            fontSize={0.2}
+                                            color="#111827"
+                                            anchorX="left"
+                                            anchorY="middle"
+                                            renderOrder={3}
+                                            material-depthTest={false}
+                                            material-transparent={true}
+                                        >
+                                            {obj.hidden ? 'Show' : 'Hide'}
+                                        </Text>
+                                    </group>
+                                    <group position={[-0.5, 0.55, 0]}>
+                                        <sprite
+                                            scale={[0.28, 0.28, 0.28]}
+                                            renderOrder={2}
+                                        >
+                                            <spriteMaterial
+                                                map={deleteIconTexture}
+                                                color="#dc2626"
+                                                depthTest={false}
+                                                transparent={true}
+                                            />
+                                        </sprite>
+                                        <Text
+                                            position={[0.32, 0, 0]}
+                                            fontSize={0.2}
+                                            color="#dc2626"
+                                            anchorX="left"
+                                            anchorY="middle"
+                                            renderOrder={3}
+                                            material-depthTest={false}
+                                            material-transparent={true}
+                                        >
+                                            Delete
+                                        </Text>
+                                    </group>
+                                </Billboard>
+                            </ScreenSizer>
+                        )}
+                        
+                        {/* Measurements - show when object is selected */}
                          <ObjectMeasurements3D
                              object={obj}
                              allObjects={allObjects}

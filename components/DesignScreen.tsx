@@ -301,7 +301,7 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
     setDesignObjects(prev => [...prev, newObject]);
   };
 
-  const handleObjectEdited = (id: string, updates: { name: string, position: [number, number, number], rotation?: number, materialOverrides?: MaterialOverrides }) => {
+  const handleObjectEdited = (id: string, updates: { name: string, position: [number, number, number], rotation?: number, materialOverrides?: MaterialOverrides, hidden?: boolean }) => {
     setDesignObjects(prev => prev.map(obj =>
       obj.id === id ? {
         ...obj,
@@ -309,6 +309,7 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
         position: updates.position,
         ...(updates.rotation !== undefined && { rotation: updates.rotation }),
         ...(updates.materialOverrides !== undefined && { materialOverrides: updates.materialOverrides }),
+        ...(updates.hidden !== undefined && { hidden: updates.hidden }),
       } : obj
     ));
   };

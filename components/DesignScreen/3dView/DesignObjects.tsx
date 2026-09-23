@@ -68,6 +68,7 @@ export interface DesignObject {
     objectProperties?: ObjectProperties;
     slots?: MaterialSlotInfo[];
     materialOverrides?: MaterialOverrides;
+    hidden?: boolean;
 }
 
 export function createDesignObject(template: ObjectTemplate, position?: [number, number, number]): DesignObject {
@@ -83,6 +84,7 @@ export function createDesignObject(template: ObjectTemplate, position?: [number,
         modelUrl: template.modelUrl,
         objectProperties: template.objectProperties,
         materialOverrides: {},
+        hidden: false,
     };
 }
 
@@ -159,7 +161,7 @@ export default function DesignObjectsRenderer({
   objects: DesignObject[],
   origin: [number, number, number],
   onObjectInteraction: (object: DesignObject) => void,
-  onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number], rotation?: number, materialOverrides?: MaterialOverrides }) => void,
+  onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number], rotation?: number, materialOverrides?: MaterialOverrides, hidden?: boolean }) => void,
   onObjectDeleted?: (id: string) => void,
   onEditObject?: (object: DesignObject) => void,
   movingObjectId?: string,
@@ -247,7 +249,7 @@ function DesignObjectWithMaterials({
   rotation?: number,
   isSelected?: boolean,
   onObjectInteraction: (object: DesignObject) => void,
-  onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number], rotation?: number, materialOverrides?: MaterialOverrides }) => void,
+  onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number], rotation?: number, materialOverrides?: MaterialOverrides, hidden?: boolean }) => void,
   onObjectDeleted?: (id: string) => void,
   onEditObject?: (object: DesignObject) => void,
   room3d: Room3dProps,

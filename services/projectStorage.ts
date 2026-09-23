@@ -39,6 +39,7 @@ export interface ProjectInstance {
   objectProperties?: any;
   textureOverrides?: ProjectTextureOverride[];
   materialOverrides?: MaterialOverrides;
+  hidden?: boolean;
 }
 
 export interface ProjectStateDTO {
@@ -73,6 +74,7 @@ export function serializeProjectState(room3d: Room3dProps, designObjects: Design
       color: obj.color,
       objectProperties: obj.objectProperties,
       ...(obj.materialOverrides ? { materialOverrides: obj.materialOverrides } : {}),
+      ...(obj.hidden !== undefined ? { hidden: obj.hidden } : {}),
     })),
   };
 }
@@ -108,6 +110,7 @@ export async function deserializeProjectState(
       modelUrl: modelUrl || '', // What if modelUrl is undefined?
       objectProperties: inst.objectProperties,
       materialOverrides,
+      hidden: inst.hidden,
     };
   }));
 
