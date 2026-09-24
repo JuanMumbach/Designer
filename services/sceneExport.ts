@@ -7,7 +7,7 @@ import {
   resolveMeshSlot,
 } from '@/services/materialSlots';
 import { extractGlbParts, sanitizeNodeName } from '@/services/glbParts';
-import { resolveMaterialValue } from '@/services/designMaterialDefaults';
+import { normalizeTypeName, resolveMaterialValue } from '@/services/designMaterialDefaults';
 import { ObjectMaterialType } from '@/services/api';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
@@ -88,19 +88,27 @@ function loadGLBFromUrl(url: string): Promise<{ group: THREE.Group; bytes: Uint8
   });
 }
 
-function applyMaterialOverrides(
+function loadTextureAsync(url: string): Promise<THREE.Texture> {
+  return new Promise((resolve, reject) => {
+    const loader = new THREE.TextureLoader();
+    loader.load(url, resolve, undefined, reject);
+  });
+}
+
+async function applyMaterialOverrides(
   group: THREE.Group,
   materialOverrides: MaterialOverrides | undefined,
   materialDataById: Record<string, AppliedMaterial> | undefined,
   maps: ReturnType<typeof buildSlotIndexMaps>,
   globalMaterials: GlobalMaterials,
   slotTypes: ObjectMaterialType[] | null,
-  typeToDesignSlot: Record<string, string>
+  typeToDesignSlot: Record<string, string>,
+  dimensions: [number, number, number]
 ) {
   if ((!materialOverrides || Object.keys(materialOverrides).length === 0) && Object.keys(globalMaterials).length === 0) return;
 
-  const textureLoader = new THREE.TextureLoader();
   const resolvedGlobals = resolveGlobalMaterials(globalMaterials);
+  const tasks: Promise<void>[] = [];
 
   group.traverse((child) => {
     if (child instanceof THREE.Mesh && child.material) {
@@ -115,7 +123,7 @@ function applyMaterialOverrides(
       if (!materialId && Object.keys(globalMaterials).length > 0) {
         const slotType = slotTypes?.find(t => t.slot === slot);
         const typeName = slotType?.materialTypeName || slotType?.materialTypeId || '';
-        const designKey = typeName ? typeToDesignSlot[typeName] : undefined;
+        const designKey = typeName ? typeToDesignSlot[normalizeTypeName(typeName)] : undefined;
         if (designKey && resolvedGlobals[designKey]) {
           materialId = resolvedGlobals[designKey];
         } else {
@@ -128,20 +136,37 @@ function applyMaterialOverrides(
       const override = materialId ? materialDataById?.[materialId] : undefined;
       if (!override || !override.fileURL) return;
 
-      const texture = textureLoader.load(override.fileURL);
-      texture.wrapS = THREE.RepeatWrapping;
-      texture.wrapT = THREE.RepeatWrapping;
+      tasks.push(
+        loadTextureAsync(override.fileURL)
+          .then((texture) => {
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
 
-      if (override.scaleU > 0 && override.scaleV > 0) {
-        texture.repeat.set(override.scaleU, override.scaleV);
-      }
+            if (
+              override.scaleU > 0 &&
+              override.scaleV > 0 &&
+              texture.image?.width &&
+              texture.image?.height
+            ) {
+              texture.repeat.set(
+                (override.scaleU * dimensions[0]) / texture.image.width,
+                (override.scaleV * dimensions[1]) / texture.image.height
+              );
+            }
 
-      const newMat = (child.material as THREE.MeshStandardMaterial).clone();
-      newMat.map = texture;
-      newMat.needsUpdate = true;
-      child.material = newMat;
+            const newMat = (child.material as THREE.MeshStandardMaterial).clone();
+            newMat.map = texture;
+            newMat.needsUpdate = true;
+            child.material = newMat;
+          })
+          .catch((err) => {
+            console.warn(`Export: failed to load material texture ${override.fileURL}:`, err);
+          })
+      );
     }
   });
+
+  await Promise.all(tasks);
 }
 
 async function addFurnitureToScene(
@@ -177,7 +202,7 @@ async function addFurnitureToScene(
       modelGroup.scale.set(0.01, 0.01, 0.01);
 
       const slotTypes = slotTypesByModel[`${obj.modelId}:${obj.version}`] ?? null;
-      applyMaterialOverrides(modelGroup, obj.materialOverrides, materialDataById, maps, globalMaterials, slotTypes, typeToDesignSlot);
+      await applyMaterialOverrides(modelGroup, obj.materialOverrides, materialDataById, maps, globalMaterials, slotTypes, typeToDesignSlot, obj.dimensions);
 
       container.add(modelGroup);
       container.name = obj.name;
