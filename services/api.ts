@@ -22,6 +22,7 @@ export interface BackendUser {
   emailAddress: string;
   name?: string | null;
   lastname?: string | null;
+  profilePictureURL?: string | null;
 }
 
 export async function fetchAllUsers(): Promise<BackendUser[]> {
@@ -30,6 +31,27 @@ export async function fetchAllUsers(): Promise<BackendUser[]> {
     throw new Error(`Failed to fetch users: ${response.status}`);
   }
   return response.json();
+}
+
+export async function fetchUser(id: string): Promise<BackendUser> {
+  const response = await apiFetch(`/api/User/${id}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch user ${id}: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function updateUser(
+  id: string,
+  body: { name?: string; lastname?: string; profilePictureURL?: string }
+): Promise<void> {
+  const response = await apiFetch(`/api/User/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to update user ${id}: ${response.status}`);
+  }
 }
 
 export async function syncUserWithBackend(user: User): Promise<string | null> {
@@ -126,6 +148,7 @@ export interface ObjectVersion {
   object: unknown | null;
   version: number;
   fileURL: string;
+  thumbnailURL?: string | null;
   sizeX: number;
   sizeY: number;
   sizeZ: number;
@@ -307,6 +330,7 @@ export async function createObjectVersion(
     sizeZ: number;
     objectProperties?: string;
     creatorId: string;
+    thumbnailURL?: string;
   }
 ): Promise<ObjectVersion> {
   const response = await apiFetch(`/api/ObjectVersion/${objectId}`, {
@@ -348,6 +372,7 @@ export interface MaterialData {
   material: MaterialMeta | null;
   version: number;
   fileURL: string;
+  thumbnailURL?: string | null;
   scaleU: number;
   scaleV: number;
   materialProperties: string;
@@ -556,6 +581,7 @@ export async function createMaterialVersion(
     scaleV: number;
     materialProperties?: string;
     creatorId: string;
+    thumbnailURL?: string;
   }
 ): Promise<MaterialData> {
   const response = await apiFetch(`/api/MaterialData/${materialId}`, {
@@ -709,6 +735,7 @@ export async function deleteObjectMaterialType(
 export interface Workspace {
   id: string;
   name: string;
+  logoURL?: string | null;
   creatorId: string;
   creator: unknown | null;
   createdAt: string;
@@ -728,6 +755,7 @@ export async function fetchAllWorkspaces(): Promise<Workspace[]> {
 export async function createWorkspace(body: {
   name: string;
   creatorId: string;
+  logoURL?: string;
 }): Promise<Workspace> {
   const response = await apiFetch('/api/Workspace', {
     method: 'POST',
@@ -737,6 +765,19 @@ export async function createWorkspace(body: {
     throw new Error(`Failed to create workspace: ${response.status}`);
   }
   return response.json();
+}
+
+export async function updateWorkspace(
+  id: string,
+  body: { name?: string; logoURL?: string }
+): Promise<void> {
+  const response = await apiFetch(`/api/Workspace/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to update workspace ${id}: ${response.status}`);
+  }
 }
 
 // ── Workspace Members API ──
@@ -880,6 +921,7 @@ export interface ProjectVersion {
   project: Project | null;
   version: number;
   fileURL: string;
+  thumbnailURL?: string | null;
   creatorId: string;
   creator: unknown | null;
   createdAt?: string;
@@ -953,6 +995,7 @@ export async function createProjectVersion(
     content: string;
     creatorId: string;
     description?: string;
+    thumbnailURL?: string;
   }
 ): Promise<ProjectVersion> {
   const response = await apiFetch(`/api/ProjectVersion/${projectId}`, {

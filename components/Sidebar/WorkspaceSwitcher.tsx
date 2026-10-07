@@ -12,6 +12,7 @@ import {
 import { COLORS, RADII } from "../../constants/theme";
 import { useAuth } from "../../services/AuthContext";
 import { useWorkspaces } from "../../services/useWorkspaces";
+import Thumbnail from "../Thumbnail";
 
 const PERSONAL_LABEL = "Espacio personal";
 
@@ -26,13 +27,14 @@ export default function WorkspaceSwitcher({ collapsed }: { collapsed: boolean })
   } | null>(null);
   const triggerRef = useRef<View>(null);
 
-  const currentName = useMemo(() => {
-    if (selectedWorkspaceId === null) return PERSONAL_LABEL;
+  const currentWorkspace = useMemo(() => {
+    if (selectedWorkspaceId === null) return null;
     return (
-      myWorkspaces.find((ws) => ws.id === selectedWorkspaceId)?.name ??
-      PERSONAL_LABEL
+      myWorkspaces.find((ws) => ws.id === selectedWorkspaceId) ?? null
     );
   }, [selectedWorkspaceId, myWorkspaces]);
+
+  const currentName = currentWorkspace?.name ?? PERSONAL_LABEL;
 
   useEffect(() => {
     if (isLoading || error || selectedWorkspaceId === null) return;
@@ -57,9 +59,13 @@ export default function WorkspaceSwitcher({ collapsed }: { collapsed: boolean })
     setOpen(false);
   };
 
-  const rows: { id: string | null; name: string }[] = [
+  const rows: { id: string | null; name: string; logoURL?: string | null }[] = [
     { id: null, name: PERSONAL_LABEL },
-    ...myWorkspaces.map((ws) => ({ id: ws.id as string | null, name: ws.name })),
+    ...myWorkspaces.map((ws) => ({
+      id: ws.id as string | null,
+      name: ws.name,
+      logoURL: ws.logoURL,
+    })),
   ];
 
   return (
@@ -75,11 +81,20 @@ export default function WorkspaceSwitcher({ collapsed }: { collapsed: boolean })
         accessibilityRole="button"
         accessibilityLabel={`Workspace actual: ${currentName}. Cambiar workspace`}
       >
-        <Ionicons
-          name={selectedWorkspaceId === null ? "person" : "business"}
-          size={16}
-          color={COLORS.primary}
-        />
+        {selectedWorkspaceId !== null && currentWorkspace?.logoURL ? (
+          <Thumbnail
+            uri={currentWorkspace.logoURL}
+            size={16}
+            icon="business"
+            radius={RADII.sm}
+          />
+        ) : (
+          <Ionicons
+            name={selectedWorkspaceId === null ? "person" : "business"}
+            size={16}
+            color={COLORS.primary}
+          />
+        )}
         {!collapsed && (
           <>
             <Text style={styles.triggerText} numberOfLines={1}>
@@ -134,11 +149,20 @@ export default function WorkspaceSwitcher({ collapsed }: { collapsed: boolean })
                         ]}
                         onPress={() => handleSelect(row.id)}
                       >
-                        <Ionicons
-                          name={row.id === null ? "person" : "business"}
-                          size={14}
-                          color={isActive ? COLORS.primary : COLORS.textMuted}
-                        />
+                        {row.id !== null && row.logoURL ? (
+                          <Thumbnail
+                            uri={row.logoURL}
+                            size={14}
+                            icon="business"
+                            radius={RADII.sm}
+                          />
+                        ) : (
+                          <Ionicons
+                            name={row.id === null ? "person" : "business"}
+                            size={14}
+                            color={isActive ? COLORS.primary : COLORS.textMuted}
+                          />
+                        )}
                         <Text
                           style={[styles.rowText, isActive && styles.rowTextActive]}
                           numberOfLines={1}

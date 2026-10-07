@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { usePathname, useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Pressable,
   StyleSheet,
@@ -11,6 +11,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS, RADII } from "../../constants/theme";
 import { useAuth } from "../../services/AuthContext";
+import { fetchUser } from "../../services/api";
+import Thumbnail from "../Thumbnail";
 import WorkspaceSwitcher from "./WorkspaceSwitcher";
 
 const EXPANDED_WIDTH = 220;
@@ -22,7 +24,7 @@ const navItems: {
   label: string;
   icon: React.ComponentProps<typeof Ionicons>["name"];
   iconActive: React.ComponentProps<typeof Ionicons>["name"];
-  href: "/projectManager" | "/materials" | "/roles";
+  href: "/projectManager" | "/materials" | "/roles" | "/profile";
   prefixes: string[];
 }[] = [
   {
@@ -49,6 +51,14 @@ const navItems: {
     href: "/roles",
     prefixes: ["/roles", "/rules", "/materialTypes", "/workspaces"],
   },
+  {
+    key: "profile",
+    label: "Perfil",
+    icon: "person-circle-outline",
+    iconActive: "person-circle",
+    href: "/profile",
+    prefixes: ["/profile"],
+  },
 ];
 
 export default function AppSidebar() {
@@ -56,8 +66,25 @@ export default function AppSidebar() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const { user, signOut } = useAuth();
+  const { user, backendUserId, signOut } = useAuth();
   const [manuallyCollapsed, setManuallyCollapsed] = useState(false);
+  const [profilePictureURL, setProfilePictureURL] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!backendUserId) {
+      setProfilePictureURL(null);
+      return;
+    }
+    fetchUser(backendUserId)
+      .then((p) => {
+        if (!cancelled) setProfilePictureURL(p.profilePictureURL ?? null);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [backendUserId]);
 
   const isNarrow = width < NARROW_BREAKPOINT;
   const collapsed = isNarrow || manuallyCollapsed;
@@ -144,6 +171,28 @@ export default function AppSidebar() {
       </View>
 
       <View style={styles.footer}>
+        <Pressable
+          style={({ pressed }) => [
+            styles.profileItem,
+            collapsed && styles.itemCollapsed,
+            pressed && styles.signOutPressed,
+          ]}
+          onPress={() => router.push("/profile")}
+          accessibilityRole="button"
+          accessibilityLabel="Perfil"
+        >
+          <Thumbnail
+            uri={profilePictureURL}
+            size={22}
+            icon="person"
+            radius={RADII.full}
+          />
+          {!collapsed && (
+            <Text style={styles.signOutText} numberOfLines={1}>
+              {user?.email ? user.email.split("@")[0] : "Perfil"}
+            </Text>
+          )}
+        </Pressable>
         <Pressable
           style={({ pressed }) => [
             styles.signOut,
@@ -266,6 +315,15 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 8,
     paddingHorizontal: 10,
+    borderRadius: RADII.sm,
+    minHeight: 36,
+  },
+  profileItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
     borderRadius: RADII.sm,
     minHeight: 36,
   },

@@ -224,7 +224,8 @@ export async function saveProjectToCloud(
   projectId: string,
   creatorId: string,
   description?: string,
-  filename: string = 'project.json'
+  filename: string = 'project.json',
+  thumbnailURL?: string
 ): Promise<string> {
   const jsonString = JSON.stringify(projectState, null, 2);
   let uri: string;
@@ -245,6 +246,7 @@ export async function saveProjectToCloud(
       content: fileURL,
       creatorId,
       ...(description ? { description } : {}),
+      ...(thumbnailURL ? { thumbnailURL } : {}),
     });
     return fileURL;
   } finally {
@@ -261,6 +263,7 @@ export async function createProjectInCloud(
     workspaceId?: string;
     creatorId: string;
     description?: string;
+    thumbnailURL?: string;
   }
 ): Promise<{ project: Project; fileURL: string }> {
   const project = await createProject({
@@ -274,7 +277,8 @@ export async function createProjectInCloud(
     project.id,
     options.creatorId,
     options.description,
-    `${safeName || 'project'}.json`
+    `${safeName || 'project'}.json`,
+    options.thumbnailURL
   );
   return { project, fileURL };
 }

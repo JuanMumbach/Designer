@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleProp, StyleSheet, Text, View, ViewStyle } from "react-native";
 import Button from "../../Button";
 import { MaterialCategory, MaterialMeta, fetchMaterialVersion, MaterialData } from "../../../services/api";
 import { COLORS, GLASS, RADII } from "@/constants/theme";
 import GlassSurface from "./GlassSurface";
+import Thumbnail from "../../Thumbnail";
 
 interface MaterialPickerProps {
   materials: MaterialMeta[];
@@ -28,11 +29,43 @@ export default function MaterialPicker({ materials, categories, onSelect, onClos
   const [currentCategoryId, setCurrentCategoryId] = useState<string | null>(null);
   const [categoryStack, setCategoryStack] = useState<string[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
+  const thumbnailAttemptedRef = useRef<Set<string>>(new Set());
 
   const rootCategories = categories.filter(c => c.parentCategoryId === null);
   const currentSubcategories = categories.filter(c => c.parentCategoryId === currentCategoryId);
   const materialsInCategory = materials.filter(m => m.categoryId === currentCategoryId);
   const uncategorizedMaterials = materials.filter(m => !m.categoryId);
+
+  useEffect(() => {
+    const target =
+      currentCategoryId === null ? uncategorizedMaterials : materialsInCategory;
+    const missing = target
+      .filter(m => !(m.id in thumbnails))
+      .filter(m => !thumbnailAttemptedRef.current.has(m.id));
+    if (missing.length === 0) return;
+    let cancelled = false;
+    Promise.all(
+      missing.map(m =>
+        fetchMaterialVersion(m.id, m.lastVersion)
+          .then(v => (v.thumbnailURL ? ([m.id, v.thumbnailURL] as const) : null))
+          .catch(() => null)
+      )
+    ).then(results => {
+      if (cancelled) return;
+      setThumbnails(prev => {
+        const next = { ...prev };
+        for (const r of results) {
+          if (r) next[r[0]] = r[1];
+        }
+        return next;
+      });
+    });
+    for (const m of missing) thumbnailAttemptedRef.current.add(m.id);
+    return () => {
+      cancelled = true;
+    };
+  }, [currentCategoryId, materials, thumbnails]);
 
   const handleCategoryPress = (cat: MaterialCategory) => {
     setCategoryStack(prev => [...prev, cat.id]);
@@ -105,6 +138,14 @@ export default function MaterialPicker({ materials, categories, onSelect, onClos
                   onPress={() => handleMaterialPress(mat)}
                   disabled={!!selectedId}
                 >
+                  <View style={styles.materialThumb}>
+                    <Thumbnail
+                      uri={thumbnails[mat.id]}
+                      size={32}
+                      icon="layers-outline"
+                      radius={RADII.md}
+                    />
+                  </View>
                   <View style={styles.materialInfo}>
                     <Text style={styles.materialName}>{mat.name}</Text>
                     <Text style={styles.materialMeta}>v{mat.lastVersion}</Text>
@@ -121,6 +162,14 @@ export default function MaterialPicker({ materials, categories, onSelect, onClos
                   onPress={() => handleMaterialPress(mat)}
                   disabled={!!selectedId}
                 >
+                  <View style={styles.materialThumb}>
+                    <Thumbnail
+                      uri={thumbnails[mat.id]}
+                      size={32}
+                      icon="layers-outline"
+                      radius={RADII.md}
+                    />
+                  </View>
                   <View style={styles.materialInfo}>
                     <Text style={styles.materialName}>{mat.name}</Text>
                     <Text style={styles.materialMeta}>v{mat.lastVersion}</Text>
@@ -219,6 +268,9 @@ const styles = StyleSheet.create({
   },
   materialInfo: {
     flex: 1,
+    marginRight: 10,
+  },
+  materialThumb: {
     marginRight: 10,
   },
   materialName: {

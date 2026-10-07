@@ -34,6 +34,12 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Permite a Designer acceder a tus fotos para escoger una foto de perfil, logo o miniatura."
+        }
       ]
     ],
     "experiments": {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -38,6 +38,11 @@ import { MaterialSlotInfo } from '../../../services/materialSlots';
 import { COLORS } from '@/constants/theme';
 import MaterialEditor, { MaterialFormData } from './MaterialEditor';
 import MaterialPreview from './MaterialPreview';
+import Thumbnail from '../../Thumbnail';
+import {
+  createThumbnailCaptureApi,
+  ThumbnailCaptureApi,
+} from '../../../services/thumbnailCapture';
 
 function getBreadcrumbPath(
   categoryId: string | null,
@@ -79,6 +84,47 @@ export default function MaterialBrowser({
   const [showCreator, setShowCreator] = useState(false);
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([]);
+
+  const captureApi = useMemo<ThumbnailCaptureApi>(
+    () => createThumbnailCaptureApi(),
+    []
+  );
+
+  // ── Thumbnail URLs per listed material (latest version) ──
+  const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
+  const thumbnailAttemptedRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const target =
+      currentCategoryId === null
+        ? materials.filter((m) => !m.categoryId)
+        : materials.filter((m) => m.categoryId === currentCategoryId);
+    const missing = target
+      .filter((m) => !(m.id in thumbnails))
+      .filter((m) => !thumbnailAttemptedRef.current.has(m.id));
+    if (missing.length === 0) return;
+    let cancelled = false;
+    Promise.all(
+      missing.map((m) =>
+        fetchMaterialVersion(m.id, m.lastVersion)
+          .then((v) => (v.thumbnailURL ? ([m.id, v.thumbnailURL] as const) : null))
+          .catch(() => null)
+      )
+    ).then((results) => {
+      if (cancelled) return;
+      setThumbnails((prev) => {
+        const next = { ...prev };
+        for (const r of results) {
+          if (r) next[r[0]] = r[1];
+        }
+        return next;
+      });
+    });
+    for (const m of missing) thumbnailAttemptedRef.current.add(m.id);
+    return () => {
+      cancelled = true;
+    };
+  }, [currentCategoryId, materials, thumbnails]);
 
   useEffect(() => {
     let isMounted = true;
@@ -181,12 +227,14 @@ export default function MaterialBrowser({
         await categorizeMaterialType({ id: editingMaterial.id, typeId: data.typeId });
       }
       if (data.fileURL || data.scaleU || data.scaleV || data.materialProperties) {
+        const thumbnailURL = await captureApi.requestCapture('thumbnails');
         await createMaterialVersion(editingMaterial.id, {
           fileURL: data.fileURL,
           scaleU: parseFloat(data.scaleU) || 1,
           scaleV: parseFloat(data.scaleV) || 1,
           materialProperties: data.materialProperties || undefined,
           creatorId: data.creatorId || editingMaterial.creatorId,
+          thumbnailURL: thumbnailURL || undefined,
         });
       }
     } else {
@@ -198,12 +246,14 @@ export default function MaterialBrowser({
       if (data.typeId) {
         await categorizeMaterialType({ id: meta.id, typeId: data.typeId });
       }
+      const thumbnailURL = await captureApi.requestCapture('thumbnails');
       await createMaterialVersion(meta.id, {
         fileURL: data.fileURL,
         scaleU: parseFloat(data.scaleU) || 1,
         scaleV: parseFloat(data.scaleV) || 1,
         materialProperties: data.materialProperties || undefined,
         creatorId: data.creatorId,
+        thumbnailURL: thumbnailURL || undefined,
       });
     }
     setEditingMaterial(null);
@@ -438,6 +488,13 @@ export default function MaterialBrowser({
                       style={styles.materialItem}
                       onPress={() => setEditingMaterial(mat)}
                     >
+                      <View style={styles.materialThumb}>
+                        <Thumbnail
+                          uri={thumbnails[mat.id]}
+                          size={36}
+                          icon="layers-outline"
+                        />
+                      </View>
                       <View style={styles.materialInfo}>
                         <Text style={styles.materialName}>{mat.name}</Text>
                         <Text style={styles.materialMeta}>
@@ -459,6 +516,13 @@ export default function MaterialBrowser({
                       style={styles.materialItem}
                       onPress={() => setEditingMaterial(mat)}
                     >
+                      <View style={styles.materialThumb}>
+                        <Thumbnail
+                          uri={thumbnails[mat.id]}
+                          size={36}
+                          icon="layers-outline"
+                        />
+                      </View>
                       <View style={styles.materialInfo}>
                         <Text style={styles.materialName}>{mat.name}</Text>
                         <Text style={styles.materialMeta}>
@@ -617,6 +681,7 @@ export default function MaterialBrowser({
         onSlotsDiscovered={handleSlotsDiscovered}
         scaleU={liveScaleU}
         scaleV={liveScaleV}
+        captureApi={captureApi}
       />
       {discoveredSlots.length > 0 && (
         <View style={styles.meshSlotsSection}>
@@ -841,6 +906,9 @@ const styles = StyleSheet.create({
   },
   materialInfo: {
     flex: 1,
+    marginRight: 10,
+  },
+  materialThumb: {
     marginRight: 10,
   },
   materialName: {

@@ -5,6 +5,10 @@ import { Platform, StyleSheet, View } from 'react-native';
 import * as THREE from 'three';
 import PreviewEnvironment from '../PreviewScene';
 import {
+  ThumbnailCaptureApi,
+  ThumbnailCaptureHost,
+} from '../../../services/thumbnailCapture';
+import {
   buildSlotIndexMaps,
   collectSlots,
   MaterialSlotInfo,
@@ -20,6 +24,7 @@ export default function MaterialPreview({
   onSlotsDiscovered,
   scaleU = 1,
   scaleV = 1,
+  captureApi,
 }: {
   modelUrl: string | null;
   textureUri: string | null;
@@ -27,6 +32,7 @@ export default function MaterialPreview({
   onSlotsDiscovered: (slots: MaterialSlotInfo[]) => void;
   scaleU?: number;
   scaleV?: number;
+  captureApi?: ThumbnailCaptureApi;
 }) {
   const gltfRef = useRef<THREE.Group | null>(null);
   const originalMaterialsRef = useRef<Map<number, THREE.Material>>(new Map());
@@ -224,6 +230,7 @@ export default function MaterialPreview({
               <meshStandardMaterial color="#9ca3af" />
             </mesh>
           )}
+          {captureApi && <ThumbnailCaptureHost captureApi={captureApi} />}
         </PreviewEnvironment>
       </Canvas>
     </View>

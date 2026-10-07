@@ -5,6 +5,10 @@ import { Platform, StyleSheet, View } from 'react-native';
 import * as THREE from 'three';
 import PreviewEnvironment from '../PreviewScene';
 import {
+  ThumbnailCaptureApi,
+  ThumbnailCaptureHost,
+} from '../../../services/thumbnailCapture';
+import {
   buildSlotIndexMaps,
   resolveMeshSlot,
   SlotIndexMaps,
@@ -95,9 +99,14 @@ function SlotFlash({
   return null;
 }
 
-export default function ObjectPreview({ uri, highlightSlot }: {
+export default function ObjectPreview({
+  uri,
+  highlightSlot,
+  captureApi,
+}: {
   uri: string | null;
   highlightSlot?: number | null;
+  captureApi?: ThumbnailCaptureApi;
 }) {
   const [processedUri, setProcessedUri] = useState<string | null>(null);
   const objectUrlRef = useRef<string | null>(null);
@@ -197,6 +206,7 @@ export default function ObjectPreview({ uri, highlightSlot }: {
             maps={highlightMaps}
             highlightSlot={highlightSlot ?? null}
           />
+          {captureApi && <ThumbnailCaptureHost captureApi={captureApi} />}
         </PreviewEnvironment>
       </Canvas>
     </View>

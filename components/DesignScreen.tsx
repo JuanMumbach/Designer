@@ -15,6 +15,10 @@ import { createDesignObject, AppliedMaterial, DesignObject, GlobalMaterials, Mat
 import { Room3dProps } from "./DesignScreen/3dView/Room3d";
 import { MaterialSlotInfo } from "../services/materialSlots";
 import { collectDefaultGlobalMaterials, designMaterialsConfig, normalizeTypeName, resolveMaterialValue } from "../services/designMaterialDefaults";
+import {
+  createThumbnailCaptureApi,
+  ThumbnailCaptureApi,
+} from "../services/thumbnailCapture";
 
 
 const initialRoom3d: Room3dProps = {
@@ -45,6 +49,11 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
   const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([]);
   const projectLoadedRef = useRef(false);
   const loadedProjectIdRef = useRef<string | null>(null);
+
+  const captureApi = useMemo<ThumbnailCaptureApi>(
+    () => createThumbnailCaptureApi(),
+    []
+  );
 
   const handleExport3d = async () => {
     setIsExporting(true);
@@ -376,6 +385,7 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
         materialDataById={materialDataById}
         slotTypesByModel={slotTypesByModel}
         typeToDesignSlot={typeToDesignSlot}
+        captureApi={captureApi}
       />
       <View3dOverlay
         objectTemplates={objectTemplates}
@@ -414,6 +424,7 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
             creatorId={backendUserId}
             onSaved={(project) => setProject(project)}
             onClose={() => setIsProjectPickerVisible(false)}
+            captureApi={captureApi}
           />
         </View>
       )}

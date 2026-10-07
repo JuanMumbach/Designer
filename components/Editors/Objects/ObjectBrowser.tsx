@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -30,6 +30,11 @@ import {
 } from '../../../services/api';
 import ObjectEditor, { ObjectFormData } from './ObjectEditor';
 import ObjectPreview from './ObjectPreview';
+import Thumbnail from '../../Thumbnail';
+import {
+  createThumbnailCaptureApi,
+  ThumbnailCaptureApi,
+} from '../../../services/thumbnailCapture';
 import { COLORS } from '@/constants/theme';
 
 function getBreadcrumbPath(
@@ -83,6 +88,46 @@ export default function ObjectBrowser({
   // ── Preview URI state (set by ObjectEditor callback) ──
   const [previewUri, setPreviewUri] = useState<string | null>(null);
   const [highlightSlot, setHighlightSlot] = useState<number | null>(null);
+
+  const captureApi = useMemo<ThumbnailCaptureApi>(
+    () => createThumbnailCaptureApi(),
+    []
+  );
+
+  // ── Thumbnail URLs per listed object (latest version) ──
+  const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
+  const thumbnailAttemptedRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const target =
+      currentCategoryId === null ? uncategorizedObjects : objectsInCategory;
+    const missing = target
+      .filter((o) => !(o.id in thumbnails))
+      .map((o) => o.id)
+      .filter((id) => !thumbnailAttemptedRef.current.has(id));
+    if (missing.length === 0) return;
+    let cancelled = false;
+    Promise.all(
+      missing.map((id) =>
+        fetchObjectVersion(id)
+          .then((v) => (v.thumbnailURL ? ([id, v.thumbnailURL] as const) : null))
+          .catch(() => null)
+      )
+    ).then((results) => {
+      if (cancelled) return;
+      setThumbnails((prev) => {
+        const next = { ...prev };
+        for (const r of results) {
+          if (r) next[r[0]] = r[1];
+        }
+        return next;
+      });
+    });
+    for (const id of missing) thumbnailAttemptedRef.current.add(id);
+    return () => {
+      cancelled = true;
+    };
+  }, [currentCategoryId, objects, thumbnails]);
 
   // Fetch object version data when editing an object
   useEffect(() => {
@@ -164,6 +209,7 @@ export default function ObjectBrowser({
         data.objectProperties !== (current?.objectProperties ?? '');
 
       if (changed) {
+        const thumbnailURL = await captureApi.requestCapture('thumbnails');
         const versionResult = await createObjectVersion(editingObject.id, {
           fileURL: data.fileURL,
           sizeX: parseFloat(data.sizeX) || 1,
@@ -171,6 +217,7 @@ export default function ObjectBrowser({
           sizeZ: parseFloat(data.sizeZ) || 1,
           objectProperties: data.objectProperties || undefined,
           creatorId: data.creatorId || editingObject.creatorId,
+          thumbnailURL: thumbnailURL || undefined,
         });
         if (data.fileURL) {
           return {
@@ -188,6 +235,7 @@ export default function ObjectBrowser({
         creatorId: data.creatorId,
         categoryId: data.categoryId || undefined,
       });
+      const thumbnailURL = await captureApi.requestCapture('thumbnails');
       const versionResult = await createObjectVersion(meta.id, {
         fileURL: data.fileURL,
         sizeX: parseFloat(data.sizeX) || 1,
@@ -195,6 +243,7 @@ export default function ObjectBrowser({
         sizeZ: parseFloat(data.sizeZ) || 1,
         objectProperties: data.objectProperties || undefined,
         creatorId: data.creatorId,
+        thumbnailURL: thumbnailURL || undefined,
       });
       if (data.fileURL) {
         return {
@@ -396,6 +445,13 @@ categories={categories}
                       style={styles.objectItem}
                       onPress={() => setEditingObject(obj)}
                     >
+                      <View style={styles.objectThumb}>
+                        <Thumbnail
+                          uri={thumbnails[obj.id]}
+                          size={36}
+                          icon="cube-outline"
+                        />
+                      </View>
                       <View style={styles.objectInfo}>
                         <Text style={styles.objectName}>{obj.name}</Text>
                         <Text style={styles.objectMeta}>
@@ -414,6 +470,13 @@ categories={categories}
                       style={styles.objectItem}
                       onPress={() => setEditingObject(obj)}
                     >
+                      <View style={styles.objectThumb}>
+                        <Thumbnail
+                          uri={thumbnails[obj.id]}
+                          size={36}
+                          icon="cube-outline"
+                        />
+                      </View>
                       <View style={styles.objectInfo}>
                         <Text style={styles.objectName}>{obj.name}</Text>
                         <Text style={styles.objectMeta}>
@@ -552,7 +615,11 @@ categories={categories}
 
   const renderPreview = () => (
     <View style={styles.workspaceColumn}>
-      <ObjectPreview uri={previewUri} highlightSlot={highlightSlot} />
+      <ObjectPreview
+        uri={previewUri}
+        highlightSlot={highlightSlot}
+        captureApi={captureApi}
+      />
     </View>
   );
 
@@ -577,7 +644,11 @@ categories={categories}
         <ScrollView>
           {isLoadingData ? renderLoading() : (
             <View style={styles.previewRow}>
-              <ObjectPreview uri={previewUri} highlightSlot={highlightSlot} />
+              <ObjectPreview
+                uri={previewUri}
+                highlightSlot={highlightSlot}
+                captureApi={captureApi}
+              />
             </View>
           )}
           {renderEditor()}
@@ -719,6 +790,9 @@ const styles = StyleSheet.create({
   },
   objectInfo: {
     flex: 1,
+    marginRight: 10,
+  },
+  objectThumb: {
     marginRight: 10,
   },
   objectName: {

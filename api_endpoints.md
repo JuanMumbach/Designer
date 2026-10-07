@@ -12,6 +12,7 @@
 - All IDs are GUIDs
 - All routes follow `api/[controller]`
 - Dates in ISO 8601 format
+- Optional URL fields (`thumbnailURL`, `logoURL`, `profilePictureURL`) are nullable and are only overwritten when a non-empty value is sent — they cannot be cleared to `null` via update endpoints
 - Navigation properties (related entities) are included in responses
 - Standard status codes: `200 OK`, `201 Created`, `204 No Content`, `400 Bad Request`, `404 Not Found`
 
@@ -23,8 +24,8 @@
 |--------|----------|------|---------|
 | GET | `/api/User` | — | List all users |
 | GET | `/api/User/{id}` | — | Get user by ID |
-| POST | `/api/User` | `{ username, emailAddress, firebaseUid?, name?, lastname? }` | Create user |
-| PUT | `/api/User/{id}` | `{ name?, lastname? }` | Update user |
+| POST | `/api/User` | `{ username, emailAddress, firebaseUid?, name?, lastname?, profilePictureURL? }` | Create user |
+| PUT | `/api/User/{id}` | `{ name?, lastname?, profilePictureURL? }` | Update user |
 | DELETE | `/api/User/{id}` | — | Delete user |
 
 **User Entity:**
@@ -38,6 +39,7 @@
   "appRole": "AppRole | null",
   "name": "string",
   "lastname": "string",
+  "profilePictureURL": "string | null",
   "createdAt": "datetime",
   "lastUpdate": "datetime",
   "lastLogin": "datetime"
@@ -136,8 +138,8 @@
 | GET | `/api/ObjectVersion` | — | List all object versions |
 | GET | `/api/ObjectVersion/{modelId}` | — | List all versions of a model |
 | GET | `/api/ObjectVersion/{modelId}-{version}` | — | Get specific version |
-| POST | `/api/ObjectVersion/{modelId}` | `{ content, creatorId, description? }` | Create version (auto-increments version number) |
-| PUT | `/api/ObjectVersion/{modelId}-{version}` | `{ content?, description? }` | Update version |
+| POST | `/api/ObjectVersion/{modelId}` | `{ fileUrl, creatorId, sizeX?, sizeY?, sizeZ?, objectProperties?, thumbnailURL? }` | Create version (auto-increments version number) |
+| PUT | `/api/ObjectVersion/{modelId}-{version}` | `{ fileUrl?, sizeX?, sizeY?, sizeZ?, objectProperties?, thumbnailURL? }` | Update version |
 | DELETE | `/api/ObjectVersion/{modelId}-{version}` | — | Delete version |
 
 **ObjectVersion Entity:**
@@ -147,6 +149,7 @@
   "object": "ObjectModel | null",
   "version": "int",
   "fileURL": "string",
+  "thumbnailURL": "string | null",
   "objectProperties": "string",
   "sizeX": "float",
   "sizeY": "float",
@@ -192,8 +195,8 @@
 |--------|----------|------|---------|
 | GET | `/api/ProjectVersion/{projectId}` | — | List all versions of a project |
 | GET | `/api/ProjectVersion/{projectId}-{version}` | — | Get specific project version |
-| POST | `/api/ProjectVersion/{projectId}` | `{ content, creatorId, description? }` | Create version (auto-increments) |
-| PUT | `/api/ProjectVersion/{projectId}-{version}` | `{ content?, description? }` | Update version |
+| POST | `/api/ProjectVersion/{projectId}` | `{ content, creatorId, description?, thumbnailURL? }` | Create version (auto-increments) |
+| PUT | `/api/ProjectVersion/{projectId}-{version}` | `{ content?, description?, thumbnailURL? }` | Update version |
 | DELETE | `/api/ProjectVersion/{projectId}-{version}` | — | Delete version |
 
 **ProjectVersion Entity:**
@@ -203,6 +206,7 @@
   "project": "Project | null",
   "version": "int",
   "fileURL": "string",
+  "thumbnailURL": "string | null",
   "creatorId": "guid",
   "creator": "User | null"
 }
@@ -216,8 +220,8 @@
 |--------|----------|------|---------|
 | GET | `/api/Workspace` | — | List all workspaces |
 | GET | `/api/Workspace/{id}` | — | Get workspace |
-| POST | `/api/Workspace` | `{ name, creatorId }` | Create workspace |
-| PUT | `/api/Workspace/{id}` | `{ name? }` | Update workspace |
+| POST | `/api/Workspace` | `{ name, creatorId, logoURL? }` | Create workspace |
+| PUT | `/api/Workspace/{id}` | `{ name?, logoURL? }` | Update workspace |
 | DELETE | `/api/Workspace/{id}` | — | Delete workspace |
 
 **Workspace Entity:**
@@ -225,6 +229,7 @@
 {
   "id": "guid",
   "name": "string",
+  "logoURL": "string | null",
   "creatorId": "guid",
   "creator": "User | null",
   "createdAt": "datetime",
@@ -363,8 +368,8 @@
 | GET | `/api/MaterialData` | — | List all material data versions |
 | GET | `/api/MaterialData/{materialId}` | — | List all versions of a material |
 | GET | `/api/MaterialData/{materialId}-{version}` | — | Get specific version |
-| POST | `/api/MaterialData/{materialId}` | `{ fileURL, scaleU, scaleV, materialProperties?, creatorId }` | Create version (auto-increments) |
-| PUT | `/api/MaterialData/{materialId}-{version}` | `{ fileURL?, scaleU?, scaleV?, materialProperties? }` | Update version |
+| POST | `/api/MaterialData/{materialId}` | `{ fileURL, scaleU, scaleV, materialProperties?, creatorId, thumbnailURL? }` | Create version (auto-increments) |
+| PUT | `/api/MaterialData/{materialId}-{version}` | `{ fileURL?, scaleU?, scaleV?, materialProperties?, thumbnailURL? }` | Update version |
 | DELETE | `/api/MaterialData/{materialId}-{version}` | — | Delete version |
 
 **MaterialData Entity:**
@@ -374,6 +379,7 @@
   "material": "MaterialMeta | null",
   "version": "int",
   "fileURL": "string",
+  "thumbnailURL": "string | null",
   "scaleU": "float",
   "scaleV": "float",
   "materialProperties": "string",

@@ -17,10 +17,12 @@ import {
   fetchAllProjects,
   fetchAllUsers,
   fetchAllWorkspaces,
+  fetchProjectVersion,
   fetchProjectVersions,
   Project,
   Workspace,
 } from "../services/api";
+import Thumbnail from "../components/Thumbnail";
 
 const MONTH_NAMES = [
   "enero",
@@ -138,6 +140,37 @@ export default function ProjectManagerScreen() {
       (a, b) => new Date(b.lastUpdate).getTime() - new Date(a.lastUpdate).getTime()
     );
   }, [projects, selectedWorkspaceId]);
+
+  const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
+  const thumbnailAttemptedRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const missing = visibleProjects
+      .filter((p) => !(p.id in thumbnails))
+      .filter((p) => !thumbnailAttemptedRef.current.has(p.id));
+    if (missing.length === 0) return;
+    let cancelled = false;
+    Promise.all(
+      missing.map((p) =>
+        fetchProjectVersion(p.id, p.lastVersion)
+          .then((v) => (v.thumbnailURL ? ([p.id, v.thumbnailURL] as const) : null))
+          .catch(() => null)
+      )
+    ).then((results) => {
+      if (cancelled) return;
+      setThumbnails((prev) => {
+        const next = { ...prev };
+        for (const r of results) {
+          if (r) next[r[0]] = r[1];
+        }
+        return next;
+      });
+    });
+    for (const p of missing) thumbnailAttemptedRef.current.add(p.id);
+    return () => {
+      cancelled = true;
+    };
+  }, [visibleProjects, thumbnails]);
 
   interface ProjectGroup {
     key: string;
@@ -438,6 +471,13 @@ export default function ProjectManagerScreen() {
                             style={styles.pillInfo}
                             onPress={() => selectProject(project)}
                           >
+                            <View style={styles.pillThumb}>
+                              <Thumbnail
+                                uri={thumbnails[project.id]}
+                                size={32}
+                                icon="folder-outline"
+                              />
+                            </View>
                             <Text
                               style={[
                                 styles.pillName,
@@ -637,6 +677,11 @@ const styles = StyleSheet.create({
   },
   pillInfo: {
     maxWidth: 260,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  pillThumb: {
+    marginRight: 8,
   },
   pillName: {
     fontSize: 14,

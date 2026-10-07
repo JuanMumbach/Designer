@@ -7,6 +7,10 @@ import Room3d, { Room3dProps, RoomOrigin } from "./3dView/Room3d";
 import { MaterialSlotInfo } from "../../services/materialSlots";
 import { ObjectMaterialType } from "../../services/api";
 import { COLORS } from "@/constants/theme";
+import {
+  ThumbnailCaptureApi,
+  ThumbnailCaptureHost,
+} from "../../services/thumbnailCapture";
 
 const cameraControlsProps = {
     mouseButtons: {
@@ -144,7 +148,8 @@ export default function Design3dView({
   globalMaterialsRaw,
   materialDataById,
   slotTypesByModel,
-  typeToDesignSlot}:
+  typeToDesignSlot,
+  captureApi}:
   {
   room3d: Room3dProps,
   designObjects: DesignObject[],
@@ -161,7 +166,8 @@ export default function Design3dView({
   globalMaterialsRaw?: GlobalMaterials,
   materialDataById?: Record<string, AppliedMaterial>,
   slotTypesByModel?: Record<string, ObjectMaterialType[]>,
-  typeToDesignSlot?: Record<string, string>
+  typeToDesignSlot?: Record<string, string>,
+  captureApi?: ThumbnailCaptureApi
 })
 {
   const isDragging = useRef(0);
@@ -205,6 +211,7 @@ export default function Design3dView({
             slotTypesByModel={slotTypesByModel}
             typeToDesignSlot={typeToDesignSlot}
         />
+        {captureApi && <ThumbnailCaptureHost captureApi={captureApi} />}
         <fog attach="fog" args={[COLORS.sceneBg, 5, 20]} />
     </Canvas>
   );

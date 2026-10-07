@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -15,6 +15,7 @@ import {
   createWorkspace,
   fetchAllProjects,
   fetchAllWorkspaces,
+  fetchProjectVersion,
   Project,
   Workspace,
 } from '../../../services/api';
@@ -24,13 +25,18 @@ import {
   saveProjectToCloud,
 } from '../../../services/projectStorage';
 import { COLORS, GLASS, RADII } from '@/constants/theme';
+import Thumbnail from '../../Thumbnail';
 import GlassSurface from './GlassSurface';
+import {
+  ThumbnailCaptureApi,
+} from '../../../services/thumbnailCapture';
 
 interface ProjectPickerProps {
   projectState: ProjectStateDTO;
   creatorId: string | null;
   onClose: () => void;
   onSaved?: (project: Project) => void;
+  captureApi?: ThumbnailCaptureApi;
 }
 
 export default function ProjectPicker({
@@ -38,6 +44,7 @@ export default function ProjectPicker({
   creatorId,
   onClose,
   onSaved,
+  captureApi,
 }: ProjectPickerProps) {
   const { selectedWorkspaceId: contextSelectedWorkspaceId } = useAuth();
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
@@ -53,6 +60,8 @@ export default function ProjectPicker({
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
   const [showNewWorkspace, setShowNewWorkspace] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
+  const thumbnailAttemptedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     let mounted = true;
@@ -123,16 +132,25 @@ export default function ProjectPicker({
 
     setSaving(true);
     try {
+      const thumbnailURL = (await captureApi?.requestCapture('projects')) || undefined;
       let project: Project | undefined;
       if (isNewProject) {
         const result = await createProjectInCloud(projectState, {
           name: newProjectName.trim(),
           workspaceId: selectedWorkspaceId ?? undefined,
           creatorId,
+          thumbnailURL,
         });
         project = result.project;
       } else {
-        await saveProjectToCloud(projectState, selectedProjectId, creatorId);
+        await saveProjectToCloud(
+          projectState,
+          selectedProjectId,
+          creatorId,
+          undefined,
+          undefined,
+          thumbnailURL
+        );
         project = projects.find((p) => p.id === selectedProjectId);
       }
       if (project) onSaved?.(project);
@@ -159,6 +177,34 @@ export default function ProjectPicker({
     ? projects.filter((p) => p.workspaceId === selectedWorkspaceId)
     : [];
 
+  useEffect(() => {
+    const missing = workspaceProjects
+      .filter((p) => !(p.id in thumbnails))
+      .filter((p) => !thumbnailAttemptedRef.current.has(p.id));
+    if (missing.length === 0) return;
+    let cancelled = false;
+    Promise.all(
+      missing.map((p) =>
+        fetchProjectVersion(p.id, p.lastVersion)
+          .then((v) => (v.thumbnailURL ? ([p.id, v.thumbnailURL] as const) : null))
+          .catch(() => null)
+      )
+    ).then((results) => {
+      if (cancelled) return;
+      setThumbnails((prev) => {
+        const next = { ...prev };
+        for (const r of results) {
+          if (r) next[r[0]] = r[1];
+        }
+        return next;
+      });
+    });
+    for (const p of missing) thumbnailAttemptedRef.current.add(p.id);
+    return () => {
+      cancelled = true;
+    };
+  }, [workspaceProjects, thumbnails]);
+
   return (
     <GlassSurface style={styles.container}>
       <Text style={styles.headerTitle}>Save to Cloud</Text>
@@ -182,6 +228,14 @@ export default function ProjectPicker({
                   ]}
                   onPress={() => selectWorkspace(ws.id)}
                 >
+                  {ws.logoURL && (
+                    <Thumbnail
+                      uri={ws.logoURL}
+                      size={16}
+                      icon="business"
+                      radius={RADII.full}
+                    />
+                  )}
                   <Text
                     style={[
                       styles.chipText,
@@ -245,6 +299,14 @@ export default function ProjectPicker({
                   ]}
                   onPress={() => selectProject(p.id)}
                 >
+                  <View style={styles.projectThumb}>
+                    <Thumbnail
+                      uri={thumbnails[p.id]}
+                      size={36}
+                      icon="folder-outline"
+                      radius={RADII.md}
+                    />
+                  </View>
                   <Text
                     style={[
                       styles.projectName,
@@ -335,6 +397,9 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: RADII.xl,
@@ -385,12 +450,17 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   projectRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: RADII.md,
     borderWidth: 1,
     borderColor: GLASS.border,
     backgroundColor: GLASS.bgInput,
+  },
+  projectThumb: {
+    marginRight: 10,
   },
   projectRowActive: {
     backgroundColor: COLORS.primary,

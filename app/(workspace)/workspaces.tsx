@@ -10,12 +10,16 @@ import {
   View,
 } from 'react-native';
 import WorkspaceAdmin from '@/components/Editors/Workspaces/WorkspaceAdmin';
+import Thumbnail from '@/components/Thumbnail';
 import {
   createWorkspace,
   fetchAllWorkspaces,
+  updateWorkspace,
   Workspace,
 } from '@/services/api';
 import { useAuth } from '@/services/AuthContext';
+import { uploadFileToFirebase } from '@/services/firebaseSetup';
+import { pickImage } from '@/services/imagePicker';
 import { COLORS, commonStyles, RADII } from '@/constants/theme';
 
 export default function WorkspacesScreen() {
@@ -27,6 +31,11 @@ export default function WorkspacesScreen() {
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
   const [showNewWorkspace, setShowNewWorkspace] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+
+  const currentlySelected = workspaces.find(
+    (ws) => ws.id === selectedWorkspaceId
+  );
 
   const loadWorkspaces = useCallback(async () => {
     setLoading(true);
@@ -76,6 +85,25 @@ export default function WorkspacesScreen() {
     }
   };
 
+  const handleChangeLogo = async (ws: Workspace) => {
+    const uri = await pickImage();
+    if (!uri) return;
+    setUploadingLogo(true);
+    try {
+      const fileURL = await uploadFileToFirebase(
+        uri,
+        'workspace-logos',
+        `logo_${ws.id}_${Date.now()}.jpeg`
+      );
+      await updateWorkspace(ws.id, { logoURL: fileURL });
+      await loadWorkspaces();
+    } catch {
+      Alert.alert('Error', 'Failed to update workspace logo.');
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -107,10 +135,19 @@ export default function WorkspacesScreen() {
                 key={ws.id}
                 style={[
                   commonStyles.chip,
+                  styles.chipRow,
                   selectedWorkspaceId === ws.id && commonStyles.chipActive,
                 ]}
                 onPress={() => setSelectedWorkspaceId(ws.id)}
               >
+                {ws.logoURL && (
+                  <Thumbnail
+                    uri={ws.logoURL}
+                    size={16}
+                    icon="business"
+                    radius={RADII.full}
+                  />
+                )}
                 <Text
                   style={[
                     commonStyles.chipText,
@@ -160,6 +197,39 @@ export default function WorkspacesScreen() {
       </View>
 
       {selectedWorkspaceId ? (
+        currentlySelected && (
+          <View style={styles.logoRow}>
+            <Thumbnail
+              uri={currentlySelected.logoURL}
+              size={44}
+              icon="business"
+              radius={RADII.md}
+            />
+            <View style={styles.logoInfo}>
+              <Text style={styles.logoName} numberOfLines={1}>
+                {currentlySelected.name}
+              </Text>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.logoButton,
+                  pressed && styles.logoButtonPressed,
+                  uploadingLogo && styles.logoButtonDisabled,
+                ]}
+                onPress={() => handleChangeLogo(currentlySelected)}
+                disabled={uploadingLogo}
+                accessibilityRole="button"
+                accessibilityLabel="Cambiar logo del workspace"
+              >
+                <Text style={styles.logoButtonText}>
+                  {uploadingLogo ? 'Subiendo…' : 'Cambiar logo'}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        )
+      ) : null}
+
+      {selectedWorkspaceId ? (
         <WorkspaceAdmin workspaceId={selectedWorkspaceId} />
       ) : (
         <View style={styles.center}>
@@ -206,6 +276,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
+  chipRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   inlineInput: {
     marginTop: 12,
     marginBottom: 10,
@@ -231,5 +306,40 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     textAlign: 'center',
     paddingVertical: 12,
+  },
+  logoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingTop: 14,
+    paddingBottom: 4,
+  },
+  logoInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  logoName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: COLORS.textHeading,
+    marginBottom: 6,
+  },
+  logoButton: {
+    alignSelf: 'flex-start',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: RADII.sm,
+    backgroundColor: COLORS.secondary,
+  },
+  logoButtonPressed: {
+    backgroundColor: COLORS.secondaryPressed,
+  },
+  logoButtonDisabled: {
+    opacity: 0.6,
+  },
+  logoButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.textHeading,
   },
 });
