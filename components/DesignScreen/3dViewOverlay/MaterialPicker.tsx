@@ -1,14 +1,16 @@
 import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleProp, StyleSheet, Text, View, ViewStyle } from "react-native";
 import Button from "../../Button";
 import { MaterialCategory, MaterialMeta, fetchMaterialVersion, MaterialData } from "../../../services/api";
-import { COLORS, RADII } from "@/constants/theme";
+import { COLORS, GLASS, RADII } from "@/constants/theme";
+import GlassSurface from "./GlassSurface";
 
 interface MaterialPickerProps {
   materials: MaterialMeta[];
   categories: MaterialCategory[];
   onSelect: (materialMeta: MaterialMeta, materialData: MaterialData) => Promise<void>;
   onClose: () => void;
+  containerStyle?: StyleProp<ViewStyle>;
 }
 
 function getBreadcrumbPath(categoryId: string | null, categories: MaterialCategory[]): string {
@@ -22,7 +24,7 @@ function getBreadcrumbPath(categoryId: string | null, categories: MaterialCatego
   return "Root > " + path.join(" > ");
 }
 
-export default function MaterialPicker({ materials, categories, onSelect, onClose }: MaterialPickerProps) {
+export default function MaterialPicker({ materials, categories, onSelect, onClose, containerStyle }: MaterialPickerProps) {
   const [currentCategoryId, setCurrentCategoryId] = useState<string | null>(null);
   const [categoryStack, setCategoryStack] = useState<string[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -63,7 +65,7 @@ export default function MaterialPicker({ materials, categories, onSelect, onClos
     : currentSubcategories.length > 0 || materialsInCategory.length > 0;
 
   return (
-    <View style={styles.container}>
+    <GlassSurface style={[styles.container, containerStyle]}>
       <View style={styles.header}>
         <Pressable style={styles.backButton} onPress={handleBack}>
           <Text style={styles.backButtonText}>← Back</Text>
@@ -133,7 +135,7 @@ export default function MaterialPicker({ materials, categories, onSelect, onClos
       <View style={styles.footer}>
         <Button label="Cancel" onPress={onClose} />
       </View>
-    </View>
+    </GlassSurface>
   );
 }
 
@@ -141,14 +143,12 @@ const styles = StyleSheet.create({
   container: {
     width: 300,
     maxHeight: "85%",
-    backgroundColor: COLORS.bg,
     borderRadius: RADII.xl,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.25,
     shadowRadius: 10,
     elevation: 10,
-    overflow: "hidden",
   },
   header: {
     flexDirection: "row",
@@ -156,25 +156,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    backgroundColor: COLORS.bgAlt,
+    borderBottomColor: GLASS.border,
+    backgroundColor: GLASS.bgStrong,
   },
   backButton: {
     paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: RADII.sm,
-    backgroundColor: COLORS.border,
+    backgroundColor: GLASS.bgPressed,
     marginRight: 8,
   },
   backButtonText: {
     fontSize: 14,
     fontWeight: "600",
-    color: COLORS.textHeading,
+    color: GLASS.text,
   },
   breadcrumb: {
     flex: 1,
     fontSize: 13,
-    color: COLORS.textMuted,
+    color: GLASS.textMuted,
     fontWeight: "500",
   },
   scrollView: {
@@ -185,13 +185,13 @@ const styles = StyleSheet.create({
   folderItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: COLORS.surfaceAlt,
+    backgroundColor: GLASS.bgInput,
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: RADII.lg,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: COLORS.borderStrong,
+    borderColor: GLASS.border,
   },
   folderIcon: {
     fontSize: 18,
@@ -200,21 +200,21 @@ const styles = StyleSheet.create({
   folderText: {
     fontSize: 15,
     fontWeight: "600",
-    color: COLORS.textBody,
+    color: GLASS.text,
   },
   materialItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: COLORS.bg,
+    backgroundColor: GLASS.bgInput,
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: RADII.lg,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: GLASS.border,
   },
   materialItemSelected: {
-    backgroundColor: COLORS.primarySoft,
+    backgroundColor: "rgba(37, 99, 235, 0.35)",
     borderColor: COLORS.primary,
   },
   materialInfo: {
@@ -224,20 +224,20 @@ const styles = StyleSheet.create({
   materialName: {
     fontSize: 14,
     fontWeight: "700",
-    color: COLORS.textBody,
+    color: GLASS.text,
     marginBottom: 4,
   },
   materialMeta: {
     fontSize: 11,
-    color: COLORS.textMuted,
+    color: GLASS.textMuted,
   },
   selectIcon: {
     fontSize: 18,
-    color: COLORS.primary,
+    color: "#93c5fd",
   },
   emptyText: {
     textAlign: "center",
-    color: COLORS.textMuted,
+    color: GLASS.textMuted,
     fontSize: 14,
     paddingVertical: 30,
   },
@@ -245,6 +245,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
+    borderTopColor: GLASS.border,
   },
 });

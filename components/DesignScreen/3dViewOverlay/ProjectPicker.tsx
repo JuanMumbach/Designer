@@ -23,7 +23,8 @@ import {
   ProjectStateDTO,
   saveProjectToCloud,
 } from '../../../services/projectStorage';
-import { COLORS, RADII } from '@/constants/theme';
+import { COLORS, GLASS, RADII } from '@/constants/theme';
+import GlassSurface from './GlassSurface';
 
 interface ProjectPickerProps {
   projectState: ProjectStateDTO;
@@ -159,7 +160,7 @@ export default function ProjectPicker({
     : [];
 
   return (
-    <View style={styles.container}>
+    <GlassSurface style={styles.container}>
       <Text style={styles.headerTitle}>Save to Cloud</Text>
 
       {loading ? (
@@ -220,6 +221,7 @@ export default function ProjectPicker({
                 value={newWorkspaceName}
                 onChangeText={setNewWorkspaceName}
                 placeholder="Workspace name"
+                placeholderTextColor={GLASS.textFaint}
               />
               <Pressable
                 style={styles.smallButton}
@@ -269,6 +271,7 @@ export default function ProjectPicker({
               if (selectedProjectId) setSelectedProjectId(null);
             }}
             placeholder="New project name"
+            placeholderTextColor={GLASS.textFaint}
           />
 
           <View style={styles.footer}>
@@ -282,7 +285,7 @@ export default function ProjectPicker({
           </View>
         </ScrollView>
       )}
-    </View>
+    </GlassSurface>
   );
 }
 
@@ -290,7 +293,6 @@ const styles = StyleSheet.create({
   container: {
     width: 320,
     maxHeight: '80%',
-    backgroundColor: COLORS.bg,
     borderRadius: RADII.xl,
     padding: 24,
     shadowColor: '#000',
@@ -306,7 +308,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 10,
     fontSize: 13,
-    color: COLORS.textMuted,
+    color: GLASS.textMuted,
   },
   scrollContent: {
     paddingBottom: 8,
@@ -314,14 +316,14 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: COLORS.text,
+    color: GLASS.text,
     textAlign: 'center',
     marginBottom: 16,
   },
   label: {
     fontSize: 12,
     fontWeight: '700',
-    color: COLORS.textHeading,
+    color: GLASS.textMuted,
     marginTop: 12,
     marginBottom: 6,
     textTransform: 'uppercase',
@@ -336,9 +338,9 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: RADII.xl,
-    backgroundColor: COLORS.surfaceAlt,
+    backgroundColor: GLASS.bgInput,
     borderWidth: 1,
-    borderColor: COLORS.borderStrong,
+    borderColor: GLASS.border,
   },
   chipActive: {
     backgroundColor: COLORS.primary,
@@ -347,14 +349,14 @@ const styles = StyleSheet.create({
   chipText: {
     fontSize: 12,
     fontWeight: '600',
-    color: COLORS.textHeading,
+    color: GLASS.text,
   },
   chipTextActive: {
     color: COLORS.white,
   },
   emptyText: {
     fontSize: 13,
-    color: COLORS.textMuted,
+    color: GLASS.textMuted,
     marginVertical: 6,
   },
   inlineRow: {
@@ -369,13 +371,13 @@ const styles = StyleSheet.create({
   },
   input: {
     height: 44,
-    borderColor: COLORS.border,
+    borderColor: GLASS.border,
     borderWidth: 1,
     borderRadius: RADII.md,
     paddingHorizontal: 12,
-    backgroundColor: COLORS.bgAlt,
+    backgroundColor: GLASS.bgInput,
     fontSize: 14,
-    color: COLORS.text,
+    color: GLASS.text,
     marginBottom: 10,
   },
   projectList: {
@@ -387,8 +389,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: RADII.md,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.bgAlt,
+    borderColor: GLASS.border,
+    backgroundColor: GLASS.bgInput,
   },
   projectRowActive: {
     backgroundColor: COLORS.primary,
@@ -397,7 +399,7 @@ const styles = StyleSheet.create({
   projectName: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.textBody,
+    color: GLASS.text,
   },
   projectNameActive: {
     color: COLORS.white,
@@ -413,7 +415,7 @@ const styles = StyleSheet.create({
   },
   cancelButtonLabel: {
     fontSize: 14,
-    color: COLORS.textMuted,
+    color: GLASS.textMuted,
     fontWeight: '600',
   },
   smallButton: {

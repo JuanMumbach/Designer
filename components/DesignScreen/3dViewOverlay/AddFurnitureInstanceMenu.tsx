@@ -1,18 +1,21 @@
 import { useEffect, useState } from "react";
-import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ScrollView, StyleProp, StyleSheet, Text, TextInput, ViewStyle } from "react-native";
 import Button from "../../Button";
 import { DesignObject, ObjectTemplate, createDesignObject } from "../3dView/DesignObjects";
-import { COLORS, RADII } from "@/constants/theme";
+import { GLASS, RADII } from "@/constants/theme";
+import GlassSurface from "./GlassSurface";
 
 
 export default function AddFurnitureInstanceMenu({
   newObjectType,
   onObjectAdded,
-  closeMenu
+  closeMenu,
+  containerStyle
 }: {
   newObjectType: ObjectTemplate,
   onObjectAdded: (newObject: DesignObject) => void,
-  closeMenu: () => void
+  closeMenu: () => void,
+  containerStyle?: StyleProp<ViewStyle>
 }) {
 
   const [name, onChangeName] = useState(newObjectType.name);
@@ -52,12 +55,12 @@ export default function AddFurnitureInstanceMenu({
   };
 
   return (
-    <View style={styles.container}>
+    <GlassSurface style={[styles.container, containerStyle]}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
       >
-        <Text>Object Type: {newObjectType.name}</Text>
+        <Text style={styles.objectTypeText}>Object Type: {newObjectType.name}</Text>
 
         <Text style={styles.label}>Name</Text>
         <TextInput
@@ -65,6 +68,7 @@ export default function AddFurnitureInstanceMenu({
           onChangeText={onChangeName}
           value={name}
           placeholder={newObjectType.name}
+          placeholderTextColor={GLASS.textFaint}
         />
 
         <Text style={styles.label}>Position X</Text>
@@ -89,13 +93,13 @@ export default function AddFurnitureInstanceMenu({
           keyboardType="numeric"
         />
 
-        <Text>Width: {width}</Text>
-        <Text>Height: {height}</Text>
-        <Text>Depth: {depth}</Text>
+        <Text style={styles.specText}>Width: {width}</Text>
+        <Text style={styles.specText}>Height: {height}</Text>
+        <Text style={styles.specText}>Depth: {depth}</Text>
 
         <Button label="Add Object" onPress={handleAddObject} />
       </ScrollView>
-    </View>
+    </GlassSurface>
   )
 }
 
@@ -104,14 +108,12 @@ const styles = StyleSheet.create({
     width: 300,
     maxHeight: '70%',
     minHeight: 260,
-    backgroundColor: COLORS.bg,
     borderRadius: RADII.xl,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.25,
     shadowRadius: 10,
     elevation: 10,
-    overflow: 'hidden',
   },
   scroll: {
     paddingHorizontal: 24,
@@ -120,24 +122,34 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 8,
   },
+  objectTypeText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: GLASS.text,
+  },
+  specText: {
+    fontSize: 13,
+    color: GLASS.textMuted,
+    marginTop: 2,
+  },
   label: {
     marginTop: 12,
     marginBottom: 6,
     fontSize: 12,
     fontWeight: '700',
-    color: COLORS.textHeading,
+    color: GLASS.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   input: {
     height: 44,
-    borderColor: COLORS.border,
+    borderColor: GLASS.border,
     borderWidth: 1,
     borderRadius: RADII.md,
     paddingHorizontal: 12,
     marginBottom: 10,
-    backgroundColor: COLORS.bgAlt,
+    backgroundColor: GLASS.bgInput,
     fontSize: 14,
-    color: COLORS.text,
+    color: GLASS.text,
   }
 });

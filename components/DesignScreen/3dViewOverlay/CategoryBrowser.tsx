@@ -1,14 +1,17 @@
 import { useState } from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ScrollView, StyleProp, StyleSheet, Text, TouchableOpacity, View, ViewStyle } from "react-native";
 import Button from "../../Button";
 import { ObjectTemplate } from "../3dView/DesignObjects";
 import { ObjectCategory } from "../../../services/api";
-import { COLORS, RADII } from "@/constants/theme";
+import { GLASS, RADII } from "@/constants/theme";
+import GlassSurface from "./GlassSurface";
 
 interface CategoryBrowserProps {
   objectTemplates: ObjectTemplate[];
   categories: ObjectCategory[];
   addObjectAction: (objectType: ObjectTemplate) => void;
+  containerStyle?: StyleProp<ViewStyle>;
+  wide?: boolean;
 }
 
 interface CategoryItemProps {
@@ -16,9 +19,9 @@ interface CategoryItemProps {
   onPress: () => void;
 }
 
-function CategoryItem({ category, onPress }: CategoryItemProps) {
+function CategoryItem({ category, onPress, wide }: CategoryItemProps & { wide?: boolean }) {
   return (
-    <TouchableOpacity style={styles.folderItem} onPress={onPress}>
+    <TouchableOpacity style={[styles.folderItem, wide && styles.wideItem]} onPress={onPress}>
       <Text style={styles.folderIcon}>📁</Text>
       <Text style={styles.folderText}>{category.categoryName}</Text>
     </TouchableOpacity>
@@ -30,9 +33,9 @@ interface ObjectItemProps {
   onSelect: () => void;
 }
 
-function ObjectItem({ object, onSelect }: ObjectItemProps) {
+function ObjectItem({ object, onSelect, wide }: ObjectItemProps & { wide?: boolean }) {
   return (
-    <View style={styles.objectItem}>
+    <View style={[styles.objectItem, wide && styles.wideItem]}>
       <View style={styles.objectInfo}>
         <Text style={styles.objectName}>{object.name}</Text>
         <Text style={styles.objectDimensions}>
@@ -65,6 +68,8 @@ export default function CategoryBrowser({
   objectTemplates,
   categories,
   addObjectAction,
+  containerStyle,
+  wide,
 }: CategoryBrowserProps) {
   const [currentCategoryId, setCurrentCategoryId] = useState<string | null>(null);
   const [categoryStack, setCategoryStack] = useState<string[]>([]);
@@ -101,15 +106,16 @@ export default function CategoryBrowser({
 
   if (categories.length === 0) {
     return (
-      <View style={styles.container}>
+      <GlassSurface style={[styles.container, containerStyle]}>
         <View style={styles.header}>
           <Text style={styles.breadcrumb}>Root</Text>
         </View>
-        <ScrollView style={styles.scrollView}>
+        <ScrollView style={styles.scrollView} contentContainerStyle={wide ? styles.scrollContentWide : undefined}>
           {objectTemplates.map(obj => (
             <ObjectItem
               key={obj.id}
               object={obj}
+              wide={wide}
               onSelect={() => addObjectAction(obj)}
             />
           ))}
@@ -117,12 +123,12 @@ export default function CategoryBrowser({
             <Text style={styles.emptyText}>No furniture models available.</Text>
           )}
         </ScrollView>
-      </View>
+      </GlassSurface>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <GlassSurface style={[styles.container, containerStyle]}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={handleBack}>
           <Text style={styles.backButtonText}>← Back</Text>
@@ -132,7 +138,7 @@ export default function CategoryBrowser({
         </Text>
       </View>
 
-      <ScrollView style={styles.scrollView}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={wide ? styles.scrollContentWide : undefined}>
         {!hasContent ? (
           <Text style={styles.emptyText}>No items in this category.</Text>
         ) : (
@@ -142,6 +148,7 @@ export default function CategoryBrowser({
                 <CategoryItem
                   key={cat.id}
                   category={cat}
+                  wide={wide}
                   onPress={() => handleCategoryPress(cat)}
                 />
               ))}
@@ -150,6 +157,7 @@ export default function CategoryBrowser({
               <CategoryItem
                 key={cat.id}
                 category={cat}
+                wide={wide}
                 onPress={() => handleCategoryPress(cat)}
               />
             ))}
@@ -158,6 +166,7 @@ export default function CategoryBrowser({
                 <ObjectItem
                   key={obj.id}
                   object={obj}
+                  wide={wide}
                   onSelect={() => addObjectAction(obj)}
                 />
               ))}
@@ -165,13 +174,14 @@ export default function CategoryBrowser({
               <ObjectItem
                 key={obj.id}
                 object={obj}
+                wide={wide}
                 onSelect={() => addObjectAction(obj)}
               />
             ))}
           </>
         )}
       </ScrollView>
-    </View>
+    </GlassSurface>
   );
 }
 
@@ -180,14 +190,12 @@ const styles = StyleSheet.create({
     width: 300,
     maxHeight: "70%",
     minHeight: 260,
-    backgroundColor: COLORS.bg,
     borderRadius: RADII.xl,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.25,
     shadowRadius: 10,
     elevation: 10,
-    overflow: "hidden",
   },
   header: {
     flexDirection: "row",
@@ -195,25 +203,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    backgroundColor: COLORS.bgAlt,
+    borderBottomColor: GLASS.border,
+    backgroundColor: GLASS.bgStrong,
   },
   backButton: {
     paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: RADII.sm,
-    backgroundColor: COLORS.border,
+    backgroundColor: GLASS.bgPressed,
     marginRight: 8,
   },
   backButtonText: {
     fontSize: 14,
     fontWeight: "600",
-    color: COLORS.textHeading,
+    color: GLASS.text,
   },
   breadcrumb: {
     flex: 1,
     fontSize: 13,
-    color: COLORS.textMuted,
+    color: GLASS.textMuted,
     fontWeight: "500",
   },
   scrollView: {
@@ -221,16 +229,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 12,
   },
+  scrollContentWide: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    alignItems: "flex-start",
+  },
+  wideItem: {
+    flexGrow: 1,
+    flexBasis: 220,
+    marginBottom: 0,
+  },
   folderItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: COLORS.surfaceAlt,
+    backgroundColor: GLASS.bgInput,
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: RADII.lg,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: COLORS.borderStrong,
+    borderColor: GLASS.border,
   },
   folderIcon: {
     fontSize: 18,
@@ -239,18 +258,18 @@ const styles = StyleSheet.create({
   folderText: {
     fontSize: 15,
     fontWeight: "600",
-    color: COLORS.textBody,
+    color: GLASS.text,
   },
   objectItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: COLORS.bg,
+    backgroundColor: GLASS.bgInput,
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: RADII.lg,
     marginBottom: 8,
     borderWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderColor: GLASS.border,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -264,16 +283,16 @@ const styles = StyleSheet.create({
   objectName: {
     fontSize: 14,
     fontWeight: "700",
-    color: COLORS.textBody,
+    color: GLASS.text,
     marginBottom: 4,
   },
   objectDimensions: {
     fontSize: 11,
-    color: COLORS.textMuted,
+    color: GLASS.textMuted,
   },
   emptyText: {
     textAlign: "center",
-    color: COLORS.textMuted,
+    color: GLASS.textMuted,
     fontSize: 14,
     paddingVertical: 30,
   },

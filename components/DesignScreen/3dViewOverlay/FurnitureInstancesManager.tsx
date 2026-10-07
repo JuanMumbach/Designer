@@ -1,22 +1,25 @@
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleProp, StyleSheet, Text, View, ViewStyle } from "react-native";
 import Button from "../../Button";
 import { DesignObject } from "../3dView/DesignObjects";
-import { COLORS, RADII } from "@/constants/theme";
+import { GLASS, RADII } from "@/constants/theme";
+import GlassSurface from "./GlassSurface";
 
 interface FurnitureInstancesManagerProps {
     furnitureInstances: DesignObject[];
     onFurnitureSelect: (object: DesignObject) => void;
     onClose: () => void;
+    containerStyle?: StyleProp<ViewStyle>;
 }
 
 export default function FurnitureInstancesManager({
     furnitureInstances,
     onFurnitureSelect,
-    onClose
+    onClose,
+    containerStyle
 }: FurnitureInstancesManagerProps) {
 
     return (
-        <View style={styles.container}>
+        <GlassSurface style={[styles.container, containerStyle]}>
             <Text style={styles.headerTitle}>Objects in Room</Text>
 
             <ScrollView style={styles.scrollList} contentContainerStyle={{ paddingBottom: 10 }}>
@@ -44,7 +47,7 @@ export default function FurnitureInstancesManager({
             <View style={styles.footer}>
                 <Button label="Done" onPress={onClose} />
             </View>
-        </View>
+        </GlassSurface>
     );
 }
 
@@ -52,7 +55,6 @@ const styles = StyleSheet.create({
     container: {
         width: 300,
         maxHeight: '70%',
-        backgroundColor: COLORS.bg,
         borderRadius: RADII.xl,
         padding: 24,
         shadowColor: "#000",
@@ -60,12 +62,11 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.2,
         shadowRadius: 10,
         elevation: 10,
-        overflow: 'hidden',
     },
     headerTitle: {
         fontSize: 20,
         fontWeight: 'bold',
-        color: COLORS.text,
+        color: GLASS.text,
         marginBottom: 16,
         textAlign: 'center',
     },
@@ -73,7 +74,7 @@ const styles = StyleSheet.create({
         marginBottom: 10,
     },
     cardItem: {
-        backgroundColor: COLORS.bgAlt,
+        backgroundColor: GLASS.bgInput,
         borderRadius: RADII.lg,
         padding: 12,
         marginBottom: 10,
@@ -81,7 +82,7 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: COLORS.surfaceAlt,
+        borderColor: GLASS.border,
     },
     infoContainer: {
         flex: 1,
@@ -90,11 +91,11 @@ const styles = StyleSheet.create({
     itemName: {
         fontSize: 16,
         fontWeight: 'bold',
-        color: COLORS.textBody,
+        color: GLASS.text,
     },
     itemType: {
         fontSize: 12,
-        color: COLORS.textMuted,
+        color: GLASS.textMuted,
         marginBottom: 4,
     },
     badgesRow: {
@@ -102,8 +103,8 @@ const styles = StyleSheet.create({
         marginTop: 4,
     },
     badge: {
-        backgroundColor: COLORS.border,
-        color: COLORS.textHeading,
+        backgroundColor: 'rgba(255, 255, 255, 0.18)',
+        color: GLASS.text,
         fontSize: 10,
         paddingVertical: 2,
         paddingHorizontal: 6,
@@ -112,7 +113,7 @@ const styles = StyleSheet.create({
     },
     emptyText: {
         textAlign: 'center',
-        color: COLORS.textFaint,
+        color: GLASS.textFaint,
         marginTop: 20,
         fontStyle: 'italic',
     },
@@ -120,7 +121,7 @@ const styles = StyleSheet.create({
         marginTop: 10,
         alignItems: 'center',
         borderTopWidth: 1,
-        borderTopColor: COLORS.surfaceAlt,
+        borderTopColor: GLASS.border,
         paddingTop: 16,
     }
 });

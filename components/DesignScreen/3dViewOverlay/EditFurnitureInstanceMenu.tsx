@@ -1,14 +1,15 @@
 import Button from "@/components/Button";
 import { useCallback, useMemo, useState } from "react";
-import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Text, TextInput, View, ViewStyle } from "react-native";
 import { DesignObject, GlobalMaterials, MaterialOverrides, resolveGlobalMaterials } from "../3dView/DesignObjects";
 import { MaterialCategory, MaterialMeta, MaterialData, ObjectMaterialType } from "../../../services/api";
 import { MaterialSlotInfo } from "../../../services/materialSlots";
 import { DesignMaterialSlot, designSlotByKey, isMaterialRef, normalizeTypeName } from "../../../services/designMaterialDefaults";
 import MaterialPicker from "./MaterialPicker";
-import { COLORS, RADII } from "@/constants/theme";
+import { COLORS, GLASS, RADII } from "@/constants/theme";
+import GlassSurface from "./GlassSurface";
 
-export default function EditFurnitureInstanceMenu({object, onEditComplete, onDelete, materials, materialCategories, globalMaterials, designSlots, slotTypesByModel, typeToDesignSlot} : {
+export default function EditFurnitureInstanceMenu({object, onEditComplete, onDelete, materials, materialCategories, globalMaterials, designSlots, slotTypesByModel, typeToDesignSlot, containerStyle} : {
         object : DesignObject,
         onEditComplete : (id: string, updates: { name: string, position: [number, number, number], materialOverrides?: MaterialOverrides }) => void,
         onDelete? : (id: string) => void,
@@ -18,6 +19,7 @@ export default function EditFurnitureInstanceMenu({object, onEditComplete, onDel
         designSlots: DesignMaterialSlot[],
         slotTypesByModel: Record<string, ObjectMaterialType[]>,
         typeToDesignSlot: Record<string, string>,
+        containerStyle?: StyleProp<ViewStyle>,
     }){
 
     const [name, onChangeName] = useState(object.name);
@@ -138,13 +140,14 @@ export default function EditFurnitureInstanceMenu({object, onEditComplete, onDel
                 categories={materialCategories}
                 onSelect={handleMaterialSelect}
                 onClose={() => setPickerOpen(false)}
+                containerStyle={containerStyle}
             />
         );
     }
 
     if (editingSlot !== null) {
         return (
-            <View style={styles.container}>
+            <GlassSurface style={[styles.container, containerStyle]}>
                 <View style={styles.chooseHeader}>
                     <Pressable style={styles.backButton} onPress={() => setEditingSlot(null)}>
                         <Text style={styles.backLabel}>← Back</Text>
@@ -173,17 +176,18 @@ export default function EditFurnitureInstanceMenu({object, onEditComplete, onDel
                         <Text style={styles.browseLabel}>Browse catalog…</Text>
                     </Pressable>
                 </ScrollView>
-            </View>
+            </GlassSurface>
         );
     }
 
     return (
-    <View style={styles.container}>
+    <GlassSurface style={[styles.container, containerStyle]}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
       >
-        <TextInput style={styles.input} onChangeText={onChangeName} value={name} placeholder={object.name} />
+        <TextInput style={styles.input} onChangeText={onChangeName} value={name} placeholder={object.name} placeholderTextColor={GLASS.textFaint} />
+        <Text style={styles.typeText}>Type: {object.name}</Text>
         <Text>Type: {object.name}</Text>
         <Text style={styles.label}>Position X</Text>
               <TextInput style={styles.input}
@@ -248,7 +252,7 @@ export default function EditFurnitureInstanceMenu({object, onEditComplete, onDel
             <Text style={styles.deleteButtonLabel}>Delete Object</Text>
         </Pressable>
       </ScrollView>
-    </View>
+    </GlassSurface>
     );
 };
 
@@ -256,14 +260,12 @@ const styles = StyleSheet.create({
   container: {
     width: 300,
     maxHeight: '100%',
-    backgroundColor: COLORS.bg,
     borderRadius: RADII.xl,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.25,
     shadowRadius: 10,
     elevation: 10,
-    overflow: 'hidden',
   },
   scroll: {
     flex: 1,
@@ -278,40 +280,44 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     fontSize: 12,
     fontWeight: '700',
-    color: COLORS.textHeading,
+    color: GLASS.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
+  typeText: {
+    fontSize: 13,
+    color: GLASS.textMuted,
+  },
   input: {
     height: 44,
-    borderColor: COLORS.border,
+    borderColor: GLASS.border,
     borderWidth: 1,
     borderRadius: RADII.md,
     paddingHorizontal: 12,
     marginBottom: 10,
-    backgroundColor: COLORS.bgAlt,
+    backgroundColor: GLASS.bgInput,
     fontSize: 14,
-    color: COLORS.text,
+    color: GLASS.text,
   },
   sectionTitle: {
     marginTop: 20,
     marginBottom: 12,
     fontSize: 14,
     fontWeight: '700',
-    color: COLORS.textHeading,
+    color: GLASS.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   textureRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.bgAlt,
+    backgroundColor: GLASS.bgInput,
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: RADII.md,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: GLASS.border,
   },
   textureInfo: {
     flex: 1,
@@ -320,12 +326,12 @@ const styles = StyleSheet.create({
   textureMeshName: {
     fontSize: 13,
     fontWeight: '600',
-    color: COLORS.textBody,
+    color: GLASS.text,
     marginBottom: 2,
   },
   textureStatus: {
     fontSize: 11,
-    color: COLORS.textMuted,
+    color: GLASS.textMuted,
   },
   textureActions: {
     flexDirection: 'row',
@@ -346,19 +352,19 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 10,
     borderRadius: RADII.sm,
-    backgroundColor: COLORS.surfaceAlt,
+    backgroundColor: GLASS.bgPressed,
     borderWidth: 1,
-    borderColor: COLORS.borderStrong,
+    borderColor: GLASS.borderStrong,
   },
   textureResetLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: COLORS.textMuted,
+    color: GLASS.text,
   },
   discoveringText: {
     marginTop: 12,
     fontStyle: 'italic',
-    color: COLORS.textFaint,
+    color: GLASS.textFaint,
     fontSize: 13,
     textAlign: 'center',
   },
@@ -389,52 +395,52 @@ const styles = StyleSheet.create({
   backLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.primary,
+    color: '#93c5fd',
   },
   headerTitle: {
     flex: 1,
     textAlign: 'center',
     fontSize: 15,
     fontWeight: '700',
-    color: COLORS.text,
+    color: GLASS.text,
     marginRight: 40,
   },
   designSlotItem: {
-    backgroundColor: COLORS.bgAlt,
+    backgroundColor: GLASS.bgInput,
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: RADII.md,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: GLASS.border,
   },
   designSlotItemActive: {
     borderColor: COLORS.primary,
-    backgroundColor: COLORS.primarySoft,
+    backgroundColor: 'rgba(37, 99, 235, 0.35)',
   },
   designSlotLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: COLORS.textBody,
+    color: GLASS.text,
   },
   designSlotSummary: {
     fontSize: 11,
-    color: COLORS.textMuted,
+    color: GLASS.textMuted,
     marginTop: 2,
   },
   browseButton: {
     alignItems: 'center',
-    backgroundColor: COLORS.primarySoft,
+    backgroundColor: 'rgba(37, 99, 235, 0.30)',
     paddingVertical: 12,
     paddingHorizontal: 16,
-    borderRadius: 10,
+    borderRadius: RADII.lg,
     borderWidth: 1,
-    borderColor: COLORS.primaryBorder,
+    borderColor: 'rgba(147, 197, 253, 0.4)',
     marginBottom: 8,
   },
   browseLabel: {
     fontSize: 14,
     fontWeight: '700',
-    color: COLORS.primary,
+    color: '#93c5fd',
   },
 });
