@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import {
   onAuthStateChanged,
@@ -7,14 +8,34 @@ import {
 import { auth } from './firebaseConfig';
 import { syncUserWithBackend } from './api';
 
+const workspaceStorageKey = (uid: string) => `@design:lastWorkspaceId:${uid}`;
+
+const readPersistedWorkspace = async (
+  uid: string
+): Promise<string | null | undefined> => {
+  try {
+    const raw = await AsyncStorage.getItem(workspaceStorageKey(uid));
+    if (raw === null) return undefined;
+    return JSON.parse(raw) as string | null;
+  } catch {
+    return undefined;
+  }
+};
+
+const persistWorkspace = (uid: string, id: string | null) => {
+  AsyncStorage.setItem(workspaceStorageKey(uid), JSON.stringify(id)).catch(
+    () => {}
+  );
+};
+
 interface AuthContextValue {
   user: User | null;
   backendUserId: string | null;
   isLoading: boolean;
+  isWorkspaceReady: boolean;
   getToken: () => Promise<string | null>;
   signOut: () => Promise<void>;
   selectedWorkspaceId: string | null;
-  hasChosenWorkspace: boolean;
   selectWorkspace: (id: string | null) => void;
 }
 
@@ -22,10 +43,10 @@ const AuthContext = createContext<AuthContextValue>({
   user: null,
   backendUserId: null,
   isLoading: true,
+  isWorkspaceReady: false,
   getToken: async () => null,
   signOut: async () => {},
   selectedWorkspaceId: null,
-  hasChosenWorkspace: false,
   selectWorkspace: () => {},
 });
 
@@ -34,10 +55,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [backendUserId, setBackendUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const syncedUidsRef = useRef<Set<string>>(new Set());
+  const restoredUidsRef = useRef<Set<string>>(new Set());
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
     null
   );
-  const [hasChosenWorkspace, setHasChosenWorkspace] = useState(false);
+  const [isWorkspaceReady, setIsWorkspaceReady] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -47,7 +69,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!firebaseUser) {
         setBackendUserId(null);
         setSelectedWorkspaceId(null);
-        setHasChosenWorkspace(false);
+        setIsWorkspaceReady(false);
         return;
       }
 
@@ -61,6 +83,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } catch {
         }
       }
+
+      if (!restoredUidsRef.current.has(firebaseUser.uid)) {
+        restoredUidsRef.current.add(firebaseUser.uid);
+        const persisted = await readPersistedWorkspace(firebaseUser.uid);
+        if (persisted !== undefined) {
+          setSelectedWorkspaceId(persisted);
+        } else {
+          setSelectedWorkspaceId(null);
+          persistWorkspace(firebaseUser.uid, null);
+        }
+        setIsWorkspaceReady(true);
+      } else {
+        setIsWorkspaceReady(true);
+      }
     });
 
     return unsubscribe;
@@ -72,12 +108,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
+    const uid = auth.currentUser?.uid;
     await firebaseSignOut(auth);
+    if (uid) {
+      restoredUidsRef.current.delete(uid);
+      syncedUidsRef.current.delete(uid);
+    }
   };
 
   const selectWorkspace = (id: string | null) => {
     setSelectedWorkspaceId(id);
-    setHasChosenWorkspace(true);
+    const uid = auth.currentUser?.uid;
+    if (uid) {
+      persistWorkspace(uid, id);
+    }
   };
 
   return (
@@ -86,10 +130,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         backendUserId,
         isLoading,
+        isWorkspaceReady,
         getToken,
         signOut,
         selectedWorkspaceId,
-        hasChosenWorkspace,
         selectWorkspace,
       }}
     >

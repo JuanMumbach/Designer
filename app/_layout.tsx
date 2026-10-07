@@ -4,9 +4,10 @@ import React, { useEffect } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { AuthProvider, useAuth } from '../services/AuthContext';
 import { COLORS } from '../constants/theme';
+import AppSidebar from '../components/Sidebar/AppSidebar';
 
 function RootNavigator() {
-  const { user, isLoading, hasChosenWorkspace } = useAuth();
+  const { user, isLoading, isWorkspaceReady } = useAuth();
   const router = useRouter();
   const segments = useSegments();
 
@@ -17,12 +18,12 @@ function RootNavigator() {
 
     if (!user && !inLoginScreen) {
       router.replace('/login');
-    } else if (user && (inLoginScreen || !hasChosenWorkspace)) {
-      router.replace('/');
+    } else if (user && inLoginScreen) {
+      router.replace('/projectManager');
     }
-  }, [user, isLoading, segments, hasChosenWorkspace]);
+  }, [user, isLoading, segments, router]);
 
-  if (isLoading) {
+  if (isLoading || (user && !isWorkspaceReady)) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={COLORS.primary} />
@@ -30,20 +31,27 @@ function RootNavigator() {
     );
   }
 
+  const showSidebar = !!user && isWorkspaceReady;
+
   return (
     <>
-      <Stack
-        screenOptions={{
-          headerShown: false,
-        }}
-      >
-        <Stack.Screen name="index" />
-        <Stack.Screen name="login" />
-        <Stack.Screen name="projectManager" />
-        <Stack.Screen name="(design)" />
-        <Stack.Screen name="(resources)" />
-        <Stack.Screen name="(workspace)" />
-      </Stack>
+      <View style={styles.root}>
+        {showSidebar && <AppSidebar />}
+        <View style={styles.content}>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+            }}
+          >
+            <Stack.Screen name="index" />
+            <Stack.Screen name="login" />
+            <Stack.Screen name="projectManager" />
+            <Stack.Screen name="(design)" />
+            <Stack.Screen name="(resources)" />
+            <Stack.Screen name="(workspace)" />
+          </Stack>
+        </View>
+      </View>
       <StatusBar style="dark" />
     </>
   );
@@ -63,5 +71,14 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.bg,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  root: {
+    flex: 1,
+    flexDirection: 'row',
+    backgroundColor: COLORS.bg,
+  },
+  content: {
+    flex: 1,
+    minWidth: 0,
   },
 });

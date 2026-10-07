@@ -206,7 +206,7 @@ export default function ProjectManagerScreen() {
     if (router.canGoBack()) {
       router.back();
     } else {
-      router.replace("/");
+      router.replace("/projectManager");
     }
   };
 
