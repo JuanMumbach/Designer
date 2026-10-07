@@ -1,13 +1,31 @@
-import { Dimensions, Pressable, StyleSheet, Text, View } from "react-native";
-import { COLORS } from "@/constants/theme";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { COLORS, GLASS, RADII } from "@/constants/theme";
+import GlassSurface from "./DesignScreen/3dViewOverlay/GlassSurface";
 
 type Props = {
   label: string;
   theme?: "primary";
+  variant?: "primary" | "glass";
   onPress?: () => void;
 };
 
-export default function Button({ label, onPress }: Props) {
+export default function Button({ label, onPress, variant = "primary" }: Props) {
+  if (variant === "glass") {
+    return (
+      <View style={styles.buttonContainer}>
+        <Pressable onPress={onPress}>
+          {({ pressed }) => (
+            <GlassSurface
+              style={[styles.glassButton, pressed && styles.glassButtonPressed]}
+            >
+              <Text style={styles.glassButtonLabel}>{label}</Text>
+            </GlassSurface>
+          )}
+        </Pressable>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.buttonContainer}>
       <Pressable style={styles.button} onPress={onPress}>
@@ -18,13 +36,10 @@ export default function Button({ label, onPress }: Props) {
 }
 
 
-const w_width = Dimensions.get('window').width;
-const w_height = Dimensions.get('window').height;
-
 const styles = StyleSheet.create({
   buttonContainer: {
     // Quitamos el ancho fijo gigante. Dejamos que el botón decida su tamaño.
-    marginHorizontal: 8, 
+    marginHorizontal: 8,
     marginVertical: 5,
     alignItems: "center",
     justifyContent: "center",
@@ -51,6 +66,29 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 14,
     fontWeight: "600", // Texto un poco más grueso
+    letterSpacing: 0.5,
+  },
+  glassButton: {
+    borderRadius: RADII.full,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 6,
+  },
+  glassButtonPressed: {
+    backgroundColor: GLASS.bgPressed,
+    borderColor: GLASS.borderStrong,
+  },
+  glassButtonLabel: {
+    color: GLASS.text,
+    fontSize: 14,
+    fontWeight: "600",
     letterSpacing: 0.5,
   },
 });

@@ -39,6 +39,22 @@ export const RADII = {
   lg: 10,
   xl: 16,
   pill: 20,
+  sheet: 24,
+  full: 9999,
+} as const;
+
+export const GLASS = {
+  bg: 'rgba(17, 17, 20, 0.65)',
+  bgStrong: 'rgba(10, 10, 12, 0.72)',
+  bgInput: 'rgba(255, 255, 255, 0.08)',
+  bgPressed: 'rgba(255, 255, 255, 0.14)',
+  border: 'rgba(255, 255, 255, 0.16)',
+  borderStrong: 'rgba(255, 255, 255, 0.30)',
+  text: '#f4f4f5',
+  textMuted: '#a1a1aa',
+  textFaint: '#71717a',
+  scrim: 'rgba(0, 0, 0, 0.45)',
+  blur: 10,
 } as const;
 
 export const commonStyles = {

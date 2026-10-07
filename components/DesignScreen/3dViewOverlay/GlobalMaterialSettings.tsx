@@ -1,11 +1,12 @@
 import { useRef, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleProp, StyleSheet, Text, View, ViewStyle } from "react-native";
 import Button from "../../Button";
 import { MaterialCategory, MaterialMeta } from "../../../services/api";
 import { GlobalMaterials, isMaterialAlias } from "../3dView/DesignObjects";
 import { DesignMaterialSlot } from "../../../services/designMaterialDefaults";
 import MaterialPicker from "./MaterialPicker";
-import { COLORS, RADII } from "@/constants/theme";
+import { GLASS, RADII } from "@/constants/theme";
+import GlassSurface from "./GlassSurface";
 
 function getSlotLabel(designSlots: DesignMaterialSlot[], key: string): string {
     return designSlots.find(s => s.key === key)?.label ?? key;
@@ -17,7 +18,9 @@ export default function GlobalMaterialSettings({
     materials,
     materialCategories,
     designSlots,
-    onClose
+    onClose,
+    containerStyle,
+    initialEditingSlot
 }: {
     globalMaterials: GlobalMaterials,
     onGlobalMaterialsChange: (materials: GlobalMaterials) => void,
@@ -25,9 +28,11 @@ export default function GlobalMaterialSettings({
     materialCategories: MaterialCategory[],
     designSlots: DesignMaterialSlot[],
     onClose: () => void,
+    containerStyle?: StyleProp<ViewStyle>,
+    initialEditingSlot?: string | null,
 }) {
-    const [editingSlot, setEditingSlot] = useState<string | null>(null);
-    const editingSlotRef = useRef<string | null>(null);
+    const [editingSlot, setEditingSlot] = useState<string | null>(initialEditingSlot ?? null);
+    const editingSlotRef = useRef<string | null>(editingSlot);
     editingSlotRef.current = editingSlot;
     const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -65,13 +70,14 @@ export default function GlobalMaterialSettings({
                 categories={materialCategories}
                 onSelect={handleCustomSelect}
                 onClose={() => setPickerOpen(false)}
+                containerStyle={containerStyle}
             />
         );
     }
 
     if (editingSlot) {
         return (
-            <View style={styles.container}>
+            <GlassSurface style={[styles.container, containerStyle]}>
                 <Text style={styles.headerTitle}>Assign {getSlotLabel(designSlots, editingSlot)}</Text>
                 <Text style={styles.sectionHint}>Choose a catalog material</Text>
                 <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
@@ -82,12 +88,12 @@ export default function GlobalMaterialSettings({
                 <View style={styles.footer}>
                     <Button label="Back" onPress={() => setEditingSlot(null)} />
                 </View>
-            </View>
+            </GlassSurface>
         );
     }
 
     return (
-        <View style={styles.container}>
+        <GlassSurface style={[styles.container, containerStyle]}>
             <Text style={styles.headerTitle}>Default Materials</Text>
             <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
                 {designSlots.map(slot => {
@@ -115,7 +121,7 @@ export default function GlobalMaterialSettings({
             <View style={styles.footer}>
                 <Button label="Done" onPress={onClose} />
             </View>
-        </View>
+        </GlassSurface>
     );
 }
 
@@ -123,14 +129,12 @@ const styles = StyleSheet.create({
     container: {
         width: 300,
         maxHeight: '100%',
-        backgroundColor: COLORS.bg,
         borderRadius: RADII.xl,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.25,
         shadowRadius: 10,
         elevation: 10,
-        overflow: 'hidden',
     },
     scroll: {
         flex: 1,
@@ -143,7 +147,7 @@ const styles = StyleSheet.create({
     headerTitle: {
         fontSize: 18,
         fontWeight: 'bold',
-        color: COLORS.text,
+        color: GLASS.text,
         marginTop: 16,
         marginBottom: 4,
         textAlign: 'center',
@@ -151,7 +155,7 @@ const styles = StyleSheet.create({
     sectionHint: {
         fontSize: 12,
         fontWeight: '700',
-        color: COLORS.textHeading,
+        color: GLASS.textMuted,
         marginTop: 14,
         marginBottom: 8,
         textAlign: 'center',
@@ -161,13 +165,13 @@ const styles = StyleSheet.create({
     row: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: COLORS.bgAlt,
+        backgroundColor: GLASS.bgInput,
         paddingVertical: 10,
         paddingHorizontal: 12,
         borderRadius: RADII.md,
         marginBottom: 8,
         borderWidth: 1,
-        borderColor: COLORS.border,
+        borderColor: GLASS.border,
     },
     rowInfo: {
         flex: 1,
@@ -176,12 +180,12 @@ const styles = StyleSheet.create({
     rowLabel: {
         fontSize: 13,
         fontWeight: '600',
-        color: COLORS.textBody,
+        color: GLASS.text,
         marginBottom: 2,
     },
     rowStatus: {
         fontSize: 11,
-        color: COLORS.textMuted,
+        color: GLASS.textMuted,
     },
     rowActions: {
         flexDirection: 'row',
@@ -191,45 +195,45 @@ const styles = StyleSheet.create({
         paddingVertical: 4,
         paddingHorizontal: 10,
         borderRadius: RADII.sm,
-        backgroundColor: COLORS.primary,
+        backgroundColor: 'rgba(37, 99, 235, 0.85)',
     },
     changeLabel: {
         fontSize: 12,
         fontWeight: '600',
-        color: COLORS.white,
+        color: '#ffffff',
     },
     resetButton: {
         paddingVertical: 4,
         paddingHorizontal: 10,
         borderRadius: RADII.sm,
-        backgroundColor: COLORS.surfaceAlt,
+        backgroundColor: GLASS.bgPressed,
         borderWidth: 1,
-        borderColor: COLORS.borderStrong,
+        borderColor: GLASS.borderStrong,
     },
     resetLabel: {
         fontSize: 12,
         fontWeight: '600',
-        color: COLORS.textMuted,
+        color: GLASS.text,
     },
     browseButton: {
         alignItems: 'center',
-        backgroundColor: COLORS.primarySoft,
+        backgroundColor: 'rgba(37, 99, 235, 0.30)',
         paddingVertical: 12,
         paddingHorizontal: 16,
         borderRadius: RADII.lg,
         borderWidth: 1,
-        borderColor: COLORS.primaryBorder,
+        borderColor: 'rgba(147, 197, 253, 0.4)',
         marginBottom: 8,
     },
     browseLabel: {
         fontSize: 14,
         fontWeight: '700',
-        color: COLORS.primary,
+        color: '#93c5fd',
     },
     footer: {
         alignItems: 'center',
         paddingVertical: 12,
         borderTopWidth: 1,
-        borderTopColor: COLORS.border,
+        borderTopColor: GLASS.border,
     },
 });

@@ -395,6 +395,7 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
         materialCategories={materialCategories}
         globalMaterials={globalMaterials}
         setGlobalMaterials={setGlobalMaterials}
+        materialDataById={materialDataById}
         designSlots={designMaterialsConfig.designMaterialSlots}
         slotTypesByModel={slotTypesByModel}
         typeToDesignSlot={typeToDesignSlot}
