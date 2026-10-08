@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -11,7 +12,7 @@ import {
   View,
 } from "react-native";
 import { useAuth } from "../services/AuthContext";
-import { COLORS } from "../constants/theme";
+import { COLORS, RADII } from "../constants/theme";
 import {
   BackendUser,
   fetchAllProjects,
@@ -39,7 +40,11 @@ const MONTH_NAMES = [
   "diciembre",
 ];
 
+const CARD_SIZE_KEY = "@design:projectCardSize";
+
 const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+type CardSize = "large" | "compact";
 
 const hasUsableDate = (iso?: string) => {
   if (!iso) return false;
@@ -62,6 +67,27 @@ export default function ProjectManagerScreen() {
   const [groupBy, setGroupBy] = useState<"lastUpdate" | "createdAt">("lastUpdate");
   const [loading, setLoading] = useState(true);
   const lastPressRef = useRef(0);
+  const [cardSize, setCardSize] = useState<CardSize>("large");
+  const cardSizeLoadedRef = useRef(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem(CARD_SIZE_KEY)
+      .then((raw) => {
+        const parsed = raw ? JSON.parse(raw) : null;
+        if (parsed === "large" || parsed === "compact") {
+          setCardSize(parsed);
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        cardSizeLoadedRef.current = true;
+      });
+  }, []);
+
+  useEffect(() => {
+    if (!cardSizeLoadedRef.current) return;
+    AsyncStorage.setItem(CARD_SIZE_KEY, JSON.stringify(cardSize)).catch(() => {});
+  }, [cardSize]);
 
   const loadData = useCallback(async () => {
     try {
@@ -392,7 +418,42 @@ export default function ProjectManagerScreen() {
         <Text style={styles.statusText} numberOfLines={1}>
           {currentWorkspaceName}
         </Text>
-        <View style={styles.segmented}>
+        <View style={styles.statusActions}>
+          <View style={styles.segmented}>
+            <Pressable
+              style={[
+                styles.segmentButton,
+                cardSize === "large" && styles.segmentButtonActive,
+              ]}
+              onPress={() => setCardSize("large")}
+            >
+              <Text
+                style={[
+                  styles.segmentButtonText,
+                  cardSize === "large" && styles.segmentButtonTextActive,
+                ]}
+              >
+                Grande
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[
+                styles.segmentButton,
+                cardSize === "compact" && styles.segmentButtonActive,
+              ]}
+              onPress={() => setCardSize("compact")}
+            >
+              <Text
+                style={[
+                  styles.segmentButtonText,
+                  cardSize === "compact" && styles.segmentButtonTextActive,
+                ]}
+              >
+                Compacta
+              </Text>
+            </Pressable>
+          </View>
+          <View style={styles.segmented}>
           <Pressable
             style={[
               styles.segmentButton,
@@ -425,6 +486,7 @@ export default function ProjectManagerScreen() {
               Creado
             </Text>
           </Pressable>
+          </View>
         </View>
       </View>
 
@@ -456,9 +518,59 @@ export default function ProjectManagerScreen() {
                       {group.projects.length}
                     </Text>
                   </Text>
-                  <View style={styles.pillGrid}>
+                  <View
+                    style={
+                      cardSize === "large" ? styles.cardGrid : styles.pillGrid
+                    }
+                  >
                     {group.projects.map((project) => {
                       const isSelected = selectedProject?.id === project.id;
+                      if (cardSize === "large") {
+                        return (
+                          <View
+                            key={project.id}
+                            style={[styles.card, isSelected && styles.cardSelected]}
+                          >
+                            <Pressable
+                              style={styles.cardMain}
+                              onPress={() => selectProject(project)}
+                            >
+                              <View style={styles.cardThumb}>
+                                <Thumbnail
+                                  uri={thumbnails[project.id]}
+                                  width="100%"
+                                  height={104}
+                                  icon="folder-outline"
+                                  radius={RADII.sm}
+                                />
+                              </View>
+                              <View style={styles.cardBody}>
+                                <Text
+                                  style={[
+                                    styles.cardName,
+                                    isSelected && styles.cardNameSelected,
+                                  ]}
+                                  numberOfLines={1}
+                                >
+                                  {project.name}
+                                </Text>
+                                <Text style={styles.cardMeta} numberOfLines={1}>
+                                  v{project.lastVersion}
+                                </Text>
+                              </View>
+                            </Pressable>
+                            <Pressable
+                              style={({ pressed }) => [
+                                styles.cardOpen,
+                                pressed && styles.cardOpenPressed,
+                              ]}
+                              onPress={() => openProject(project)}
+                            >
+                              <Text style={styles.cardOpenText}>Abrir</Text>
+                            </Pressable>
+                          </View>
+                        );
+                      }
                       return (
                         <View
                           key={project.id}
@@ -580,6 +692,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: COLORS.textMuted,
   },
+  statusActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   segmented: {
     flexDirection: "row",
     borderRadius: 8,
@@ -653,6 +770,68 @@ const styles = StyleSheet.create({
   groupCount: {
     color: COLORS.textFaint,
     fontWeight: "600",
+  },
+  cardGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  card: {
+    flexBasis: 170,
+    flexGrow: 1,
+    flexShrink: 1,
+    maxWidth: 220,
+    backgroundColor: COLORS.bg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADII.md,
+    padding: 12,
+    gap: 10,
+  },
+  cardSelected: {
+    backgroundColor: COLORS.primarySoft,
+    borderColor: COLORS.primary,
+  },
+  cardMain: {
+    alignItems: "center",
+    gap: 10,
+  },
+  cardThumb: {
+    width: "100%",
+    alignItems: "center",
+  },
+  cardBody: {
+    alignItems: "center",
+    gap: 2,
+  },
+  cardName: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: COLORS.textBody,
+    textAlign: "center",
+  },
+  cardNameSelected: {
+    color: COLORS.primary,
+  },
+  cardMeta: {
+    fontSize: 12,
+    color: COLORS.textFaint,
+    fontWeight: "600",
+  },
+  cardOpen: {
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: RADII.sm,
+    backgroundColor: COLORS.border,
+    alignItems: "center",
+  },
+  cardOpenPressed: {
+    backgroundColor: COLORS.borderStrong,
+  },
+  cardOpenText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: COLORS.textHeading,
   },
   pillGrid: {
     flexDirection: "row",

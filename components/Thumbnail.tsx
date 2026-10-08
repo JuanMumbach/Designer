@@ -9,13 +9,21 @@ export default function Thumbnail({
   size = 40,
   icon = "image-outline",
   radius = RADII.sm,
+  width,
+  height,
 }: {
   uri?: string | null;
   size?: number;
   icon?: React.ComponentProps<typeof Ionicons>["name"];
   radius?: number;
+  width?: number | `${number}%`;
+  height?: number;
 }) {
-  const shape = { width: size, height: size, borderRadius: radius };
+  const shape = {
+    width: width ?? size,
+    height: height ?? size,
+    borderRadius: radius,
+  };
   if (uri) {
     return (
       <Image
@@ -28,7 +36,11 @@ export default function Thumbnail({
   }
   return (
     <View style={[styles.placeholder, shape]}>
-      <Ionicons name={icon} size={size * 0.5} color={COLORS.textFaint} />
+      <Ionicons
+        name={icon}
+        size={(typeof width === "number" ? width : size) * 0.5}
+        color={COLORS.textFaint}
+      />
     </View>
   );
 }

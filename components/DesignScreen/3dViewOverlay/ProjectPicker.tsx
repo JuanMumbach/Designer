@@ -132,7 +132,7 @@ export default function ProjectPicker({
 
     setSaving(true);
     try {
-      const thumbnailURL = (await captureApi?.requestCapture('projects')) || undefined;
+      const thumbnailURL = (await captureApi?.requestCapture('thumbnails/projects')) || undefined;
       let project: Project | undefined;
       if (isNewProject) {
         const result = await createProjectInCloud(projectState, {

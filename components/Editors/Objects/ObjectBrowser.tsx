@@ -209,7 +209,7 @@ export default function ObjectBrowser({
         data.objectProperties !== (current?.objectProperties ?? '');
 
       if (changed) {
-        const thumbnailURL = await captureApi.requestCapture('thumbnails');
+        const thumbnailURL = await captureApi.requestCapture('thumbnails/objects');
         const versionResult = await createObjectVersion(editingObject.id, {
           fileURL: data.fileURL,
           sizeX: parseFloat(data.sizeX) || 1,
@@ -235,7 +235,7 @@ export default function ObjectBrowser({
         creatorId: data.creatorId,
         categoryId: data.categoryId || undefined,
       });
-      const thumbnailURL = await captureApi.requestCapture('thumbnails');
+      const thumbnailURL = await captureApi.requestCapture('thumbnails/objects');
       const versionResult = await createObjectVersion(meta.id, {
         fileURL: data.fileURL,
         sizeX: parseFloat(data.sizeX) || 1,

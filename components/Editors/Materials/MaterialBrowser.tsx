@@ -227,7 +227,7 @@ export default function MaterialBrowser({
         await categorizeMaterialType({ id: editingMaterial.id, typeId: data.typeId });
       }
       if (data.fileURL || data.scaleU || data.scaleV || data.materialProperties) {
-        const thumbnailURL = await captureApi.requestCapture('thumbnails');
+        const thumbnailURL = await captureApi.requestCapture('thumbnails/materials');
         await createMaterialVersion(editingMaterial.id, {
           fileURL: data.fileURL,
           scaleU: parseFloat(data.scaleU) || 1,
@@ -246,7 +246,7 @@ export default function MaterialBrowser({
       if (data.typeId) {
         await categorizeMaterialType({ id: meta.id, typeId: data.typeId });
       }
-      const thumbnailURL = await captureApi.requestCapture('thumbnails');
+      const thumbnailURL = await captureApi.requestCapture('thumbnails/materials');
       await createMaterialVersion(meta.id, {
         fileURL: data.fileURL,
         scaleU: parseFloat(data.scaleU) || 1,
