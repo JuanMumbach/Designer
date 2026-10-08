@@ -285,7 +285,7 @@ const styles = StyleSheet.create({
   },
   selectIcon: {
     fontSize: 18,
-    color: "#93c5fd",
+    color: COLORS.primary,
   },
   emptyText: {
     textAlign: "center",

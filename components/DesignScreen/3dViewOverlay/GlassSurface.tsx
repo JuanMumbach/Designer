@@ -27,7 +27,7 @@ export default function GlassSurface({
   }
 
   return (
-    <BlurView intensity={blurIntensity} tint="dark" style={[styles.base, style]}>
+    <BlurView intensity={blurIntensity} tint="light" style={[styles.base, style]}>
       {children}
     </BlurView>
   );

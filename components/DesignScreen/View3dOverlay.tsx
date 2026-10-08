@@ -1,4 +1,4 @@
-import { GLASS, RADII } from "@/constants/theme";
+import { COLORS, GLASS, RADII } from "@/constants/theme";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Dimensions, Pressable, ScaledSize, StyleSheet, Text, View, ViewProps } from "react-native";
@@ -12,7 +12,7 @@ import CategoryBrowser from "./3dViewOverlay/CategoryBrowser";
 import EditFurnitureInstanceMenu from "./3dViewOverlay/EditFurnitureInstanceMenu";
 import FurnitureInstancesManager from "./3dViewOverlay/FurnitureInstancesManager";
 import GlassSurface from "./3dViewOverlay/GlassSurface";
-import GlobalMaterialSettings from "./3dViewOverlay/GlobalMaterialSettings";
+import MaterialPicker from "./3dViewOverlay/MaterialPicker";
 import MaterialsWidget from "./3dViewOverlay/MaterialsWidget";
 import RoomManager from "./3dViewOverlay/RoomManager";
 
@@ -104,7 +104,7 @@ function DropdownItem({
       disabled={busy}
     >
       {busy ? (
-        <ActivityIndicator size="small" color="#93c5fd" />
+        <ActivityIndicator size="small" color={COLORS.primary} />
       ) : (
         <Text style={styles.dropdownItemText}>{label}</Text>
       )}
@@ -124,10 +124,11 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
   const [isListInstantiableObjectsVisible, setIsListInstantiableObjectsVisible] = useState(false);
   const [isRoomSettingsVisible, setIsRoomSettingsVisible] = useState(false);
   const [isGlobalMaterialsVisible, setIsGlobalMaterialsVisible] = useState(false);
+  const [isMaterialsPreviewsVisible, setIsMaterialsPreviewsVisible] = useState(false);
   const [isOptionsMenuVisible, setIsOptionsMenuVisible] = useState(false);
   const [isExportMenuVisible, setIsExportMenuVisible] = useState(false);
   const [materialsInitialSlot, setMaterialsInitialSlot] = useState<string | null>(null);
-  const [materialsPanelNonce, setMaterialsPanelNonce] = useState(0);
+  const [activeMaterialCardId, setActiveMaterialCardId] = useState<string | null>(null);
 
   const [isEditObjectMenuVisible, setIsEditObjectMenuVisible] = useState(false);
   const [selectedObjectState, setSelectedObjectState] = useState<DesignObject | undefined>(undefined);
@@ -154,6 +155,7 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
     setIsObjectsManagerVisible(false);
     setIsListInstantiableObjectsVisible(false);
     setIsGlobalMaterialsVisible(false);
+    setIsMaterialsPreviewsVisible(false);
     onObjectAdded(createDesignObject(objectType, getInitialPosition(objectType)));
   }
 
@@ -162,6 +164,7 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
     setIsRoomSettingsVisible(false);
     setIsObjectsManagerVisible(false);
     setIsGlobalMaterialsVisible(false);
+    setIsMaterialsPreviewsVisible(false);
 
     setSelectedObjectState(object);
     setIsEditObjectMenuVisible(true);
@@ -197,22 +200,56 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
       setIsObjectsManagerVisible(false);
       setIsEditObjectMenuVisible(false);
       setIsGlobalMaterialsVisible(false);
+      setIsMaterialsPreviewsVisible(false);
       setMaterialsInitialSlot(null);
     }
   };
 
-  const handleMaterialsToggle = (slotKey?: string) => {
-    const shouldOpen = slotKey !== undefined ? true : !isGlobalMaterialsVisible;
-    setIsGlobalMaterialsVisible(shouldOpen);
-    setMaterialsInitialSlot(shouldOpen ? (slotKey ?? null) : null);
-    setMaterialsPanelNonce(prev => prev + 1);
+  const closePanelsForMaterials = () => {
+    setIsRoomSettingsVisible(false);
+    setIsListInstantiableObjectsVisible(false);
+    setIsObjectsManagerVisible(false);
+    setIsEditObjectMenuVisible(false);
+  };
+
+  const toggleMaterialsPreviews = () => {
+    const shouldOpen = !isMaterialsPreviewsVisible;
+    setIsMaterialsPreviewsVisible(shouldOpen);
 
     if (shouldOpen) {
-      setIsRoomSettingsVisible(false);
-      setIsListInstantiableObjectsVisible(false);
-      setIsObjectsManagerVisible(false);
-      setIsEditObjectMenuVisible(false);
+      setIsGlobalMaterialsVisible(false);
+      setMaterialsInitialSlot(null);
+      closePanelsForMaterials();
     }
+  };
+
+  const openMaterialsPanel = (slotKey?: string) => {
+    setIsMaterialsPreviewsVisible(false);
+    setIsGlobalMaterialsVisible(true);
+    setMaterialsInitialSlot(slotKey ?? null);
+    setActiveMaterialCardId(null);
+    closePanelsForMaterials();
+  };
+
+  const closeMaterialsPanel = () => {
+    setIsGlobalMaterialsVisible(false);
+    setMaterialsInitialSlot(null);
+  };
+
+  const handleMaterialSelect = async (materialMeta: MaterialMeta) => {
+    const slot = materialsInitialSlot;
+    if (!slot) return;
+    setGlobalMaterials(prev => ({ ...prev, [slot]: materialMeta.id }));
+    closeMaterialsPanel();
+  };
+
+  const handleMaterialReset = (slotKey: string) => {
+    setGlobalMaterials(prev => {
+      const next = { ...prev };
+      delete next[slotKey];
+      return next;
+    });
+    setActiveMaterialCardId(null);
   };
 
   const toggleAddObjectList = () => {
@@ -224,6 +261,7 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
       setIsObjectsManagerVisible(false);
       setIsEditObjectMenuVisible(false);
       setIsGlobalMaterialsVisible(false);
+      setIsMaterialsPreviewsVisible(false);
       setMaterialsInitialSlot(null);
     }
   };
@@ -237,6 +275,7 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
       setIsListInstantiableObjectsVisible(false);
       setIsEditObjectMenuVisible(false);
       setIsGlobalMaterialsVisible(false);
+      setIsMaterialsPreviewsVisible(false);
       setMaterialsInitialSlot(null);
     }
   };
@@ -284,6 +323,7 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
     setIsObjectsManagerVisible(false);
     setIsRoomSettingsVisible(false);
     setIsGlobalMaterialsVisible(false);
+    setIsMaterialsPreviewsVisible(false);
     setMaterialsInitialSlot(null);
     setIsListInstantiableObjectsVisible(false);
     closeEditMenu();
@@ -295,16 +335,13 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
   const sheetPanelStyle = [styles.sheetPanel, { maxHeight: sheetMaxHeight - 56 }];
 
   const materialsPanel = (
-    <GlobalMaterialSettings
-      key={`${materialsInitialSlot ?? 'materials-list'}-${materialsPanelNonce}`}
-      globalMaterials={globalMaterials}
-      onGlobalMaterialsChange={setGlobalMaterials}
+    <MaterialPicker
+      key={materialsInitialSlot ?? "material-picker"}
       materials={materials}
-      materialCategories={materialCategories}
-      designSlots={designSlots}
-      onClose={() => { setIsGlobalMaterialsVisible(false); setMaterialsInitialSlot(null); }}
+      categories={materialCategories}
+      onSelect={handleMaterialSelect}
+      onClose={closeMaterialsPanel}
       containerStyle={styles.widgetPanel}
-      initialEditingSlot={materialsInitialSlot}
     />
   );
 
@@ -321,16 +358,13 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
     ) ||
     (
       isGlobalMaterialsVisible && (
-        <GlobalMaterialSettings
-          key={`${materialsInitialSlot ?? 'materials-list'}-${materialsPanelNonce}`}
-          globalMaterials={globalMaterials}
-          onGlobalMaterialsChange={setGlobalMaterials}
+        <MaterialPicker
+          key={materialsInitialSlot ?? "material-picker"}
           materials={materials}
-          materialCategories={materialCategories}
-          designSlots={designSlots}
-          onClose={() => { setIsGlobalMaterialsVisible(false); setMaterialsInitialSlot(null); }}
+          categories={materialCategories}
+          onSelect={handleMaterialSelect}
+          onClose={closeMaterialsPanel}
           containerStyle={sheetPanelStyle}
-          initialEditingSlot={materialsInitialSlot}
         />
       )
     ) ||
@@ -457,13 +491,22 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
         )}
 
       {/*---------------------------------Materials widget (esquina superior derecha)-------------------------------------*/}
+      {activeMaterialCardId && !isGlobalMaterialsVisible && (
+        <Pressable style={styles.materialCardBackdrop} onPress={() => setActiveMaterialCardId(null)} />
+      )}
       <View style={styles.widgetAnchor} pointerEvents="box-none">
         <MaterialsWidget
           designSlots={designSlots}
           globalMaterials={globalMaterials}
           materialDataById={materialDataById}
-          expanded={isGlobalMaterialsVisible}
-          onToggle={handleMaterialsToggle}
+          materials={materials}
+          expanded={isMaterialsPreviewsVisible}
+          onToggleExpanded={toggleMaterialsPreviews}
+          activeCardId={activeMaterialCardId}
+          onCardActivate={setActiveMaterialCardId}
+          onCardDismiss={() => setActiveMaterialCardId(null)}
+          onRequestPicker={openMaterialsPanel}
+          onResetSlot={handleMaterialReset}
           compact={!isDesktop}
         />
         {isDesktop && isGlobalMaterialsVisible && materialsPanel}
@@ -565,6 +608,14 @@ const styles = StyleSheet.create({
     right: 24,
     alignItems: 'flex-end',
     zIndex: 130,
+  },
+  materialCardBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 120,
   },
   widgetPanel: {
     marginTop: 12,

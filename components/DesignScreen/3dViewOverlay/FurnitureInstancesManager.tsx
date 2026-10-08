@@ -103,7 +103,7 @@ const styles = StyleSheet.create({
         marginTop: 4,
     },
     badge: {
-        backgroundColor: 'rgba(255, 255, 255, 0.18)',
+        backgroundColor: 'rgba(37, 99, 235, 0.14)',
         color: GLASS.text,
         fontSize: 10,
         paddingVertical: 2,

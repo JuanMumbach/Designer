@@ -395,7 +395,7 @@ const styles = StyleSheet.create({
   backLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#93c5fd',
+    color: COLORS.primary,
   },
   headerTitle: {
     flex: 1,
@@ -441,6 +441,6 @@ const styles = StyleSheet.create({
   browseLabel: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#93c5fd',
+    color: COLORS.primary,
   },
 });
