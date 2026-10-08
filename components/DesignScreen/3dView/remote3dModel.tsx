@@ -159,7 +159,7 @@ export function DesignObject3D({
       group.traverse((child) => {
         if (child instanceof THREE.Mesh) {
           const edgeGeometry = new THREE.EdgesGeometry(child.geometry, 30);
-          const line = new THREE.LineSegments(edgeGeometry, new THREE.LineBasicMaterial({ color: 'white' }));
+          const line = new THREE.LineSegments(edgeGeometry, new THREE.LineBasicMaterial({ color: 'black' }));
           line.position.copy(child.position);
           line.rotation.copy(child.rotation);
           line.scale.copy(child.scale);
@@ -192,9 +192,12 @@ export function DesignObject3D({
         if (child instanceof THREE.Mesh) child.visible = !hide;
       });
       edgeLinesRef.current.forEach((line) => {
-        line.visible = hide;
+        line.visible = hide || !!isSelected;
+        const material = line.material as THREE.LineBasicMaterial;
+        material.depthTest = !isSelected;
+        line.renderOrder = isSelected ? 999 : 0;
       });
-    }, [obj.hidden, groupReady, forcedHidden]);
+    }, [obj.hidden, groupReady, forcedHidden, isSelected]);
 
     useEffect(() => {
       if (!localUri) return;
