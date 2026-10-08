@@ -11,7 +11,7 @@ import { ActivityIndicator, Alert, Platform, StyleSheet, Text, View } from "reac
 import { useObjectTemplates } from "../services/useFurnitureModels";
 import { useMaterials } from "../services/useMaterials";
 import { useCurrentProject } from "../services/currentProject";
-import { createDesignObject, AppliedMaterial, DesignObject, GlobalMaterials, MaterialOverrides, resolveGlobalMaterials } from "./DesignScreen/3dView/DesignObjects";
+import { createDesignObject, AppliedMaterial, DesignObject, getInitialPosition, GlobalMaterials, MaterialOverrides, resolveGlobalMaterials } from "./DesignScreen/3dView/DesignObjects";
 import { Room3dProps } from "./DesignScreen/3dView/Room3d";
 import { MaterialSlotInfo } from "../services/materialSlots";
 import { collectDefaultGlobalMaterials, designMaterialsConfig, normalizeTypeName, resolveMaterialValue } from "../services/designMaterialDefaults";
@@ -255,11 +255,12 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
     if (cupboardModels.length > 0) {
       const cupboard = cupboardModels[0];
       const cupboard2 = cupboardModels.length > 1 ? cupboardModels[1] : cupboardModels[0];
-      defaults.push(createDesignObject(cupboard, [0, 1.5, 0]));
-      defaults.push(createDesignObject(cupboard2, [1.2, 1.5, 0]));
-      defaults.push(createDesignObject(cupboard, [1.8, 1.5, 0]));
-      defaults.push(createDesignObject(cupboard2, [2.4, 1.5, 0]));
-      defaults.push(createDesignObject(cupboard2, [3, 1.5, 0]));
+      const cupboardY = getInitialPosition(cupboard)[1];
+      defaults.push(createDesignObject(cupboard, [0, cupboardY, 0]));
+      defaults.push(createDesignObject(cupboard2, [1.2, cupboardY, 0]));
+      defaults.push(createDesignObject(cupboard, [1.8, cupboardY, 0]));
+      defaults.push(createDesignObject(cupboard2, [2.4, cupboardY, 0]));
+      defaults.push(createDesignObject(cupboard2, [3, cupboardY, 0]));
     }
 
     setDesignObjects(defaults);
@@ -308,6 +309,7 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
 
   const handleObjectAdded = (newObject: DesignObject) => {
     setDesignObjects(prev => [...prev, newObject]);
+    setMovingObject(newObject);
   };
 
   const handleObjectEdited = (id: string, updates: { name: string, position: [number, number, number], rotation?: number, materialOverrides?: MaterialOverrides, hidden?: boolean }) => {

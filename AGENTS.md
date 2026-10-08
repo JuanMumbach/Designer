@@ -83,7 +83,7 @@ export default function ComponentName({
 
 ### Naming Conventions
 
-- Components: PascalCase (`DesignObjects`, `AddFurnitureInstanceMenu`)
+- Components: PascalCase (`DesignObjects`, `EditFurnitureInstanceMenu`)
 - Functions: camelCase (`getRandomColor`, `handleAddObject`)
 - Constants: camelCase for variables (`furnitureModels`), PascalCase for enums (`FurnitureType`)
 - Files: PascalCase for components (`Button.tsx`), camelCase for utilities (`remote3dModel.tsx`)
@@ -112,7 +112,6 @@ components/
     │   ├── Room3d.tsx         # Room/grid rendering
     │   └── remote3dModel.tsx  # GLB model loading with drei
     └── 3dViewOverlay/         # Floating UI panels
-        ├── AddFurnitureInstanceMenu.tsx
         ├── EditFurnitureInstanceMenu.tsx
         ├── MoveFurnitureInstanceMenu.tsx
         ├── FurnitureInstancesManager.tsx

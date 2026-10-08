@@ -88,6 +88,15 @@ export function createDesignObject(template: ObjectTemplate, position?: [number,
     };
 }
 
+export const DEFAULT_CUPBOARD_HEIGHT = 1.6;
+
+export function getInitialPosition(template: ObjectTemplate): [number, number, number] {
+    const y = template.objectProperties?.movingBehaviour === 'cupboard'
+        ? (template.objectProperties.height ?? DEFAULT_CUPBOARD_HEIGHT)
+        : 0;
+    return [0, y, 0];
+}
+
 export let objectTemplates: ObjectTemplate[] = [
     {
         id: generateUUID(),

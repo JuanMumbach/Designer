@@ -5,9 +5,8 @@ import { ActivityIndicator, Dimensions, Pressable, ScaledSize, StyleSheet, Text,
 import { MaterialCategory, MaterialMeta, ObjectCategory, ObjectMaterialType } from "../../services/api";
 import { DesignMaterialSlot } from "../../services/designMaterialDefaults";
 import Button from "../Button";
-import { AppliedMaterial, DesignObject, GlobalMaterials, MaterialOverrides, ObjectTemplate } from "./3dView/DesignObjects";
+import { AppliedMaterial, createDesignObject, DesignObject, getInitialPosition, GlobalMaterials, MaterialOverrides, ObjectTemplate } from "./3dView/DesignObjects";
 import { Room3dProps } from "./3dView/Room3d";
-import AddFurnitureInstanceMenu from "./3dViewOverlay/AddFurnitureInstanceMenu";
 import BottomSheet from "./3dViewOverlay/BottomSheet";
 import CategoryBrowser from "./3dViewOverlay/CategoryBrowser";
 import EditFurnitureInstanceMenu from "./3dViewOverlay/EditFurnitureInstanceMenu";
@@ -124,20 +123,11 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
   const [isObjectsManagerVisible, setIsObjectsManagerVisible] = useState(false);
   const [isListInstantiableObjectsVisible, setIsListInstantiableObjectsVisible] = useState(false);
   const [isRoomSettingsVisible, setIsRoomSettingsVisible] = useState(false);
-  const [isAddObjectMenuVisible, setIsAddObjectMenuVisible] = useState(false);
   const [isGlobalMaterialsVisible, setIsGlobalMaterialsVisible] = useState(false);
   const [isOptionsMenuVisible, setIsOptionsMenuVisible] = useState(false);
   const [isExportMenuVisible, setIsExportMenuVisible] = useState(false);
   const [materialsInitialSlot, setMaterialsInitialSlot] = useState<string | null>(null);
   const [materialsPanelNonce, setMaterialsPanelNonce] = useState(0);
-
-  const [newObjectTypeState, setNewObjectTypeState] = useState<ObjectTemplate | undefined>(undefined);
-
-  useEffect(() => {
-    if (objectTemplates.length > 0 && !newObjectTypeState) {
-      setNewObjectTypeState(objectTemplates[0]);
-    }
-  }, [objectTemplates, newObjectTypeState]);
 
   const [isEditObjectMenuVisible, setIsEditObjectMenuVisible] = useState(false);
   const [selectedObjectState, setSelectedObjectState] = useState<DesignObject | undefined>(undefined);
@@ -159,17 +149,15 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
     }
   }, [designObjects, selectedObjectState]);
 
-  const showAddObjectMenu = (objectType: ObjectTemplate) => {
+  const handleAddObject = (objectType: ObjectTemplate) => {
     setIsEditObjectMenuVisible(false);
     setIsObjectsManagerVisible(false);
     setIsListInstantiableObjectsVisible(false);
     setIsGlobalMaterialsVisible(false);
-    setNewObjectTypeState(objectType);
-    setIsAddObjectMenuVisible(true);
+    onObjectAdded(createDesignObject(objectType, getInitialPosition(objectType)));
   }
 
   const handleEditObject = (object: DesignObject) => {
-    setIsAddObjectMenuVisible(false);
     setIsListInstantiableObjectsVisible(false);
     setIsRoomSettingsVisible(false);
     setIsObjectsManagerVisible(false);
@@ -207,7 +195,6 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
     if (newState) {
       setIsListInstantiableObjectsVisible(false);
       setIsObjectsManagerVisible(false);
-      setIsAddObjectMenuVisible(false);
       setIsEditObjectMenuVisible(false);
       setIsGlobalMaterialsVisible(false);
       setMaterialsInitialSlot(null);
@@ -224,7 +211,6 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
       setIsRoomSettingsVisible(false);
       setIsListInstantiableObjectsVisible(false);
       setIsObjectsManagerVisible(false);
-      setIsAddObjectMenuVisible(false);
       setIsEditObjectMenuVisible(false);
     }
   };
@@ -236,7 +222,6 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
     if (newState) {
       setIsRoomSettingsVisible(false);
       setIsObjectsManagerVisible(false);
-      setIsAddObjectMenuVisible(false);
       setIsEditObjectMenuVisible(false);
       setIsGlobalMaterialsVisible(false);
       setMaterialsInitialSlot(null);
@@ -250,7 +235,6 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
     if (newState) {
       setIsRoomSettingsVisible(false);
       setIsListInstantiableObjectsVisible(false);
-      setIsAddObjectMenuVisible(false);
       setIsEditObjectMenuVisible(false);
       setIsGlobalMaterialsVisible(false);
       setMaterialsInitialSlot(null);
@@ -302,7 +286,6 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
     setIsGlobalMaterialsVisible(false);
     setMaterialsInitialSlot(null);
     setIsListInstantiableObjectsVisible(false);
-    setIsAddObjectMenuVisible(false);
     closeEditMenu();
   };
 
@@ -353,11 +336,8 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
     ) ||
     (
       isListInstantiableObjectsVisible && (
-        <CategoryBrowser objectTemplates={objectTemplates} categories={categories} addObjectAction={showAddObjectMenu} containerStyle={sheetPanelStyle} />
+        <CategoryBrowser objectTemplates={objectTemplates} categories={categories} addObjectAction={handleAddObject} containerStyle={sheetPanelStyle} />
       )
-    ) ||
-    (
-      isAddObjectMenuVisible && newObjectTypeState && (<AddFurnitureInstanceMenu newObjectType={newObjectTypeState} onObjectAdded={onObjectAdded} closeMenu={() => setIsAddObjectMenuVisible(false)} containerStyle={sheetPanelStyle}/>)
     ) ||
     (
         isEditObjectMenuVisible && selectedObjectState && (
@@ -431,9 +411,7 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
           {/*------------------------Menus centrales version Desktop (panel ancho y corto)-----------------------------*/}
           {isDesktop &&
           (
-            (isListInstantiableObjectsVisible && (<CategoryBrowser wide objectTemplates={objectTemplates} categories={categories} addObjectAction={showAddObjectMenu} containerStyle={widePanelStyle} />))
-            ||
-            (isAddObjectMenuVisible && newObjectTypeState && (<AddFurnitureInstanceMenu newObjectType={newObjectTypeState} onObjectAdded={onObjectAdded} closeMenu={() => setIsAddObjectMenuVisible(false)} containerStyle={widePanelStyle}/>))
+            (isListInstantiableObjectsVisible && (<CategoryBrowser wide objectTemplates={objectTemplates} categories={categories} addObjectAction={handleAddObject} containerStyle={widePanelStyle} />))
             ||
             (isEditObjectMenuVisible && selectedObjectState && (
                 <EditFurnitureInstanceMenu
