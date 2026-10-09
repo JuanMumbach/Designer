@@ -1,10 +1,10 @@
 import { COLORS, GLASS, RADII } from "@/constants/theme";
 import { useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Dimensions, Pressable, ScaledSize, StyleSheet, Text, View, ViewProps } from "react-native";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { MaterialCategory, MaterialMeta, ObjectCategory, ObjectMaterialType } from "../../services/api";
 import { DesignMaterialSlot } from "../../services/designMaterialDefaults";
-import Button from "../Button";
 import { AppliedMaterial, createDesignObject, DesignObject, getInitialPosition, GlobalMaterials, MaterialOverrides, ObjectTemplate } from "./3dView/DesignObjects";
 import { Room3dProps } from "./3dView/Room3d";
 import BottomSheet from "./3dViewOverlay/BottomSheet";
@@ -16,8 +16,6 @@ import MaterialPicker from "./3dViewOverlay/MaterialPicker";
 import MaterialsWidget from "./3dViewOverlay/MaterialsWidget";
 import RoomManager from "./3dViewOverlay/RoomManager";
 
-const debugColors = false;
-
 interface View3dOverlayProps {
   objectTemplates: ObjectTemplate[];
   categories: ObjectCategory[];
@@ -25,7 +23,7 @@ interface View3dOverlayProps {
   room3dProps: Room3dProps;
   setRoom3d: React.Dispatch<React.SetStateAction<Room3dProps>>;
   onObjectAdded: (newObject: DesignObject) => void;
-  onObjectEdited: (id: string, updates: { name: string, position: [number, number, number], rotation?: number, materialOverrides?: MaterialOverrides }) => void;
+  onObjectEdited: (id: string, updates: { name: string; position: [number, number, number]; rotation?: number; materialOverrides?: MaterialOverrides }) => void;
   onObjectDeleted: (id: string) => void;
   movingObject?: DesignObject;
   setMovingObject: (object?: DesignObject) => void;
@@ -48,14 +46,14 @@ interface View3dOverlayProps {
 }
 
 function useWindowDimensions() {
-  const [windowDimensions, setWindowDimensions] = useState(Dimensions.get('window'));
+  const [windowDimensions, setWindowDimensions] = useState(Dimensions.get("window"));
 
   useEffect(() => {
     const onChange = ({ window }: { window: ScaledSize }) => {
       setWindowDimensions(window);
     };
 
-    const subscription = Dimensions.addEventListener('change', onChange);
+    const subscription = Dimensions.addEventListener("change", onChange);
 
     return () => {
       subscription.remove();
@@ -65,8 +63,6 @@ function useWindowDimensions() {
   return windowDimensions;
 }
 
-
-
 function ToolbarButton({ label, onPress }: { label: string; onPress: () => void }) {
   return (
     <GlassSurface style={styles.toolbarButton}>
@@ -74,6 +70,7 @@ function ToolbarButton({ label, onPress }: { label: string; onPress: () => void 
         style={({ pressed }) => [styles.toolbarButtonInner, pressed && styles.toolbarButtonPressed]}
         onPress={onPress}
       >
+        <Ionicons name="menu-outline" size={15} color={GLASS.text} style={styles.toolbarIcon} />
         <Text style={styles.toolbarButtonText}>{label}</Text>
       </Pressable>
     </GlassSurface>
@@ -109,14 +106,38 @@ function DropdownItem({
         <Text style={styles.dropdownItemText}>{label}</Text>
       )}
       {chevronOpen !== undefined && (
-        <Text style={styles.dropdownChevron}>{chevronOpen ? '▾' : '▸'}</Text>
+        <Text style={styles.dropdownChevron}>{chevronOpen ? "▾" : "▸"}</Text>
       )}
     </Pressable>
   );
 }
 
-export default function View3dOverlay({ objectTemplates, categories, designObjects, room3dProps, setRoom3d , onObjectAdded, onObjectEdited, onObjectDeleted, movingObject, setMovingObject, magnetEnabled, forceEditObject, clearForceEdit, materials, materialCategories, globalMaterials, setGlobalMaterials, materialDataById, designSlots, slotTypesByModel, typeToDesignSlot, onSaveProject, onLoadProject, onSaveProjectCloud, onExport3d, isExporting} : View3dOverlayProps) {
-
+export default function View3dOverlay({
+  objectTemplates,
+  categories,
+  designObjects,
+  room3dProps,
+  setRoom3d,
+  onObjectAdded,
+  onObjectEdited,
+  onObjectDeleted,
+  movingObject,
+  forceEditObject,
+  clearForceEdit,
+  materials,
+  materialCategories,
+  globalMaterials,
+  setGlobalMaterials,
+  materialDataById,
+  designSlots,
+  slotTypesByModel,
+  typeToDesignSlot,
+  onSaveProject,
+  onLoadProject,
+  onSaveProjectCloud,
+  onExport3d,
+  isExporting,
+}: View3dOverlayProps) {
   const router = useRouter();
   const { width, height } = useWindowDimensions();
   const isDesktop = width > 768;
@@ -138,7 +159,6 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
       handleEditObject(forceEditObject);
       clearForceEdit();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [forceEditObject]);
 
   useEffect(() => {
@@ -157,7 +177,7 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
     setIsGlobalMaterialsVisible(false);
     setIsMaterialsPreviewsVisible(false);
     onObjectAdded(createDesignObject(objectType, getInitialPosition(objectType)));
-  }
+  };
 
   const handleEditObject = (object: DesignObject) => {
     setIsListInstantiableObjectsVisible(false);
@@ -171,24 +191,21 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
   };
 
   const closeEditMenu = () => {
-      setIsEditObjectMenuVisible(false);
-      setSelectedObjectState(undefined);
+    setIsEditObjectMenuVisible(false);
+    setSelectedObjectState(undefined);
   };
 
-  const handleObjectEditAndClose = (id: string, updates: { name: string, position: [number, number, number], rotation?: number, materialOverrides?: MaterialOverrides }) => {
-      onObjectEdited(id, updates);
-      closeEditMenu();
+  const handleObjectEditAndClose = (
+    id: string,
+    updates: { name: string; position: [number, number, number]; rotation?: number; materialOverrides?: MaterialOverrides }
+  ) => {
+    onObjectEdited(id, updates);
+    closeEditMenu();
   };
 
   const handleObjectDeleteAndClose = (id: string) => {
-      onObjectDeleted(id);
-      closeEditMenu();
-  };
-
-  const handleObjectMoveAndClose = (newPosition: [number, number, number]) => {
-    if (movingObject) {
-      onObjectEdited(movingObject.id, { name: movingObject.name, position: newPosition });
-    }
+    onObjectDeleted(id);
+    closeEditMenu();
   };
 
   const toggleRoomSettings = () => {
@@ -330,7 +347,7 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
   };
 
   const sheetMaxHeight = Math.round(height * 0.75);
-  const desktopPanelMaxHeight = Math.max(300, Math.round(height * 0.45));
+  const desktopPanelMaxHeight = Math.max(300, Math.round(height * 0.55));
   const widePanelStyle = [styles.widePanel, { maxHeight: desktopPanelMaxHeight }];
   const sheetPanelStyle = [styles.sheetPanel, { maxHeight: sheetMaxHeight - 56 }];
 
@@ -345,65 +362,60 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
     />
   );
 
-  const mobilePanel = (
-    (
-      isObjectsManagerVisible && (
-        <FurnitureInstancesManager furnitureInstances={designObjects} onFurnitureSelect={handleEditObject} onClose={() => setIsObjectsManagerVisible(false)} containerStyle={sheetPanelStyle}/>
-      )
-    ) ||
-    (
-      isRoomSettingsVisible && (
-        <RoomManager room3dProps={room3dProps} setRoom3d={setRoom3d} onClose={() => setIsRoomSettingsVisible(false)} containerStyle={sheetPanelStyle}></RoomManager>
-      )
-    ) ||
-    (
-      isGlobalMaterialsVisible && (
-        <MaterialPicker
-          key={materialsInitialSlot ?? "material-picker"}
-          materials={materials}
-          categories={materialCategories}
-          onSelect={handleMaterialSelect}
-          onClose={closeMaterialsPanel}
-          containerStyle={sheetPanelStyle}
-        />
-      )
-    ) ||
-    (
-      isListInstantiableObjectsVisible && (
-        <CategoryBrowser objectTemplates={objectTemplates} categories={categories} addObjectAction={handleAddObject} containerStyle={sheetPanelStyle} />
-      )
-    ) ||
-    (
-        isEditObjectMenuVisible && selectedObjectState && (
-            <EditFurnitureInstanceMenu
-                object={selectedObjectState}
-                onEditComplete={handleObjectEditAndClose}
-                onDelete={handleObjectDeleteAndClose}
-                materials={materials}
-                materialCategories={materialCategories}
-                globalMaterials={globalMaterials}
-                designSlots={designSlots}
-                slotTypesByModel={slotTypesByModel}
-                typeToDesignSlot={typeToDesignSlot}
-                containerStyle={sheetPanelStyle}
-            />
-        )
-    )
-  );
+  const mobilePanel =
+    (isObjectsManagerVisible && (
+      <FurnitureInstancesManager
+        furnitureInstances={designObjects}
+        onFurnitureSelect={handleEditObject}
+        onClose={() => setIsObjectsManagerVisible(false)}
+        containerStyle={sheetPanelStyle}
+      />
+    )) ||
+    (isRoomSettingsVisible && (
+      <RoomManager
+        room3dProps={room3dProps}
+        setRoom3d={setRoom3d}
+        onClose={() => setIsRoomSettingsVisible(false)}
+        containerStyle={sheetPanelStyle}
+      />
+    )) ||
+    (isGlobalMaterialsVisible && (
+      <MaterialPicker
+        key={materialsInitialSlot ?? "material-picker"}
+        materials={materials}
+        categories={materialCategories}
+        onSelect={handleMaterialSelect}
+        onClose={closeMaterialsPanel}
+        containerStyle={sheetPanelStyle}
+      />
+    )) ||
+    (isListInstantiableObjectsVisible && (
+      <CategoryBrowser
+        objectTemplates={objectTemplates}
+        categories={categories}
+        addObjectAction={handleAddObject}
+        onClose={() => setIsListInstantiableObjectsVisible(false)}
+        containerStyle={sheetPanelStyle}
+      />
+    )) ||
+    (isEditObjectMenuVisible && selectedObjectState && (
+      <EditFurnitureInstanceMenu
+        object={selectedObjectState}
+        onEditComplete={handleObjectEditAndClose}
+        onDelete={handleObjectDeleteAndClose}
+        onClose={closeEditMenu}
+        materials={materials}
+        materialCategories={materialCategories}
+        globalMaterials={globalMaterials}
+        designSlots={designSlots}
+        slotTypesByModel={slotTypesByModel}
+        typeToDesignSlot={typeToDesignSlot}
+        containerStyle={sheetPanelStyle}
+      />
+    ));
 
   return (
     <View style={styles.overlay}>
-      {/*---------------------------------Menu lateral (Solo desktop)-------------------------------------*/}
-      {isDesktop &&
-        (
-          <View style={[styles.column, styles.columnLeft, { backgroundColor: debugColors ? 'rgba(255, 0, 0, 0.25)' : 'transparent' }]}>
-            {isRoomSettingsVisible && (
-              <RoomManager room3dProps={room3dProps} setRoom3d={setRoom3d} onClose={() => setIsRoomSettingsVisible(false)}></RoomManager>
-            )}
-            <Button label="Edit Room" variant="glass" onPress={() => toggleRoomSettings()} />
-          </View>
-        )}
-
       {isOptionsMenuVisible && (
         <Pressable style={styles.menuBackdrop} onPress={closeOptionsMenu} />
       )}
@@ -412,7 +424,7 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
         {isOptionsMenuVisible && (
           <GlassSurface style={styles.dropdownPanel}>
             <DropdownItem label="Save project" onPress={() => { closeOptionsMenu(); onSaveProjectCloud(); }} />
-            <DropdownItem label="Load project" onPress={() => { closeOptionsMenu(); router.push('/projectManager'); }} />
+            <DropdownItem label="Load project" onPress={() => { closeOptionsMenu(); router.push("/projectManager"); }} />
             <View style={styles.dropdownDivider} />
             <DropdownItem label="Import from file" onPress={() => { closeOptionsMenu(); onLoadProject(); }} />
             <View
@@ -423,74 +435,123 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
               {isExportMenuVisible && isDesktop && (
                 <View style={styles.dropdownSideSubmenu}>
                   <DropdownItem label="Project file" onPress={() => { closeOptionsMenu(); onSaveProject(); }} />
-                  <DropdownItem label="3d model (.glb)" busy={isExporting} onPress={() => { closeOptionsMenu(); onExport3d(); }} />
+                  <DropdownItem label="3D model (.glb)" busy={isExporting} onPress={() => { closeOptionsMenu(); onExport3d(); }} />
                 </View>
               )}
             </View>
             {isExportMenuVisible && !isDesktop && (
               <View style={styles.dropdownSubmenu}>
                 <DropdownItem submenu label="Project file" onPress={() => { closeOptionsMenu(); onSaveProject(); }} />
-                <DropdownItem submenu label="3d model (.glb)" busy={isExporting} onPress={() => { closeOptionsMenu(); onExport3d(); }} />
+                <DropdownItem submenu label="3D model (.glb)" busy={isExporting} onPress={() => { closeOptionsMenu(); onExport3d(); }} />
               </View>
             )}
           </GlassSurface>
         )}
       </View>
 
-      {/*-------------------------------------Columna central------------------------------------------*/}
-      <View style={[styles.middleColumn, { backgroundColor: debugColors ? 'rgba(4, 0, 255, 0.25)' : 'transparent' }]}>
-
-        {/*Area de contenido para modales o espacio libre */}
-        <View style={[styles.modalArea, { backgroundColor: debugColors ? 'rgba(255, 165, 0, 0.25)' : 'transparent' }]}>
-          {/*------------------------Menus centrales version Desktop (panel ancho y corto)-----------------------------*/}
-          {isDesktop &&
-          (
-            (isListInstantiableObjectsVisible && (<CategoryBrowser wide objectTemplates={objectTemplates} categories={categories} addObjectAction={handleAddObject} containerStyle={widePanelStyle} />))
-            ||
+      <View style={styles.centerContainer}>
+        <View style={styles.modalArea}>
+          {isDesktop && (
+            (isListInstantiableObjectsVisible && (
+              <CategoryBrowser
+                wide
+                objectTemplates={objectTemplates}
+                categories={categories}
+                addObjectAction={handleAddObject}
+                onClose={() => setIsListInstantiableObjectsVisible(false)}
+                containerStyle={widePanelStyle}
+              />
+            )) ||
+            (isRoomSettingsVisible && (
+              <RoomManager
+                room3dProps={room3dProps}
+                setRoom3d={setRoom3d}
+                onClose={() => setIsRoomSettingsVisible(false)}
+              />
+            )) ||
+            (isObjectsManagerVisible && (
+              <FurnitureInstancesManager
+                furnitureInstances={designObjects}
+                onFurnitureSelect={handleEditObject}
+                onClose={() => setIsObjectsManagerVisible(false)}
+              />
+            )) ||
             (isEditObjectMenuVisible && selectedObjectState && (
-                <EditFurnitureInstanceMenu
-                    object={selectedObjectState}
-                    onEditComplete={handleObjectEditAndClose}
-                    onDelete={handleObjectDeleteAndClose}
-                    materials={materials}
-                    materialCategories={materialCategories}
-                    globalMaterials={globalMaterials}
-                    designSlots={designSlots}
-                    slotTypesByModel={slotTypesByModel}
-                    typeToDesignSlot={typeToDesignSlot}
-                    containerStyle={widePanelStyle}
-                />
+              <EditFurnitureInstanceMenu
+                object={selectedObjectState}
+                onEditComplete={handleObjectEditAndClose}
+                onDelete={handleObjectDeleteAndClose}
+                onClose={closeEditMenu}
+                materials={materials}
+                materialCategories={materialCategories}
+                globalMaterials={globalMaterials}
+                designSlots={designSlots}
+                slotTypesByModel={slotTypesByModel}
+                typeToDesignSlot={typeToDesignSlot}
+                containerStyle={widePanelStyle}
+              />
             ))
           )}
         </View>
 
-        {/*----------------------------------Botonera principal-----------------------------------------*/}
-        {isDesktop ? (
-          <View style={styles.mainControlsPlain}>
-            <Button label="New object" variant="glass" onPress={() => toggleAddObjectList()} />
-          </View>
-        ) : (
-          <GlassSurface style={styles.mainControlsGlass}>
-            <Button label="Edit Room" variant="glass" onPress={() => toggleRoomSettings()} />
-            <Button label="New object" variant="glass" onPress={() => toggleAddObjectList()} />
-            <Button label="Edit Objects" variant="glass" onPress={() => toggleObjectsManager()} />
-          </GlassSurface>
-        )}
+        <View style={styles.dockWrap} pointerEvents="box-none">
+          <GlassSurface style={styles.dockSurface}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.dockPrimaryAction,
+                isListInstantiableObjectsVisible && styles.dockPrimaryActionActive,
+                pressed && styles.dockButtonPressed,
+              ]}
+              onPress={toggleAddObjectList}
+            >
+              <Ionicons name="add" size={18} color={COLORS.white} />
+              <Text style={styles.dockPrimaryText}>Add Module</Text>
+            </Pressable>
 
+            <View style={styles.dockDivider} />
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.dockAction,
+                isRoomSettingsVisible && styles.dockActionActive,
+                pressed && styles.dockButtonPressed,
+              ]}
+              onPress={toggleRoomSettings}
+            >
+              <Ionicons
+                name="expand-outline"
+                size={16}
+                color={isRoomSettingsVisible ? COLORS.primary : GLASS.text}
+              />
+              <Text style={[styles.dockActionText, isRoomSettingsVisible && styles.dockActionTextActive]}>
+                Room
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.dockAction,
+                isObjectsManagerVisible && styles.dockActionActive,
+                pressed && styles.dockButtonPressed,
+              ]}
+              onPress={toggleObjectsManager}
+            >
+              <Ionicons
+                name="layers-outline"
+                size={16}
+                color={isObjectsManagerVisible ? COLORS.primary : GLASS.text}
+              />
+              <Text style={[styles.dockActionText, isObjectsManagerVisible && styles.dockActionTextActive]}>
+                Objects
+              </Text>
+              <View style={styles.countBadge}>
+                <Text style={styles.countBadgeText}>{designObjects.length}</Text>
+              </View>
+            </Pressable>
+          </GlassSurface>
+        </View>
       </View>
 
-      {/*---------------------------------Menu lateral (Solo desktop)-------------------------------------*/}
-      {isDesktop &&
-        (
-          <View style={[styles.column, styles.columnRight, { backgroundColor: debugColors ? 'rgba(255, 0, 0, 0.25)' : 'transparent' }]}>
-            {isObjectsManagerVisible && (
-              <FurnitureInstancesManager furnitureInstances={designObjects} onFurnitureSelect={handleEditObject} onClose={() => setIsObjectsManagerVisible(false)}/>
-            )}
-            <Button label="Edit Objects" variant="glass" onPress={() => toggleObjectsManager()} />
-          </View>
-        )}
-
-      {/*---------------------------------Materials widget (esquina superior derecha)-------------------------------------*/}
       {activeMaterialCardId && !isGlobalMaterialsVisible && (
         <Pressable style={styles.materialCardBackdrop} onPress={() => setActiveMaterialCardId(null)} />
       )}
@@ -512,7 +573,6 @@ export default function View3dOverlay({ objectTemplates, categories, designObjec
         {isDesktop && isGlobalMaterialsVisible && materialsPanel}
       </View>
 
-      {/*---------------------------------Bottom sheet (Solo mobile)-------------------------------------*/}
       {!isDesktop && mobilePanel && (
         <BottomSheet onClose={closeMobileSheet} maxHeight={sheetMaxHeight}>
           {mobilePanel}
@@ -529,88 +589,125 @@ const styles = StyleSheet.create({
     left: 0,
     width: "100%",
     height: "100%",
-    alignItems: 'center',
     pointerEvents: "box-none",
-    paddingBottom: 0,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
   },
-  column: {
-    width: "auto",
-    justifyContent: 'flex-end',
-    padding: 24,
-    height: '100%',
-    flex: .5,
-    pointerEvents: "box-none"
-  },
-  columnLeft: {
-    alignItems: 'flex-start',
-  },
-  columnRight: {
-    alignItems: 'flex-end',
-  },
-  middleColumn: {
+  centerContainer: {
     width: "100%",
-    height: '100%',
-    flex: 1,
-    flexDirection: 'column',
-    alignItems: 'center',
-    pointerEvents: "box-none"
+    height: "100%",
+    flexDirection: "column",
+    alignItems: "center",
+    pointerEvents: "box-none",
   },
   modalArea: {
     flex: 1,
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 10,
-    paddingTop: 60,
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    paddingTop: 64,
     paddingBottom: 20,
     pointerEvents: "box-none",
   },
   widePanel: {
-    width: '85%',
-    maxWidth: 760,
+    width: "88%",
+    maxWidth: 780,
   },
   sheetPanel: {
-    width: '100%',
+    width: "100%",
     borderRadius: 0,
     borderWidth: 0,
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
     shadowOpacity: 0,
     elevation: 0,
   },
-  mainControlsPlain: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 30,
-    pointerEvents: 'box-none',
+  dockWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 24,
     zIndex: 100,
   },
-  mainControlsGlass: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 4,
-    paddingHorizontal: 8,
+  dockSurface: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 5,
+    paddingHorizontal: 6,
     borderRadius: RADII.full,
-    marginBottom: 30,
+    gap: 4,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
     elevation: 8,
-    zIndex: 100,
+  },
+  dockPrimaryAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: COLORS.primary,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: RADII.full,
+  },
+  dockPrimaryActionActive: {
+    backgroundColor: COLORS.primaryPressed,
+  },
+  dockPrimaryText: {
+    color: COLORS.white,
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: 0.2,
+  },
+  dockDivider: {
+    width: 1,
+    height: 22,
+    backgroundColor: GLASS.border,
+    marginHorizontal: 4,
+  },
+  dockAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: RADII.full,
+  },
+  dockActionActive: {
+    backgroundColor: GLASS.bgPressed,
+  },
+  dockButtonPressed: {
+    opacity: 0.85,
+  },
+  dockActionText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: GLASS.text,
+  },
+  dockActionTextActive: {
+    color: COLORS.primary,
+    fontWeight: "700",
+  },
+  countBadge: {
+    backgroundColor: GLASS.bgInput,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: RADII.sm,
+    borderWidth: 1,
+    borderColor: GLASS.border,
+  },
+  countBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: GLASS.textMuted,
   },
   widgetAnchor: {
-    position: 'absolute',
+    position: "absolute",
     top: 24,
     right: 24,
-    alignItems: 'flex-end',
+    alignItems: "flex-end",
     zIndex: 130,
   },
   materialCardBackdrop: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
@@ -621,7 +718,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   menuBackdrop: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
@@ -629,16 +726,16 @@ const styles = StyleSheet.create({
     zIndex: 90,
   },
   optionsContainer: {
-    position: 'absolute',
+    position: "absolute",
     top: 24,
     zIndex: 100,
-    flexDirection: 'column',
-    alignItems: 'center',
-    pointerEvents: 'box-none',
+    flexDirection: "column",
+    alignItems: "center",
+    pointerEvents: "box-none",
   },
   optionsContainerLeft: {
     left: 24,
-    alignItems: 'flex-start',
+    alignItems: "flex-start",
   },
   dropdownPanel: {
     marginTop: 8,
@@ -653,9 +750,9 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   dropdownItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     minHeight: 44,
     paddingVertical: 10,
     paddingHorizontal: 16,
@@ -668,7 +765,7 @@ const styles = StyleSheet.create({
   },
   dropdownItemText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     color: GLASS.text,
     letterSpacing: 0.3,
   },
@@ -692,11 +789,11 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   dropdownExportItem: {
-    position: 'relative',
+    position: "relative",
   },
   dropdownSideSubmenu: {
-    position: 'absolute',
-    left: '100%',
+    position: "absolute",
+    left: "100%",
     top: 0,
     marginLeft: 8,
     minWidth: 200,
@@ -715,15 +812,21 @@ const styles = StyleSheet.create({
     borderRadius: RADII.full,
   },
   toolbarButtonInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
     paddingVertical: 8,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
+  },
+  toolbarIcon: {
+    marginRight: 2,
   },
   toolbarButtonPressed: {
     backgroundColor: GLASS.bgPressed,
   },
   toolbarButtonText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: "600",
     color: GLASS.text,
     letterSpacing: 0.3,
   },

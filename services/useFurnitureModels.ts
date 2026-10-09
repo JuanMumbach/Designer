@@ -91,6 +91,7 @@ export function useObjectTemplates(workspaceId?: string) {
             version: version.version,
             name: model.name,
             modelUrl: version.fileURL,
+            thumbnailUrl: version.thumbnailURL || undefined,
             width: version.sizeX,
             height: version.sizeY,
             depth: version.sizeZ,

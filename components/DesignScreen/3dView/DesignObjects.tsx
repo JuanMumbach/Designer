@@ -11,6 +11,7 @@ export interface ObjectTemplate {
     version: number;
     name: string;
     modelUrl: string;
+    thumbnailUrl?: string;
     width: number;
     height: number;
     depth: number;
