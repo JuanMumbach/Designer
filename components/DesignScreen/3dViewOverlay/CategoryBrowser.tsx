@@ -15,6 +15,7 @@ import { ObjectCategory } from "../../../services/api";
 import { COLORS, GLASS, RADII } from "@/constants/theme";
 import GlassSurface from "./GlassSurface";
 import Thumbnail from "../../Thumbnail";
+import { getBreadcrumbPath } from "./categoryUtils";
 
 interface CategoryBrowserProps {
   objectTemplates: ObjectTemplate[];
@@ -106,23 +107,6 @@ function ObjectItem({ object, onSelect, wide }: ObjectItemProps) {
       </View>
     </Pressable>
   );
-}
-
-function getBreadcrumbPath(
-  categoryId: string | null,
-  categories: ObjectCategory[]
-): string {
-  if (!categoryId) return "All Categories";
-
-  const path: string[] = [];
-  let current: ObjectCategory | undefined = categories.find(c => c.id === categoryId);
-
-  while (current) {
-    path.unshift(current.categoryName);
-    current = categories.find(c => c.id === current?.parentCategoryId);
-  }
-
-  return "All > " + path.join(" > ");
 }
 
 export default function CategoryBrowser({
@@ -243,7 +227,7 @@ export default function CategoryBrowser({
       >
         {searchResults !== null ? (
           searchResults.length === 0 ? (
-            <Text style={styles.emptyText}>No modules match "{searchQuery}".</Text>
+            <Text style={styles.emptyText}>No modules match &quot;{searchQuery}&quot;.</Text>
           ) : (
             searchResults.map(obj => (
               <ObjectItem

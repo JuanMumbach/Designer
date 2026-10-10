@@ -14,6 +14,7 @@ import FurnitureInstancesManager from "./3dViewOverlay/FurnitureInstancesManager
 import GlassSurface from "./3dViewOverlay/GlassSurface";
 import MaterialPicker from "./3dViewOverlay/MaterialPicker";
 import MaterialsWidget from "./3dViewOverlay/MaterialsWidget";
+import ModuleCatalogue from "./3dViewOverlay/ModuleCatalogue";
 import RoomManager from "./3dViewOverlay/RoomManager";
 
 interface View3dOverlayProps {
@@ -450,16 +451,19 @@ export default function View3dOverlay({
       </View>
 
       <View style={styles.centerContainer}>
-        <View style={styles.modalArea}>
+        <View
+          style={[
+            styles.modalArea,
+            isListInstantiableObjectsVisible && styles.modalAreaAboveDock,
+          ]}
+        >
           {isDesktop && (
             (isListInstantiableObjectsVisible && (
-              <CategoryBrowser
-                wide
+              <ModuleCatalogue
                 objectTemplates={objectTemplates}
                 categories={categories}
                 addObjectAction={handleAddObject}
                 onClose={() => setIsListInstantiableObjectsVisible(false)}
-                containerStyle={widePanelStyle}
               />
             )) ||
             (isRoomSettingsVisible && (
@@ -607,6 +611,10 @@ const styles = StyleSheet.create({
     paddingTop: 64,
     paddingBottom: 20,
     pointerEvents: "box-none",
+  },
+  modalAreaAboveDock: {
+    justifyContent: "flex-end",
+    paddingBottom: 8,
   },
   widePanel: {
     width: "88%",

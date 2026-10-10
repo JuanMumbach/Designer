@@ -41,7 +41,7 @@ export default function FurnitureInstancesManager({
           <View style={styles.emptyWrap}>
             <Ionicons name="cube-outline" size={36} color={GLASS.textFaint} />
             <Text style={styles.emptyText}>No objects in the room yet.</Text>
-            <Text style={styles.emptySubtext}>Use "+ Add Module" to place furniture.</Text>
+            <Text style={styles.emptySubtext}>Use &quot;+ Add Module&quot; to place furniture.</Text>
           </View>
         ) : (
           furnitureInstances.map((obj, index) => {
