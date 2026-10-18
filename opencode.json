@@ -1,0 +1,23 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+    "explore": {
+      "mode": "subagent",
+      "model": "opencode/mimo-v2.6-flash-free",
+      "description": "Image analysis, code reading, and structure analysis",
+      "permission": {
+        "edit": "deny",
+        "bash": "deny"
+      }
+    },
+    "worker": {
+      "mode": "subagent",
+      "model": "opencode/big-pickle",
+      "description": "Execution of development tasks, code editing, and script execution. Low to medium complexity code and structure analysis.",
+      "permission": {
+        "edit": "allow",
+        "bash": "allow"
+      }
+    }
+  }
+}

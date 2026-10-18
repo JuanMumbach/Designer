@@ -8,23 +8,23 @@ import { deserializeProjectState, loadProject, loadProjectFromCloud, ProjectStat
 import { exportSceneAsGLB } from "@/services/sceneExport";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Platform, StyleSheet, Text, View } from "react-native";
-import { useObjectTemplates } from "../services/useFurnitureModels";
-import { useMaterials } from "../services/useMaterials";
 import { useCurrentProject } from "../services/currentProject";
-import { createDesignObject, AppliedMaterial, DesignObject, getInitialPosition, GlobalMaterials, MaterialOverrides, resolveGlobalMaterials } from "./DesignScreen/3dView/DesignObjects";
-import { Room3dProps } from "./DesignScreen/3dView/Room3d";
-import { MaterialSlotInfo } from "../services/materialSlots";
 import { collectDefaultGlobalMaterials, designMaterialsConfig, normalizeTypeName, resolveMaterialValue } from "../services/designMaterialDefaults";
+import { MaterialSlotInfo } from "../services/materialSlots";
 import {
   createThumbnailCaptureApi,
   ThumbnailCaptureApi,
 } from "../services/thumbnailCapture";
+import { useObjectTemplates } from "../services/useFurnitureModels";
+import { useMaterials } from "../services/useMaterials";
+import { AppliedMaterial, createDesignObject, DesignObject, getInitialPosition, GlobalMaterials, MaterialOverrides, resolveGlobalMaterials } from "./DesignScreen/3dView/DesignObjects";
+import { Room3dProps } from "./DesignScreen/3dView/Room3d";
 
 
 const initialRoom3d: Room3dProps = {
-  width: 5,
-  height: 3,
-  depth: 4,
+  width: 4,
+  height: 2.7,
+  depth: 3,
   leftWall: true,
   rightWall: true
 };
@@ -245,11 +245,12 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
     const cupboardModels = objectTemplates.filter(m => m.objectProperties?.movingBehaviour === 'cupboard');
 
     if (counterModels.length > 0) {
-      const counter = counterModels[0];
+      const counter = counterModels[1];
       defaults.push(createDesignObject(counter, [0, 0, 0]));
-      defaults.push(createDesignObject(counter, [1, 0, 0]));
-      defaults.push(createDesignObject(counter, [1.6, 0, 0]));
-      defaults.push(createDesignObject(counter, [2.2, 0, 0]));
+      defaults.push(createDesignObject(counter, [1.2, 0, 0]));
+      defaults.push(createDesignObject(counter, [1.8, 0, 0]));
+      defaults.push(createDesignObject(counter, [2.4, 0, 0]));
+      defaults.push(createDesignObject(counterModels[0], [3, 0, 0]));
     }
 
     if (cupboardModels.length > 0) {
@@ -260,7 +261,6 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
       defaults.push(createDesignObject(cupboard2, [1.2, cupboardY, 0]));
       defaults.push(createDesignObject(cupboard, [1.8, cupboardY, 0]));
       defaults.push(createDesignObject(cupboard2, [2.4, cupboardY, 0]));
-      defaults.push(createDesignObject(cupboard2, [3, cupboardY, 0]));
     }
 
     setDesignObjects(defaults);

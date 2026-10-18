@@ -17,7 +17,6 @@ import { uploadFileToFirebase } from '../../../services/firebaseSetup';
 import { useAuth } from '../../../services/AuthContext';
 import { MaterialType, ObjectCategory } from '../../../services/api';
 import ModelSlotsSection from './ModelSlotsSection';
-import SlotAssignmentModal from './SlotAssignmentModal';
 
 export type ObjectFormData = {
   name: string;
@@ -71,9 +70,8 @@ interface ObjectEditorProps {
     data: ObjectFormData,
     isEdit: boolean
   ) => Promise<{
-    slotAssignment?: { objectId: string; version: number; fileUrl: string };
+    slotAssignment?: { objectId: string; fileUrl: string };
   }>;
-  onSaveComplete?: () => void;
   onDelete?: () => Promise<void>;
   onClose: () => void;
   isEdit: boolean;
@@ -82,13 +80,13 @@ interface ObjectEditorProps {
   materialTypes?: MaterialType[];
   objectId?: string;
   onHighlightSlot?: (slot: number | null) => void;
+  onRegenerateThumbnail?: () => Promise<void>;
 }
 
 export default function ObjectEditor({
   initial,
   categories,
   onSave,
-  onSaveComplete,
   onDelete,
   onClose,
   isEdit,
@@ -97,6 +95,7 @@ export default function ObjectEditor({
   materialTypes,
   objectId,
   onHighlightSlot,
+  onRegenerateThumbnail,
 }: ObjectEditorProps) {
   const { backendUserId } = useAuth();
 
@@ -116,14 +115,10 @@ export default function ObjectEditor({
   const [isPublic, setIsPublic] = useState(initial?.isPublic ?? false);
   const [pendingPublicValue, setPendingPublicValue] = useState<boolean | null>(null);
   const [saving, setSaving] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
   const [pickedFile, setPickedFile] = useState<{
     uri: string;
     name: string;
-  } | null>(null);
-  const [pendingSlotAssignment, setPendingSlotAssignment] = useState<{
-    objectId: string;
-    version: number;
-    fileUrl: string;
   } | null>(null);
 
   const handlePickFile = async () => {
@@ -185,7 +180,7 @@ export default function ObjectEditor({
       );
       setSaving(false);
       if (result?.slotAssignment) {
-        setPendingSlotAssignment(result.slotAssignment);
+        // Panel is hosted by the parent; keep this editor mounted until save completes.
       } else {
         onClose();
       }
@@ -210,6 +205,18 @@ export default function ObjectEditor({
           onPress: () => onDelete(),
         },
       ]);
+    }
+  };
+
+  const handleRegenerateThumbnail = async () => {
+    if (!onRegenerateThumbnail) return;
+    setRegenerating(true);
+    try {
+      await onRegenerateThumbnail();
+    } catch {
+      // error handled by caller
+    } finally {
+      setRegenerating(false);
     }
   };
 
@@ -445,6 +452,21 @@ export default function ObjectEditor({
         </Pressable>
       )}
 
+      {!disabled && isEdit && onRegenerateThumbnail && (
+        <Pressable
+          style={[
+            styles.regenerateButton,
+            (regenerating || pickedFile) && styles.regenerateButtonDisabled,
+          ]}
+          onPress={handleRegenerateThumbnail}
+          disabled={regenerating || saving || !!pickedFile}
+        >
+          <Text style={styles.regenerateButtonLabel}>
+            {regenerating ? 'Regenerating thumbnail…' : 'Regenerate Thumbnail'}
+          </Text>
+        </Pressable>
+      )}
+
       {isEdit && objectId && (
         <ModelSlotsSection
           objectId={objectId}
@@ -495,20 +517,6 @@ export default function ObjectEditor({
           </View>
         </View>
       </Modal>
-
-      {pendingSlotAssignment && (
-        <SlotAssignmentModal
-          objectId={pendingSlotAssignment.objectId}
-          version={pendingSlotAssignment.version}
-          fileUrl={pendingSlotAssignment.fileUrl}
-          materialTypes={materialTypes ?? []}
-          onComplete={() => {
-            setPendingSlotAssignment(null);
-            onClose();
-            onSaveComplete?.();
-          }}
-        />
-      )}
     </View>
   );
 }
@@ -618,6 +626,21 @@ const styles = StyleSheet.create({
     backgroundColor: '#dc2626',
   },
   deleteButtonLabel: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  regenerateButton: {
+    marginTop: 16,
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+    backgroundColor: '#2563eb',
+  },
+  regenerateButtonDisabled: {
+    backgroundColor: '#9ca3af',
+  },
+  regenerateButtonLabel: {
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',

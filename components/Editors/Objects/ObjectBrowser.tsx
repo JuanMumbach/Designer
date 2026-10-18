@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -15,8 +15,10 @@ import Button from '../../Button';
 import {
   createObject,
   createObjectCategory,
+  createObjectMaterialType,
   deleteObject,
   deleteObjectCategory,
+  MaterialMeta,
   MaterialType,
   ObjectCategory,
   ObjectModel,
@@ -25,17 +27,37 @@ import {
   categorizeObject,
   createObjectVersion,
   fetchObjectVersion,
+  fetchModelMaterialTypes,
+  updateObjectVersion,
   updateObjectCategory,
   updateObject,
 } from '../../../services/api';
 import ObjectEditor, { ObjectFormData } from './ObjectEditor';
 import ObjectPreview from './ObjectPreview';
+import SlotAssignmentPanel, { SlotDraft } from './SlotAssignmentPanel';
 import Thumbnail from '../../Thumbnail';
 import {
   createThumbnailCaptureApi,
   ThumbnailCaptureApi,
 } from '../../../services/thumbnailCapture';
+import { resolveDefaultSlotTextures } from '../../../services/designMaterialDefaults';
+import { AppliedMaterial } from '@/components/DesignScreen/3dView/DesignObjects';
 import { COLORS } from '@/constants/theme';
+
+interface PendingVersionData {
+  fileURL: string;
+  sizeX: number;
+  sizeY: number;
+  sizeZ: number;
+  objectProperties?: string;
+  creatorId: string;
+}
+
+interface SlotAssignmentRequest {
+  objectId: string;
+  fileUrl: string;
+  pendingVersion: PendingVersionData;
+}
 
 function getBreadcrumbPath(
   categoryId: string | null,
@@ -58,6 +80,7 @@ interface ObjectBrowserProps {
   categories: ObjectCategory[];
   onRefresh: () => void;
   materialTypes?: MaterialType[];
+  materials?: MaterialMeta[];
 }
 
 export default function ObjectBrowser({
@@ -65,6 +88,7 @@ export default function ObjectBrowser({
   categories,
   onRefresh,
   materialTypes,
+  materials,
 }: ObjectBrowserProps) {
   const { width: screenWidth } = useWindowDimensions();
   const isWide = screenWidth >= 700;
@@ -88,11 +112,52 @@ export default function ObjectBrowser({
   // ── Preview URI state (set by ObjectEditor callback) ──
   const [previewUri, setPreviewUri] = useState<string | null>(null);
   const [highlightSlot, setHighlightSlot] = useState<number | null>(null);
+  const [pendingSlotAssignment, setPendingSlotAssignment] =
+    useState<SlotAssignmentRequest | null>(null);
+  const [slotTextures, setSlotTextures] = useState<
+    Record<number, AppliedMaterial> | null
+  >(null);
+  const assignmentVersionCreatedRef = useRef(false);
 
   const captureApi = useMemo<ThumbnailCaptureApi>(
     () => createThumbnailCaptureApi(),
     []
   );
+
+  const captureReadyRef = useRef(false);
+  const captureReadyWaitersRef = useRef<(() => void)[]>([]);
+
+  const handlePreviewReady = useCallback((ready: boolean) => {
+    captureReadyRef.current = ready;
+    if (ready) {
+      const waiters = captureReadyWaitersRef.current;
+      captureReadyWaitersRef.current = [];
+      waiters.forEach((resolve) => resolve());
+    }
+  }, []);
+
+  const waitForCaptureReady = useCallback((timeoutMs = 5000) => {
+    return new Promise<void>((resolve) => {
+      if (captureReadyRef.current) {
+        resolve();
+        return;
+      }
+      let settled = false;
+      const waiters = captureReadyWaitersRef.current;
+      waiters.push(() => {
+        if (!settled) {
+          settled = true;
+          resolve();
+        }
+      });
+      setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          resolve();
+        }
+      }, timeoutMs);
+    });
+  }, []);
 
   // ── Thumbnail URLs per listed object (latest version) ──
   const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
@@ -187,8 +252,10 @@ export default function ObjectBrowser({
     data: ObjectFormData,
     isEdit: boolean
   ): Promise<{
-    slotAssignment?: { objectId: string; version: number; fileUrl: string };
+    slotAssignment?: SlotAssignmentRequest;
   }> => {
+    let request: SlotAssignmentRequest | null = null;
+
     if (isEdit && editingObject) {
       if (data.name !== editingObject.name) {
         await renameObject({ id: editingObject.id, name: data.name });
@@ -209,24 +276,28 @@ export default function ObjectBrowser({
         data.objectProperties !== (current?.objectProperties ?? '');
 
       if (changed) {
-        const thumbnailURL = await captureApi.requestCapture('thumbnails/objects');
-        const versionResult = await createObjectVersion(editingObject.id, {
-          fileURL: data.fileURL,
-          sizeX: parseFloat(data.sizeX) || 1,
-          sizeY: parseFloat(data.sizeY) || 1,
-          sizeZ: parseFloat(data.sizeZ) || 1,
-          objectProperties: data.objectProperties || undefined,
-          creatorId: data.creatorId || editingObject.creatorId,
-          thumbnailURL: thumbnailURL || undefined,
-        });
         if (data.fileURL) {
-          return {
-            slotAssignment: {
-              objectId: editingObject.id,
-              version: versionResult.version,
-              fileUrl: data.fileURL,
+          request = {
+            objectId: editingObject.id,
+            fileUrl: data.fileURL,
+            pendingVersion: {
+              fileURL: data.fileURL,
+              sizeX: parseFloat(data.sizeX) || 1,
+              sizeY: parseFloat(data.sizeY) || 1,
+              sizeZ: parseFloat(data.sizeZ) || 1,
+              objectProperties: data.objectProperties || undefined,
+              creatorId: data.creatorId || editingObject.creatorId,
             },
           };
+        } else {
+          await createObjectVersion(editingObject.id, {
+            fileURL: data.fileURL,
+            sizeX: parseFloat(data.sizeX) || 1,
+            sizeY: parseFloat(data.sizeY) || 1,
+            sizeZ: parseFloat(data.sizeZ) || 1,
+            objectProperties: data.objectProperties || undefined,
+            creatorId: data.creatorId || editingObject.creatorId,
+          });
         }
       }
     } else {
@@ -235,35 +306,82 @@ export default function ObjectBrowser({
         creatorId: data.creatorId,
         categoryId: data.categoryId || undefined,
       });
-      const thumbnailURL = await captureApi.requestCapture('thumbnails/objects');
-      const versionResult = await createObjectVersion(meta.id, {
-        fileURL: data.fileURL,
-        sizeX: parseFloat(data.sizeX) || 1,
-        sizeY: parseFloat(data.sizeY) || 1,
-        sizeZ: parseFloat(data.sizeZ) || 1,
-        objectProperties: data.objectProperties || undefined,
-        creatorId: data.creatorId,
-        thumbnailURL: thumbnailURL || undefined,
-      });
       if (data.fileURL) {
-        return {
-          slotAssignment: {
-            objectId: meta.id,
-            version: versionResult.version,
-            fileUrl: data.fileURL,
+        request = {
+          objectId: meta.id,
+          fileUrl: data.fileURL,
+          pendingVersion: {
+            fileURL: data.fileURL,
+            sizeX: parseFloat(data.sizeX) || 1,
+            sizeY: parseFloat(data.sizeY) || 1,
+            sizeZ: parseFloat(data.sizeZ) || 1,
+            objectProperties: data.objectProperties || undefined,
+            creatorId: data.creatorId,
           },
         };
+      } else {
+        await createObjectVersion(meta.id, {
+          fileURL: data.fileURL,
+          sizeX: parseFloat(data.sizeX) || 1,
+          sizeY: parseFloat(data.sizeY) || 1,
+          sizeZ: parseFloat(data.sizeZ) || 1,
+          objectProperties: data.objectProperties || undefined,
+          creatorId: data.creatorId,
+        });
       }
     }
+
+    if (request) {
+      setPendingSlotAssignment(request);
+      setSlotTextures(null);
+      setHighlightSlot(null);
+      return { slotAssignment: request };
+    }
+
     setEditingObject(null);
     setShowCreator(false);
     onRefresh();
     return {};
   };
 
-  const handleSaveComplete = () => {
+  const handleAssignmentSave = async (slots: SlotDraft[]) => {
+    if (!pendingSlotAssignment) return;
+    const { objectId, pendingVersion } = pendingSlotAssignment;
+    const thumbnailURL = await captureApi.requestCapture('thumbnails/objects');
+    const versionResult = await createObjectVersion(objectId, {
+      ...pendingVersion,
+      thumbnailURL: thumbnailURL || undefined,
+    });
+    assignmentVersionCreatedRef.current = true;
+    for (const slot of slots) {
+      await createObjectMaterialType({
+        objectModelId: objectId,
+        version: versionResult.version,
+        slot: slot.materialIndex,
+        materialTypeId: slot.materialTypeId,
+        displayName: slot.displayName,
+      });
+    }
+  };
+
+  const handleAssignmentComplete = async () => {
+    if (pendingSlotAssignment && !assignmentVersionCreatedRef.current) {
+      try {
+        await createObjectVersion(pendingSlotAssignment.objectId, {
+          ...pendingSlotAssignment.pendingVersion,
+        });
+      } catch (err) {
+        console.warn('Failed to create fallback object version:', err);
+      }
+    }
+    assignmentVersionCreatedRef.current = false;
+    setPendingSlotAssignment(null);
+    setSlotTextures(null);
+    setHighlightSlot(null);
     setEditingObject(null);
+    setEditingObjectVersion(null);
     setShowCreator(false);
+    setPreviewUri(null);
     onRefresh();
   };
 
@@ -275,6 +393,41 @@ export default function ObjectBrowser({
       onRefresh();
     } catch {
       Alert.alert('Error', 'Failed to delete object.');
+    }
+  };
+
+  const handleRegenerateThumbnail = async () => {
+    if (!editingObject || !editingObjectVersion) return;
+    const objectId = editingObject.id;
+    const version = editingObjectVersion.version;
+    try {
+      const versionSlots = await fetchModelMaterialTypes(objectId, version);
+      const textures = await resolveDefaultSlotTextures(
+        versionSlots.map((s) => ({
+          slot: s.slot,
+          materialTypeId: s.materialTypeId,
+        })),
+        materialTypes ?? [],
+        materials ?? []
+      );
+
+      if (Object.keys(textures).length > 0) {
+        captureReadyRef.current = false;
+        setSlotTextures(textures);
+        await waitForCaptureReady();
+      }
+
+      const thumbnailURL = await captureApi.requestCapture('thumbnails/objects');
+      if (thumbnailURL) {
+        await updateObjectVersion(objectId, version, { thumbnailURL });
+        setThumbnails((prev) => ({ ...prev, [objectId]: thumbnailURL }));
+      }
+    } catch (err) {
+      console.warn('Failed to regenerate thumbnail:', err);
+      Alert.alert('Error', 'Failed to regenerate the thumbnail.');
+      throw err;
+    } finally {
+      setSlotTextures(null);
     }
   };
 
@@ -329,7 +482,25 @@ export default function ObjectBrowser({
 
   // ── Render helpers ──
 
+  const renderSlotAssignment = () => {
+    if (!pendingSlotAssignment) return null;
+    return (
+      <SlotAssignmentPanel
+        fileUrl={pendingSlotAssignment.fileUrl}
+        materialTypes={materialTypes ?? []}
+        materials={materials}
+        onHighlightSlot={setHighlightSlot}
+        onSlotTexturesChange={setSlotTextures}
+        onSave={handleAssignmentSave}
+        onComplete={handleAssignmentComplete}
+      />
+    );
+  };
+
   const renderEditor = () => {
+    if (pendingSlotAssignment) {
+      return renderSlotAssignment();
+    }
     if (editingObject && isLoadingData) {
       return renderLoading();
     }
@@ -361,8 +532,10 @@ categories={categories}
           materialTypes={materialTypes}
           objectId={editingObject?.id}
           onHighlightSlot={setHighlightSlot}
+          onRegenerateThumbnail={
+            editingObject ? handleRegenerateThumbnail : undefined
+          }
           onSave={handleSaveObject}
-        onSaveComplete={handleSaveComplete}
         onDelete={editingObject ? handleDeleteObject : undefined}
         onClose={() => {
           setEditingObject(null);
@@ -619,6 +792,8 @@ categories={categories}
         uri={previewUri}
         highlightSlot={highlightSlot}
         captureApi={captureApi}
+        slotTextures={slotTextures ?? undefined}
+        onReadyChange={handlePreviewReady}
       />
     </View>
   );
@@ -648,6 +823,8 @@ categories={categories}
                 uri={previewUri}
                 highlightSlot={highlightSlot}
                 captureApi={captureApi}
+                slotTextures={slotTextures ?? undefined}
+                onReadyChange={handlePreviewReady}
               />
             </View>
           )}

@@ -1,6 +1,10 @@
 import defaultDesignMaterials from '../config/defaultDesignMaterials.json';
-import { GlobalMaterials, MaterialOverrides } from '@/components/DesignScreen/3dView/DesignObjects';
-import { MaterialMeta, MaterialType } from './api';
+import {
+  AppliedMaterial,
+  GlobalMaterials,
+  MaterialOverrides,
+} from '@/components/DesignScreen/3dView/DesignObjects';
+import { fetchMaterialVersion, MaterialMeta, MaterialType } from './api';
 
 export interface DesignMaterialSlot {
   key: string;
@@ -79,6 +83,60 @@ export function collectDefaultGlobalMaterials(
 
 export function normalizeTypeName(name: string): string {
   return name.trim().toLowerCase();
+}
+
+export async function resolveDefaultSlotTextures(
+  slots: { slot: number; materialTypeId: string }[],
+  materialTypes: MaterialType[],
+  materials: MaterialMeta[]
+): Promise<Record<number, AppliedMaterial>> {
+  const globals = collectDefaultGlobalMaterials(
+    designMaterialsConfig.designMaterialSlots,
+    materials,
+    materialTypes
+  );
+  const typeById = new Map(materialTypes.map((t) => [t.id, t]));
+  const metaById = new Map(materials.map((m) => [m.id, m]));
+  const dataCache = new Map<string, AppliedMaterial | null>();
+  const result: Record<number, AppliedMaterial> = {};
+
+  for (const slot of slots) {
+    if (!slot.materialTypeId) continue;
+    const type = typeById.get(slot.materialTypeId);
+    if (!type) continue;
+    const key = normalizeTypeName(type.name);
+    const designSlot = designMaterialsConfig.designMaterialSlots.find(
+      (s) => normalizeTypeName(s.type) === key
+    );
+    if (!designSlot) continue;
+    const materialId = globals[designSlot.key];
+    if (!materialId) continue;
+
+    let applied = dataCache.get(materialId);
+    if (applied === undefined) {
+      applied = null;
+      const meta = metaById.get(materialId);
+      if (meta) {
+        try {
+          const data = await fetchMaterialVersion(materialId, meta.lastVersion);
+          if (data?.fileURL) {
+            applied = {
+              fileURL: data.fileURL,
+              scaleU: Number(data.scaleU) || 1,
+              scaleV: Number(data.scaleV) || 1,
+            };
+          }
+        } catch (err) {
+          console.warn('Failed to resolve default material for slot:', err);
+        }
+      }
+      dataCache.set(materialId, applied);
+    }
+
+    if (applied) result[slot.slot] = applied;
+  }
+
+  return result;
 }
 
 export function resolveInstanceOverrides(

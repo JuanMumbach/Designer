@@ -90,23 +90,101 @@ export async function uploadCapturedThumbnail(
   }
 }
 
+const CAPTURE_TIMEOUT_MS = 5000;
+
 export function ThumbnailCaptureHost({
   captureApi,
+  modelRef,
+  canCapture,
+  beforeCapture,
 }: {
   captureApi: ThumbnailCaptureApi;
+  modelRef?: React.RefObject<THREE.Object3D | null>;
+  canCapture?: () => boolean;
+  beforeCapture?: (camera: THREE.Camera, scene: THREE.Scene) => void;
 }) {
   const gl = useThree((s) => s.gl);
   const scene = useThree((s) => s.scene);
   const camera = useThree((s) => s.camera);
   const pendingRef = useRef<((value: string | null) => void) | null>(null);
+  const pendingSinceRef = useRef(0);
   const folderRef = useRef<string>('thumbnails');
+  const canCaptureRef = useRef(canCapture);
+  canCaptureRef.current = canCapture;
+  const beforeCaptureRef = useRef(beforeCapture);
+  beforeCaptureRef.current = beforeCapture;
 
   useFrame(() => {
-    gl.render(scene, camera);
     const resolve = pendingRef.current;
-    if (!resolve) return;
+    if (!resolve) {
+      gl.render(scene, camera);
+      return;
+    }
+
+    if (canCaptureRef.current && !canCaptureRef.current()) {
+      gl.render(scene, camera);
+      if (performance.now() - pendingSinceRef.current > CAPTURE_TIMEOUT_MS) {
+        pendingRef.current = null;
+        resolve(null);
+      }
+      return;
+    }
+
     pendingRef.current = null;
     const folder = folderRef.current;
+
+    const model = modelRef?.current ?? null;
+    const hidden: { object: THREE.Object3D; visible: boolean }[] = [];
+    const clearColor = gl.getClearColor(new THREE.Color());
+    const clearAlpha = gl.getClearAlpha();
+    const previousBackground = scene.background;
+
+    if (model) {
+      const modelAncestors = new Set<THREE.Object3D>();
+      let ancestor: THREE.Object3D | null = model.parent;
+      while (ancestor) {
+        modelAncestors.add(ancestor);
+        ancestor = ancestor.parent;
+      }
+
+      scene.traverse((object) => {
+        if (object === model) return;
+        if (object instanceof THREE.Camera || object instanceof THREE.Light) {
+          return;
+        }
+        if (modelAncestors.has(object)) return;
+
+        let underModel = false;
+        let current: THREE.Object3D | null = object.parent;
+        while (current) {
+          if (current === model) {
+            underModel = true;
+            break;
+          }
+          current = current.parent;
+        }
+        if (underModel) return;
+
+        if (object.visible) {
+          object.visible = false;
+          hidden.push({ object, visible: true });
+        }
+      });
+    }
+
+    scene.background = null;
+    gl.setClearColor(0x000000, 0);
+
+    beforeCaptureRef.current?.(camera, scene);
+
+    gl.render(scene, camera);
+
+    scene.background = previousBackground;
+    gl.setClearColor(clearColor, clearAlpha);
+    for (const hiddenObject of hidden) {
+      hiddenObject.object.visible = hiddenObject.visible;
+    }
+
     captureCanvasFrame(gl, scene, camera)
       .then(async (captured) => {
         if (!captured) return null;
@@ -123,6 +201,7 @@ export function ThumbnailCaptureHost({
     captureApi.requestCapture = (folder: string = 'thumbnails') =>
       new Promise<string | null>((resolve) => {
         folderRef.current = folder;
+        pendingSinceRef.current = performance.now();
         pendingRef.current = resolve;
       });
     return () => {

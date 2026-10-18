@@ -1,5 +1,6 @@
 import { useObjects } from '@/services/useObjects';
 import { useMaterialTypes } from '@/services/useMaterialTypes';
+import { useMaterials } from '@/services/useMaterials';
 import ObjectBrowser from '@/components/Editors/Objects/ObjectBrowser';
 import { useAuth } from '@/services/AuthContext';
 import React from 'react';
@@ -10,6 +11,7 @@ export default function ObjectsScreen() {
   const { selectedWorkspaceId } = useAuth();
   const { objects, categories, isLoading, error, refresh } = useObjects(selectedWorkspaceId ?? undefined);
   const { materialTypes } = useMaterialTypes();
+  const { materials } = useMaterials(selectedWorkspaceId ?? undefined);
 
   if (isLoading) {
     return (
@@ -35,6 +37,7 @@ export default function ObjectsScreen() {
         categories={categories}
         onRefresh={refresh}
         materialTypes={materialTypes}
+        materials={materials}
       />
     </View>
   );

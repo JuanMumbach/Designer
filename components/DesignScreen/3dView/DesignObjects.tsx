@@ -1,10 +1,10 @@
 import React, { useMemo } from 'react';
 import { generateUUID } from 'three/src/math/MathUtils.js';
+import { ObjectMaterialType, ObjectProperties } from '../../../services/api';
+import { resolveInstanceOverrides } from '../../../services/designMaterialDefaults';
+import { MaterialSlotInfo } from '../../../services/materialSlots';
 import { DesignObject3D } from './remote3dModel';
 import { Room3dProps } from './Room3d';
-import { ObjectMaterialType, ObjectProperties } from '../../../services/api';
-import { MaterialSlotInfo } from '../../../services/materialSlots';
-import { resolveInstanceOverrides } from '../../../services/designMaterialDefaults';
 
 export interface ObjectTemplate {
     id: string;
@@ -89,7 +89,7 @@ export function createDesignObject(template: ObjectTemplate, position?: [number,
     };
 }
 
-export const DEFAULT_CUPBOARD_HEIGHT = 1.6;
+export const DEFAULT_CUPBOARD_HEIGHT = 1.5;
 
 export function getInitialPosition(template: ObjectTemplate): [number, number, number] {
     const y = template.objectProperties?.movingBehaviour === 'cupboard'
@@ -208,7 +208,7 @@ export default function DesignObjectsRenderer({
                              origin={origin}
                              dimensions={obj.dimensions}
                              modelUrl={obj.modelUrl}
-                             modelScale={0.01}
+                             modelScale={0.1}
                              rotation={obj.rotation}
                              isSelected={obj.id === movingObjectId}
                              onObjectEdited={onObjectEdited}

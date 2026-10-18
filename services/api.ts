@@ -343,6 +343,29 @@ export async function createObjectVersion(
   return response.json();
 }
 
+export async function updateObjectVersion(
+  objectId: string,
+  version: number,
+  body: {
+    fileUrl?: string;
+    thumbnailURL?: string;
+    sizeX?: number;
+    sizeY?: number;
+    sizeZ?: number;
+    objectProperties?: string;
+  }
+): Promise<void> {
+  const response = await apiFetch(`/api/ObjectVersion/${objectId}-${version}`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(
+      `Failed to update object version ${objectId}-${version}: ${response.status}`
+    );
+  }
+}
+
 // ── Material Types ──
 
 export interface MaterialCategory {
