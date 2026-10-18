@@ -1,0 +1,15 @@
+# Codex orchestration
+
+Codex owns requirements, decomposition, difficult debugging, architecture, integration, and final review. Delegate most substantial repository exploration, routine implementation, documentation, and validation to OpenCode free models. Tiny tasks may be completed directly when delegation costs more than the work.
+
+Use the App repository's scripts/run-opencode.cjs launcher with --repo app or --repo api, --agent explore or --agent worker, and --prompt-file pointing to a bounded task file. Use explicit --session IDs for repair follow-ups. Add --browser true only for browser work. The launcher records full JSON transcripts under the App's ignored .opencode/runs directory while returning concise output.
+
+App and API are sibling repositories named Designer and DesignerAPI. Read AGENTS.md in the App and Agent.md in the API. Launch each worker in its assigned repository and specify file ownership, constraints, acceptance criteria, and validation commands. Workers execute directly and do not recursively orchestrate. Use one writer per checkout and preserve pre-existing user changes.
+
+Default to MiMo V2.6 Flash Free for exploration and Big Pickle for implementation. Refresh the OpenCode catalog and check zero input/output prices before the first model use in a session. Never silently use a paid model. Consider another verified free model only after a small comparison task. Allow one repair attempt, then let Codex take over or narrow the task. Retry a transient provider failure once, then try one verified free alternative or report the blocker.
+
+Request at most 400 words: file references or changed files, validation commands and exit results, uncertainties, and blockers. Keep full transcripts and large file dumps out of GPT context. Inspect the diff and relevant evidence before accepting work; worker claims alone are not verification. App checks use Yarn Classic, with yarn lint and yarn tsc --noEmit when appropriate. API checks use dotnet build; do not apply database migrations without task authorization.
+
+Use Context7 for dependency documentation and Memory for durable project facts. Memory storage is shared by App/API and separate from Synapsis. Chrome DevTools is opt-in to limit tool context; do not navigate or interact with unrelated browser pages. Do not store credentials, private request payloads, or full source dumps in memory.
+
+Delegation inherits the parent task's permissions and scope. Never use OpenCode to bypass sandbox or approval restrictions. Obtain required approval before launching a worker outside permitted filesystem/network access. Report unavailable CLI/MCP/authentication clearly and continue authorized independent work where possible. Codex-specific instructions must stay out of shared AGENTS.md and OpenCode worker prompts.

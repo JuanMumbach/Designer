@@ -44,3 +44,7 @@ bun.lock
 *.tsbuildinfo
 
 app-example
+
+.opencode/*.local.*
+.opencode/runs/
+.agents/context-memory/

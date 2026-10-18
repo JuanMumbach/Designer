@@ -1,22 +1,86 @@
 {
   "$schema": "https://opencode.ai/config.json",
+  "model": "opencode/big-pickle",
+  "small_model": "opencode/mimo-v2.6-flash-free",
+  "instructions": [
+    "AGENTS.md"
+  ],
+  "mcp": {
+    "context7": {
+      "url": "https://mcp.context7.com/mcp",
+      "enabled": true,
+      "timeout": 20000,
+      "headers": {
+        "Authorization": "{file:./.opencode/context7-Authorization.local.txt}"
+      },
+      "type": "remote"
+    },
+    "chrome-devtools": {
+      "enabled": true,
+      "timeout": 20000,
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "C:\\Users\\juan_\\AppData\\Local\\Yarn\\Data\\global\\node_modules\\chrome-devtools-mcp\\build\\src\\bin\\chrome-devtools-mcp.js",
+        "--headless",
+        "--isolated",
+        "--no-usage-statistics"
+      ],
+      "type": "local"
+    },
+    "memory": {
+      "enabled": true,
+      "environment": {
+        "MEMORY_FILE_PATH": "C:\\Users\\juan_\\OneDrive\\Escritorio\\Github\\Designer\\.agents\\context-memory\\memory.jsonl"
+      },
+      "timeout": 10000,
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "C:\\Users\\juan_\\AppData\\Local\\Yarn\\Data\\global\\node_modules\\@modelcontextprotocol\\server-memory\\dist\\index.js"
+      ],
+      "type": "local"
+    }
+  },
+  "tools": {
+    "context7*": false,
+    "memory*": false,
+    "chrome-devtools*": false
+  },
   "agent": {
     "explore": {
-      "mode": "subagent",
-      "model": "opencode/mimo-v2.6-flash-free",
-      "description": "Image analysis, code reading, and structure analysis",
       "permission": {
+        "external_directory": "ask",
+        "memory_add*": "deny",
+        "memory_delete*": "deny",
+        "memory_create*": "deny",
+        "bash": "deny",
         "edit": "deny",
-        "bash": "deny"
+        "task": "deny"
+      },
+      "model": "opencode/mimo-v2.6-flash-free",
+      "mode": "all",
+      "prompt": "Execute only your assigned task directly. Read the project instructions first. Preserve existing user changes. Do not spawn other agents, commit, push, publish, or perform unrelated cleanup. Respect parent permissions. Return concise file references or changed files, validation commands and outcomes, and blockers, preferably within 400 words. Do not modify files or memory.",
+      "description": "Read-only repository and dependency analysis",
+      "tools": {
+        "context7*": true,
+        "memory*": true,
+        "chrome-devtools*": false
       }
     },
     "worker": {
-      "mode": "subagent",
-      "model": "opencode/big-pickle",
-      "description": "Execution of development tasks, code editing, and script execution. Low to medium complexity code and structure analysis.",
       "permission": {
-        "edit": "allow",
-        "bash": "allow"
+        "bash": "allow",
+        "task": "deny",
+        "external_directory": "ask",
+        "edit": "allow"
+      },
+      "model": "opencode/big-pickle",
+      "mode": "all",
+      "prompt": "Execute only your assigned task directly. Read the project instructions first. Preserve existing user changes. Do not spawn other agents, commit, push, publish, or perform unrelated cleanup. Respect parent permissions. Return concise file references or changed files, validation commands and outcomes, and blockers, preferably within 400 words.",
+      "description": "Bounded implementation and validation",
+      "tools": {
+        "context7*": true,
+        "memory*": true,
+        "chrome-devtools*": false
       }
     }
   }
