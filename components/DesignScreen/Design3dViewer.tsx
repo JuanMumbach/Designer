@@ -80,7 +80,9 @@ function SceneContent({
   globalMaterialsRaw,
   materialDataById,
   slotTypesByModel,
-  typeToDesignSlot
+  typeToDesignSlot,
+  activeMeasurementSide,
+  onSelectMeasurement
 }: {
   room3d: Room3dProps,
   designObjects: DesignObject[],
@@ -98,7 +100,9 @@ function SceneContent({
   globalMaterialsRaw?: GlobalMaterials,
   materialDataById?: Record<string, AppliedMaterial>,
   slotTypesByModel?: Record<string, ObjectMaterialType[]>,
-  typeToDesignSlot?: Record<string, string>
+  typeToDesignSlot?: Record<string, string>,
+  activeMeasurementSide?: import('./3dViewOverlay/EditMeasurementModal').MeasurementSide,
+  onSelectMeasurement?: (object: DesignObject, side: import('./3dViewOverlay/EditMeasurementModal').MeasurementSide, currentValue: number) => void
 }) {
   const wallCulling = useWallCulling(room3d);
   let roomOrigin = RoomOrigin({room3d});
@@ -126,6 +130,8 @@ function SceneContent({
           slotTypesByModel={slotTypesByModel}
           typeToDesignSlot={typeToDesignSlot}
           wallCulling={wallCulling}
+          activeMeasurementSide={activeMeasurementSide}
+          onSelectMeasurement={onSelectMeasurement}
       />
       <OrbitControls {...cameraControlsProps} enabled={draggingRef.current === 0} />
     </>
@@ -149,7 +155,9 @@ export default function Design3dView({
   materialDataById,
   slotTypesByModel,
   typeToDesignSlot,
-  captureApi}:
+  captureApi,
+  activeMeasurementSide,
+  onSelectMeasurement}:
   {
   room3d: Room3dProps,
   designObjects: DesignObject[],
@@ -167,7 +175,9 @@ export default function Design3dView({
   materialDataById?: Record<string, AppliedMaterial>,
   slotTypesByModel?: Record<string, ObjectMaterialType[]>,
   typeToDesignSlot?: Record<string, string>,
-  captureApi?: ThumbnailCaptureApi
+  captureApi?: ThumbnailCaptureApi,
+  activeMeasurementSide?: import('./3dViewOverlay/EditMeasurementModal').MeasurementSide,
+  onSelectMeasurement?: (object: DesignObject, side: import('./3dViewOverlay/EditMeasurementModal').MeasurementSide, currentValue: number) => void
 })
 {
   const isDragging = useRef(0);
@@ -210,6 +220,8 @@ export default function Design3dView({
             materialDataById={materialDataById}
             slotTypesByModel={slotTypesByModel}
             typeToDesignSlot={typeToDesignSlot}
+            activeMeasurementSide={activeMeasurementSide}
+            onSelectMeasurement={onSelectMeasurement}
         />
         {captureApi && <ThumbnailCaptureHost captureApi={captureApi} />}
         <fog attach="fog" args={[COLORS.sceneBg, 5, 20]} />

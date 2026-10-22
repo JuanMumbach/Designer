@@ -19,6 +19,7 @@ import { useObjectTemplates } from "../services/useFurnitureModels";
 import { useMaterials } from "../services/useMaterials";
 import { AppliedMaterial, createDesignObject, DesignObject, getInitialPosition, GlobalMaterials, MaterialOverrides, resolveGlobalMaterials } from "./DesignScreen/3dView/DesignObjects";
 import { Room3dProps } from "./DesignScreen/3dView/Room3d";
+import { ActiveMeasurementEdit, MeasurementSide } from "./DesignScreen/3dViewOverlay/EditMeasurementModal";
 import { emptyBudgetSettings, ModelBudgetEntry } from '../services/budget';
 import { MaterialPart } from '../services/materialParts';
 
@@ -47,6 +48,7 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
   const [magnetEnabled, _setMagnetEnabled] = useState<boolean>(true);
   const [isDraggingObject, setIsDraggingObject] = useState(false);
   const [forceEditObject, setForceEditObject] = useState<DesignObject | undefined>(undefined);
+  const [activeMeasurementEdit, setActiveMeasurementEdit] = useState<ActiveMeasurementEdit | undefined>(undefined);
   const [isExporting, setIsExporting] = useState(false);
   const [isProjectPickerVisible, setIsProjectPickerVisible] = useState(false);
   const [isProjectLoading, setIsProjectLoading] = useState(false);
@@ -343,6 +345,14 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
     loadProjectById(projectId);
   }, [projectId, objectTemplates, loadProjectById]);
 
+  useEffect(() => {
+    if (!movingObject) {
+      setActiveMeasurementEdit(undefined);
+    } else if (activeMeasurementEdit && activeMeasurementEdit.objectId !== movingObject.id) {
+      setActiveMeasurementEdit(undefined);
+    }
+  }, [movingObject, activeMeasurementEdit]);
+
   const handleObjectInteraction = (object: DesignObject) => {
     console.log("Interacted with object:", object.id);
     setMovingObject(object);
@@ -350,7 +360,17 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
 
   const handleEditObjectFrom3D = (object: DesignObject) => {
     setMovingObject(object);
+    setActiveMeasurementEdit(undefined);
     setForceEditObject(object);
+  };
+
+  const handleSelectMeasurement = (object: DesignObject, side: MeasurementSide, currentValue: number) => {
+    setMovingObject(object);
+    setActiveMeasurementEdit({
+      objectId: object.id,
+      side,
+      currentValue,
+    });
   };
 
   const handleObjectAdded = (newObject: DesignObject) => {
@@ -435,6 +455,8 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
         slotTypesByModel={slotTypesByModel}
         typeToDesignSlot={typeToDesignSlot}
         captureApi={captureApi}
+        activeMeasurementSide={activeMeasurementEdit?.side}
+        onSelectMeasurement={handleSelectMeasurement}
       />
       <View3dOverlay
         objectTemplates={objectTemplates}
@@ -450,6 +472,8 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
         magnetEnabled={magnetEnabled}
         forceEditObject={forceEditObject}
         clearForceEdit={() => setForceEditObject(undefined)}
+        activeMeasurementEdit={activeMeasurementEdit}
+        onClearMeasurementEdit={() => setActiveMeasurementEdit(undefined)}
         materials={materials}
         materialCategories={materialCategories}
         globalMaterials={globalMaterials}

@@ -1,312 +1,469 @@
-import { Line, Text } from '@react-three/drei/native';
-import React from 'react';
+import { Billboard, Line, Text } from '@react-three/drei/native';
+import React, { useState } from 'react';
+import { Platform } from 'react-native';
+import * as THREE from 'three';
+import { COLORS } from '@/constants/theme';
+import { DesignObject } from './DesignObjects';
+import { Room3dProps } from './Room3d';
+import { MeasurementSide } from '../3dViewOverlay/EditMeasurementModal';
 
-interface ObjectMeasurements3DProps {
-  object: any; // DesignObject
-  allObjects: any[]; // DesignObject[]
-  room3d: any; // Room3dProps
-  origin: [number, number, number];
+export interface ObjectDistances {
+  leftDistance: number | null;
+  rightDistance: number | null;
+  floorDistance: number | null;
+  leftReferenceEdge: number | null;
+  rightReferenceEdge: number | null;
 }
 
-/**
- * Renders measurement lines and labels for a selected object
- * showing distances to walls, nearest same-kind objects, and floor.
- */
-export default function ObjectMeasurements3D({
-  object,
-  allObjects,
-  room3d,
-  origin
-}: ObjectMeasurements3DProps) {
+const EPSILON = 0.1;
+
+export function calculateObjectMeasurements(
+  object: DesignObject,
+  allObjects: DesignObject[],
+  room3d: Room3dProps
+): ObjectDistances {
   const { objectProperties = {}, position, dimensions, rotation = 0 } = object;
   const movingBehaviour = objectProperties.movingBehaviour;
-  
-  // Extract key properties
   const [objX, objY, objZ] = position;
-  const [objWidth, objHeight] = dimensions;
-  
-  // Filter and distance calculations based on rotation
-  const EPSILON = 0.1;
+  const [objWidth] = dimensions;
+
   const isBackWall = Math.abs(rotation) < EPSILON;
   const isLeftWall = Math.abs(rotation - Math.PI / 2) < EPSILON;
   const isRightWall = Math.abs(rotation + Math.PI / 2) < EPSILON;
 
   let leftDistance: number | null = null;
   let rightDistance: number | null = null;
+  let leftReferenceEdge: number | null = null;
+  let rightReferenceEdge: number | null = null;
 
   if (isBackWall) {
-    // Back wall: parallel to X-axis
     const sameKind = allObjects
-      .filter(o => o.id !== object.id &&
-                  o.objectProperties?.movingBehaviour === movingBehaviour &&
-                  Math.abs((o.rotation || 0) - rotation) < EPSILON &&
-                  Math.abs(o.position[2] - objZ) < EPSILON)
+      .filter(
+        o =>
+          o.id !== object.id &&
+          o.objectProperties?.movingBehaviour === movingBehaviour &&
+          Math.abs((o.rotation || 0) - rotation) < EPSILON &&
+          Math.abs(o.position[2] - objZ) < EPSILON
+      )
       .sort((a, b) => a.position[0] - b.position[0]);
 
     const objLeft = objX;
     const objRight = objX + objWidth;
 
-    // Left side: find nearest object to the left, or left wall
-    const leftCandidates = sameKind.filter(o => o.position[0] + o.dimensions[0] <= objLeft);
+    const leftCandidates = sameKind.filter(o => o.position[0] + o.dimensions[0] <= objLeft + 0.001);
     if (leftCandidates.length > 0) {
       const nearestLeft = leftCandidates[leftCandidates.length - 1];
-      leftDistance = objLeft - (nearestLeft.position[0] + nearestLeft.dimensions[0]);
+      leftReferenceEdge = nearestLeft.position[0] + nearestLeft.dimensions[0];
+      leftDistance = objLeft - leftReferenceEdge;
     } else if (room3d.leftWall) {
-      leftDistance = objLeft; // Distance from left wall (x=0)
+      leftReferenceEdge = 0;
+      leftDistance = objLeft;
     }
 
-    // Right side: find nearest object to the right, or right wall
-    const rightCandidates = sameKind.filter(o => o.position[0] >= objRight);
+    const rightCandidates = sameKind.filter(o => o.position[0] >= objRight - 0.001);
     if (rightCandidates.length > 0) {
       const nearestRight = rightCandidates[0];
-      rightDistance = nearestRight.position[0] - objRight;
+      rightReferenceEdge = nearestRight.position[0];
+      rightDistance = rightReferenceEdge - objRight;
     } else if (room3d.rightWall) {
+      rightReferenceEdge = room3d.width;
       rightDistance = room3d.width - objRight;
     }
   } else if (isLeftWall) {
-    // Left wall: parallel to Z-axis
     const sameKind = allObjects
-      .filter(o => o.id !== object.id &&
-                  o.objectProperties?.movingBehaviour === movingBehaviour &&
-                  Math.abs((o.rotation || 0) - rotation) < EPSILON &&
-                  Math.abs(o.position[0] - objX) < EPSILON)
+      .filter(
+        o =>
+          o.id !== object.id &&
+          o.objectProperties?.movingBehaviour === movingBehaviour &&
+          Math.abs((o.rotation || 0) - rotation) < EPSILON &&
+          Math.abs(o.position[0] - objX) < EPSILON
+      )
       .sort((a, b) => a.position[2] - b.position[2]);
 
-    const objFront = objZ; // front edge (towards depth)
-    const objBack = objZ - objWidth; // back edge (towards 0)
+    const objFront = objZ;
+    const objBack = objZ - objWidth;
 
-    // Left measurement (goes towards Z = depth / front opening)
-    const frontCandidates = sameKind.filter(o => o.position[2] - o.dimensions[0] >= objFront);
+    const frontCandidates = sameKind.filter(o => o.position[2] - o.dimensions[0] >= objFront - 0.001);
     if (frontCandidates.length > 0) {
-      const nearestFront = frontCandidates[0]; // closest towards front
-      leftDistance = (nearestFront.position[2] - nearestFront.dimensions[0]) - objFront;
+      const nearestFront = frontCandidates[0];
+      leftReferenceEdge = nearestFront.position[2] - nearestFront.dimensions[0];
+      leftDistance = leftReferenceEdge - objFront;
     } else {
-      leftDistance = room3d.depth - objFront; // Distance to front opening
+      leftReferenceEdge = room3d.depth;
+      leftDistance = room3d.depth - objFront;
     }
 
-    // Right measurement (goes towards Z = 0 / back wall)
-    const backCandidates = sameKind.filter(o => o.position[2] <= objBack);
+    const backCandidates = sameKind.filter(o => o.position[2] <= objBack + 0.001);
     if (backCandidates.length > 0) {
-      const nearestBack = backCandidates[backCandidates.length - 1]; // closest towards back
-      rightDistance = objBack - nearestBack.position[2];
+      const nearestBack = backCandidates[backCandidates.length - 1];
+      rightReferenceEdge = nearestBack.position[2];
+      rightDistance = objBack - rightReferenceEdge;
     } else {
-      rightDistance = objBack; // Distance to back wall
+      rightReferenceEdge = 0;
+      rightDistance = objBack;
     }
   } else if (isRightWall) {
-    // Right wall: parallel to Z-axis
     const sameKind = allObjects
-      .filter(o => o.id !== object.id &&
-                  o.objectProperties?.movingBehaviour === movingBehaviour &&
-                  Math.abs((o.rotation || 0) - rotation) < EPSILON &&
-                  Math.abs(o.position[0] - objX) < EPSILON)
+      .filter(
+        o =>
+          o.id !== object.id &&
+          o.objectProperties?.movingBehaviour === movingBehaviour &&
+          Math.abs((o.rotation || 0) - rotation) < EPSILON &&
+          Math.abs(o.position[0] - objX) < EPSILON
+      )
       .sort((a, b) => a.position[2] - b.position[2]);
 
-    const objFront = objZ + objWidth; // front edge (towards depth)
-    const objBack = objZ; // back edge (towards 0)
+    const objFront = objZ + objWidth;
+    const objBack = objZ;
 
-    // Left measurement (goes towards Z = 0 / back wall)
-    const backCandidates = sameKind.filter(o => o.position[2] + o.dimensions[0] <= objBack);
+    const backCandidates = sameKind.filter(o => o.position[2] + o.dimensions[0] <= objBack + 0.001);
     if (backCandidates.length > 0) {
-      const nearestBack = backCandidates[backCandidates.length - 1]; // closest towards back
-      leftDistance = objBack - (nearestBack.position[2] + nearestBack.dimensions[0]);
+      const nearestBack = backCandidates[backCandidates.length - 1];
+      leftReferenceEdge = nearestBack.position[2] + nearestBack.dimensions[0];
+      leftDistance = objBack - leftReferenceEdge;
     } else {
-      leftDistance = objBack; // Distance to back wall
+      leftReferenceEdge = 0;
+      leftDistance = objBack;
     }
 
-    // Right measurement (goes towards Z = depth / front opening)
-    const frontCandidates = sameKind.filter(o => o.position[2] >= objFront);
+    const frontCandidates = sameKind.filter(o => o.position[2] >= objFront - 0.001);
     if (frontCandidates.length > 0) {
-      const nearestFront = frontCandidates[0]; // closest towards front
-      rightDistance = nearestFront.position[2] - objFront;
+      const nearestFront = frontCandidates[0];
+      rightReferenceEdge = nearestFront.position[2];
+      rightDistance = rightReferenceEdge - objFront;
     } else {
-      rightDistance = room3d.depth - objFront; // Distance to front opening
+      rightReferenceEdge = room3d.depth;
+      rightDistance = room3d.depth - objFront;
     }
   }
-  
-  // Floor distance (if elevated)
+
   let floorDistance: number | null = null;
-  if (objY > 0.01) { // Above floor
+  if (objY > 0.01) {
     floorDistance = objY;
   }
 
-  // Render measurements
-  const measurementHeight = 0.2; // Height of measurement lines above object
-  const textOffsetY = 0.1; // Vertical offset for text labels
-  const textOffsetX = 0.25; // Horizontal offset for text labels
-  const localLineY = objHeight/2;
+  return {
+    leftDistance,
+    rightDistance,
+    floorDistance,
+    leftReferenceEdge,
+    rightReferenceEdge,
+  };
+}
+
+export function computeNewPositionFromMeasurement(
+  object: DesignObject,
+  allObjects: DesignObject[],
+  room3d: Room3dProps,
+  side: MeasurementSide,
+  newDistance: number
+): [number, number, number] {
+  const clampedDistance = Math.max(0, newDistance);
+  const { position, dimensions, rotation = 0 } = object;
+  const [objX, objY, objZ] = position;
+  const [objWidth, objHeight] = dimensions;
+
+  if (side === 'floor') {
+    const maxY = Math.max(0, room3d.height - objHeight);
+    return [objX, Math.min(maxY, clampedDistance), objZ];
+  }
+
+  const distances = calculateObjectMeasurements(object, allObjects, room3d);
+  const isBackWall = Math.abs(rotation) < EPSILON;
+  const isLeftWall = Math.abs(rotation - Math.PI / 2) < EPSILON;
+  const isRightWall = Math.abs(rotation + Math.PI / 2) < EPSILON;
+
+  if (isBackWall) {
+    let targetX = objX;
+    if (side === 'left' && distances.leftReferenceEdge !== null) {
+      targetX = distances.leftReferenceEdge + clampedDistance;
+    } else if (side === 'right' && distances.rightReferenceEdge !== null) {
+      targetX = distances.rightReferenceEdge - clampedDistance - objWidth;
+    }
+    const clampedX = Math.max(0, Math.min(room3d.width - objWidth, targetX));
+    return [clampedX, objY, objZ];
+  }
+
+  if (isLeftWall) {
+    let targetZ = objZ;
+    if (side === 'left' && distances.leftReferenceEdge !== null) {
+      targetZ = distances.leftReferenceEdge - clampedDistance;
+    } else if (side === 'right' && distances.rightReferenceEdge !== null) {
+      targetZ = distances.rightReferenceEdge + clampedDistance + objWidth;
+    }
+    const clampedZ = Math.max(objWidth, Math.min(room3d.depth, targetZ));
+    return [objX, objY, clampedZ];
+  }
+
+  if (isRightWall) {
+    let targetZ = objZ;
+    if (side === 'left' && distances.leftReferenceEdge !== null) {
+      targetZ = distances.leftReferenceEdge + clampedDistance;
+    } else if (side === 'right' && distances.rightReferenceEdge !== null) {
+      targetZ = distances.rightReferenceEdge - clampedDistance - objWidth;
+    }
+    const clampedZ = Math.max(0, Math.min(room3d.depth - objWidth, targetZ));
+    return [objX, objY, clampedZ];
+  }
+
+  return [objX, objY, objZ];
+}
+
+function InteractiveMeasurementBadge({
+  position,
+  value,
+  isActive,
+  onSelect,
+}: {
+  position: [number, number, number];
+  value: number;
+  isActive?: boolean;
+  onSelect?: () => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+
+  const setCursor = (cursor: string) => {
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      document.body.style.cursor = cursor;
+    }
+  };
+
+  const handleTrigger = (e: any) => {
+    e.stopPropagation();
+    onSelect?.();
+  };
+
+  const label = value.toFixed(2);
+  const fontSize = 0.22;
+  const boxWidth = Math.max(0.42, label.length * 0.115 + 0.04);
+  const boxHeight = fontSize + 0.04;
+
+  const textColor = isActive || hovered ? COLORS.primary : '#111827';
+
+  return (
+    <Billboard position={position}>
+      <group>
+        <mesh
+          position={[0, 0, 0.005]}
+          renderOrder={998}
+          onClick={handleTrigger}
+          onPointerDown={(e) => {
+            e.stopPropagation();
+          }}
+          onPointerOver={(e) => {
+            e.stopPropagation();
+            setHovered(true);
+            setCursor('pointer');
+          }}
+          onPointerOut={(e) => {
+            e.stopPropagation();
+            setHovered(false);
+            setCursor('auto');
+          }}
+        >
+          <planeGeometry args={[boxWidth, boxHeight]} />
+          <meshBasicMaterial
+            color="#ffffff"
+            depthTest={false}
+            depthWrite={false}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+
+        <Text
+          position={[0, 0, 0.01]}
+          fontSize={fontSize}
+          color={textColor}
+          anchorX="center"
+          anchorY="middle"
+          material-depthTest={false}
+          material-depthWrite={false}
+          material-transparent={true}
+          renderOrder={999}
+        >
+          {label}
+        </Text>
+      </group>
+    </Billboard>
+  );
+}
+
+interface ObjectMeasurements3DProps {
+  object: DesignObject;
+  allObjects: DesignObject[];
+  room3d: Room3dProps;
+  origin: [number, number, number];
+  activeSide?: MeasurementSide;
+  onSelectMeasurement?: (side: MeasurementSide, currentValue: number) => void;
+}
+
+export default function ObjectMeasurements3D({
+  object,
+  allObjects,
+  room3d,
+  activeSide,
+  onSelectMeasurement,
+}: ObjectMeasurements3DProps) {
+  const { position, dimensions } = object;
+  const [, objY] = position;
+  const [objWidth, objHeight] = dimensions;
+
+  const { leftDistance, rightDistance, floorDistance } = calculateObjectMeasurements(
+    object,
+    allObjects,
+    room3d
+  );
+
+  const measurementHeight = 0.2;
+  const textOffsetY = 0.16;
+  const textOffsetX = 0.28;
+  const localLineY = objHeight / 2;
   const localObjLeft = 0;
   const localObjRight = objWidth;
   const localObjCenterX = objWidth / 2;
   const localObjBottomY = 0;
   const localFloorY = -objY;
   const localZ = 0;
-  
-  // Group all measurements together
-  const measurementElements: JSX.Element[] = [];
-  
-  // Left measurement
-  if (leftDistance !== null) {
+
+  const measurementElements: React.ReactNode[] = [];
+
+  const MIN_VISIBLE_DISTANCE = 0.005;
+
+  if (leftDistance !== null && leftDistance >= MIN_VISIBLE_DISTANCE) {
     const startX = localObjLeft;
-    const endX = localObjLeft - leftDistance; // Going left (negative x direction)
-    
-    // Main horizontal line
+    const endX = localObjLeft - leftDistance;
+    const lineColor = activeSide === 'left' ? COLORS.primary : 'black';
+
     measurementElements.push(
       <Line
         key="left-main"
-        points={[ [startX, localLineY, localZ], [endX, localLineY, localZ] ]}
+        points={[
+          [startX, localLineY, localZ],
+          [endX, localLineY, localZ],
+        ]}
         lineWidth={2}
-        color="black"
+        color={lineColor}
         depthTest={false}
-      />
-    );
-    // Upper tick
-    measurementElements.push(
+      />,
       <Line
         key="left-tick-up"
-        points={[ [endX, localLineY + measurementHeight/2, localZ], [endX, localLineY - measurementHeight/2, localZ] ]}
+        points={[
+          [endX, localLineY + measurementHeight / 2, localZ],
+          [endX, localLineY - measurementHeight / 2, localZ],
+        ]}
         lineWidth={1}
-        color="black"
+        color={lineColor}
         depthTest={false}
-      />
-    );
-    // Lower tick
-    measurementElements.push(
+      />,
       <Line
         key="left-tick-down"
-        points={[ [startX, localLineY + measurementHeight/2, localZ], [startX, localLineY - measurementHeight/2, localZ] ]}
+        points={[
+          [startX, localLineY + measurementHeight / 2, localZ],
+          [startX, localLineY - measurementHeight / 2, localZ],
+        ]}
         lineWidth={1}
-        color="black"
+        color={lineColor}
         depthTest={false}
-      />
-    );
-    // Distance Label
-    measurementElements.push(
-      <Text
+      />,
+      <InteractiveMeasurementBadge
         key="left-label"
         position={[(startX + endX) / 2, localLineY + textOffsetY, localZ]}
-        fontSize={0.25}
-        color="black"
-        anchorX="center"
-        anchorY="middle"
-        material-depthTest={false}
-        material-depthWrite={false}
-        material-transparent={true}
-        renderOrder={999}
-      >
-        {leftDistance.toFixed(2)}
-      </Text>
+        value={leftDistance}
+        isActive={activeSide === 'left'}
+        onSelect={() => onSelectMeasurement?.('left', leftDistance)}
+      />
     );
   }
-  
-  // Right measurement
-  if (rightDistance !== null) {
+
+  if (rightDistance !== null && rightDistance >= MIN_VISIBLE_DISTANCE) {
     const startX = localObjRight;
-    const endX = localObjRight + rightDistance; // Going right (positive x direction)
-    
-    // Main horizontal line
+    const endX = localObjRight + rightDistance;
+    const lineColor = activeSide === 'right' ? COLORS.primary : 'black';
+
     measurementElements.push(
       <Line
         key="right-main"
-        points={[ [startX, localLineY, localZ], [endX, localLineY, localZ] ]}
+        points={[
+          [startX, localLineY, localZ],
+          [endX, localLineY, localZ],
+        ]}
         lineWidth={2}
-        color="black"
+        color={lineColor}
         depthTest={false}
-      />
-    );
-    // Upper tick
-    measurementElements.push(
+      />,
       <Line
         key="right-tick-up"
-        points={[ [endX, localLineY + measurementHeight/2, localZ], [endX, localLineY - measurementHeight/2, localZ] ]}
+        points={[
+          [endX, localLineY + measurementHeight / 2, localZ],
+          [endX, localLineY - measurementHeight / 2, localZ],
+        ]}
         lineWidth={1}
-        color="black"
+        color={lineColor}
         depthTest={false}
-      />
-    );
-    // Lower tick
-    measurementElements.push(
+      />,
       <Line
         key="right-tick-down"
-        points={[ [startX, localLineY + measurementHeight/2, localZ], [startX, localLineY - measurementHeight/2, localZ] ]}
+        points={[
+          [startX, localLineY + measurementHeight / 2, localZ],
+          [startX, localLineY - measurementHeight / 2, localZ],
+        ]}
         lineWidth={1}
-        color="black"
+        color={lineColor}
         depthTest={false}
-      />
-    );
-    // Distance Label
-    measurementElements.push(
-      <Text
+      />,
+      <InteractiveMeasurementBadge
         key="right-label"
         position={[(startX + endX) / 2, localLineY + textOffsetY, localZ]}
-        fontSize={0.25}
-        color="black"
-        anchorX="center"
-        anchorY="middle"
-        material-depthTest={false}
-        material-depthWrite={false}
-        material-transparent={true}
-        renderOrder={999}
-      >
-        {rightDistance.toFixed(2)}
-      </Text>
+        value={rightDistance}
+        isActive={activeSide === 'right'}
+        onSelect={() => onSelectMeasurement?.('right', rightDistance)}
+      />
     );
   }
-  
-  // Floor measurement
-  if (floorDistance !== null) {
-    // Vertical line from object bottom to floor
+
+  if (floorDistance !== null && floorDistance >= MIN_VISIBLE_DISTANCE) {
+    const lineColor = activeSide === 'floor' ? COLORS.primary : 'black';
+
     measurementElements.push(
       <Line
         key="floor-main"
-        points={[ [localObjCenterX, localObjBottomY, localZ], [localObjCenterX, localFloorY, localZ] ]}
+        points={[
+          [localObjCenterX, localObjBottomY, localZ],
+          [localObjCenterX, localFloorY, localZ],
+        ]}
         lineWidth={2}
-        color="black"
+        color={lineColor}
         depthTest={false}
-      />
-    );
-    // Left tick
-    measurementElements.push(
+      />,
       <Line
         key="floor-tick-left"
-        points={[ [localObjCenterX - 0.1, localObjBottomY, localZ], [localObjCenterX + 0.1, localObjBottomY, localZ] ]}
+        points={[
+          [localObjCenterX - 0.1, localObjBottomY, localZ],
+          [localObjCenterX + 0.1, localObjBottomY, localZ],
+        ]}
         lineWidth={1}
-        color="black"
+        color={lineColor}
         depthTest={false}
-      />
-    );
-    // Right tick
-    measurementElements.push(
+      />,
       <Line
         key="floor-tick-right"
-        points={[ [localObjCenterX - 0.1, localFloorY, localZ], [localObjCenterX + 0.1, localFloorY, localZ] ]}
+        points={[
+          [localObjCenterX - 0.1, localFloorY, localZ],
+          [localObjCenterX + 0.1, localFloorY, localZ],
+        ]}
         lineWidth={1}
-        color="black"
+        color={lineColor}
         depthTest={false}
-      />
-    );
-    // Distance Label
-    measurementElements.push(
-      <Text
+      />,
+      <InteractiveMeasurementBadge
         key="floor-label"
         position={[localObjCenterX + textOffsetX, (localObjBottomY + localFloorY) / 2, localZ]}
-        fontSize={0.25}
-        color="black"
-        anchorX="center"
-        anchorY="middle"
-        material-depthTest={false}
-        material-depthWrite={false}
-        material-transparent={true}
-        renderOrder={999}
-      >
-        {floorDistance.toFixed(2)}
-      </Text>
+        value={floorDistance}
+        isActive={activeSide === 'floor'}
+        onSelect={() => onSelectMeasurement?.('floor', floorDistance)}
+      />
     );
   }
-  
-  // Return the measurements and labels
-  return (
-    <>
-      {measurementElements}
-    </>
-  );
+
+  return <>{measurementElements}</>;
 }

@@ -122,7 +122,7 @@ export function useDownload3dModel(remoteUrl: string, assetName: string = 'asset
 }
 
 export function DesignObject3D({
-    obj, position, origin, dimensions, modelScale, rotation, onObjectInteraction, isSelected, onObjectEdited, onObjectDeleted, onEditObject, room3d, magnetEnabled, allObjects, onDragStateChange, onSlotsDiscovered, interactionDisabled, instanceOverrides, globalMaterials, globalMaterialsRaw, materialDataById, slotTypesByModel, typeToDesignSlot, forcedHidden
+    obj, position, origin, dimensions, modelScale, rotation, onObjectInteraction, isSelected, onObjectEdited, onObjectDeleted, onEditObject, room3d, magnetEnabled, allObjects, onDragStateChange, onSlotsDiscovered, interactionDisabled, instanceOverrides, globalMaterials, globalMaterialsRaw, materialDataById, slotTypesByModel, typeToDesignSlot, forcedHidden, activeMeasurementSide, onSelectMeasurement
 }: {
     obj: DesignObject,
     position: [number, number, number],
@@ -147,7 +147,9 @@ export function DesignObject3D({
     materialDataById?: Record<string, AppliedMaterial>,
     slotTypesByModel?: Record<string, ObjectMaterialType[]>,
     typeToDesignSlot?: Record<string, string>,
-    forcedHidden?: boolean
+    forcedHidden?: boolean,
+    activeMeasurementSide?: import('../3dViewOverlay/EditMeasurementModal').MeasurementSide,
+    onSelectMeasurement?: (side: import('../3dViewOverlay/EditMeasurementModal').MeasurementSide, currentValue: number) => void
 }) {
     const url = obj.modelUrl;
     const { localUri, isLoading, error } = useDownload3dModel(url, obj.id);
@@ -888,6 +890,8 @@ export function DesignObject3D({
                              allObjects={allObjects}
                              room3d={room3d}
                              origin={origin}
+                             activeSide={activeMeasurementSide}
+                             onSelectMeasurement={onSelectMeasurement}
                          />
                      </group>
                  )}

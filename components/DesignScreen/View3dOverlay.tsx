@@ -10,12 +10,14 @@ import { Room3dProps } from "./3dView/Room3d";
 import BottomSheet from "./3dViewOverlay/BottomSheet";
 import CategoryBrowser from "./3dViewOverlay/CategoryBrowser";
 import EditFurnitureInstanceMenu from "./3dViewOverlay/EditFurnitureInstanceMenu";
+import EditMeasurementModal, { ActiveMeasurementEdit, MeasurementSide } from "./3dViewOverlay/EditMeasurementModal";
 import FurnitureInstancesManager from "./3dViewOverlay/FurnitureInstancesManager";
 import GlassSurface from "./3dViewOverlay/GlassSurface";
 import MaterialPicker from "./3dViewOverlay/MaterialPicker";
 import MaterialsWidget from "./3dViewOverlay/MaterialsWidget";
 import ModuleCatalogue from "./3dViewOverlay/ModuleCatalogue";
 import RoomManager from "./3dViewOverlay/RoomManager";
+import { computeNewPositionFromMeasurement } from "./3dView/ObjectMeasurements3D";
 
 interface View3dOverlayProps {
   objectTemplates: ObjectTemplate[];
@@ -31,6 +33,8 @@ interface View3dOverlayProps {
   magnetEnabled: boolean;
   forceEditObject?: DesignObject;
   clearForceEdit: () => void;
+  activeMeasurementEdit?: ActiveMeasurementEdit;
+  onClearMeasurementEdit?: () => void;
   materials: MaterialMeta[];
   materialCategories: MaterialCategory[];
   globalMaterials: GlobalMaterials;
@@ -125,6 +129,8 @@ export default function View3dOverlay({
   movingObject,
   forceEditObject,
   clearForceEdit,
+  activeMeasurementEdit,
+  onClearMeasurementEdit,
   materials,
   materialCategories,
   globalMaterials,
@@ -163,6 +169,17 @@ export default function View3dOverlay({
   }, [forceEditObject]);
 
   useEffect(() => {
+    if (activeMeasurementEdit) {
+      setIsListInstantiableObjectsVisible(false);
+      setIsRoomSettingsVisible(false);
+      setIsObjectsManagerVisible(false);
+      setIsEditObjectMenuVisible(false);
+      setIsGlobalMaterialsVisible(false);
+      setIsMaterialsPreviewsVisible(false);
+    }
+  }, [activeMeasurementEdit]);
+
+  useEffect(() => {
     if (selectedObjectState) {
       const updated = designObjects.find(o => o.id === selectedObjectState.id);
       if (updated && updated !== selectedObjectState) {
@@ -177,6 +194,7 @@ export default function View3dOverlay({
     setIsListInstantiableObjectsVisible(false);
     setIsGlobalMaterialsVisible(false);
     setIsMaterialsPreviewsVisible(false);
+    onClearMeasurementEdit?.();
     onObjectAdded(createDesignObject(objectType, getInitialPosition(objectType)));
   };
 
@@ -186,6 +204,7 @@ export default function View3dOverlay({
     setIsObjectsManagerVisible(false);
     setIsGlobalMaterialsVisible(false);
     setIsMaterialsPreviewsVisible(false);
+    onClearMeasurementEdit?.();
 
     setSelectedObjectState(object);
     setIsEditObjectMenuVisible(true);
@@ -215,6 +234,27 @@ export default function View3dOverlay({
     closeEditMenu();
   };
 
+  const handleMeasurementApply = (side: MeasurementSide, newDistance: number) => {
+    if (!activeMeasurementEdit) return;
+    const targetObj = designObjects.find(o => o.id === activeMeasurementEdit.objectId);
+    if (!targetObj) {
+      onClearMeasurementEdit?.();
+      return;
+    }
+    const newPosition = computeNewPositionFromMeasurement(
+      targetObj,
+      designObjects,
+      room3dProps,
+      side,
+      newDistance
+    );
+    onObjectEdited(targetObj.id, {
+      name: targetObj.name,
+      position: newPosition,
+    });
+    onClearMeasurementEdit?.();
+  };
+
   const toggleRoomSettings = () => {
     const newState = !isRoomSettingsVisible;
     setIsRoomSettingsVisible(newState);
@@ -226,6 +266,7 @@ export default function View3dOverlay({
       setIsGlobalMaterialsVisible(false);
       setIsMaterialsPreviewsVisible(false);
       setMaterialsInitialSlot(null);
+      onClearMeasurementEdit?.();
     }
   };
 
@@ -234,6 +275,7 @@ export default function View3dOverlay({
     setIsListInstantiableObjectsVisible(false);
     setIsObjectsManagerVisible(false);
     setIsEditObjectMenuVisible(false);
+    onClearMeasurementEdit?.();
   };
 
   const toggleMaterialsPreviews = () => {
@@ -287,6 +329,7 @@ export default function View3dOverlay({
       setIsGlobalMaterialsVisible(false);
       setIsMaterialsPreviewsVisible(false);
       setMaterialsInitialSlot(null);
+      onClearMeasurementEdit?.();
     }
   };
 
@@ -301,6 +344,7 @@ export default function View3dOverlay({
       setIsGlobalMaterialsVisible(false);
       setIsMaterialsPreviewsVisible(false);
       setMaterialsInitialSlot(null);
+      onClearMeasurementEdit?.();
     }
   };
 
@@ -350,6 +394,7 @@ export default function View3dOverlay({
     setIsMaterialsPreviewsVisible(false);
     setMaterialsInitialSlot(null);
     setIsListInstantiableObjectsVisible(false);
+    onClearMeasurementEdit?.();
     closeEditMenu();
   };
 
@@ -357,6 +402,10 @@ export default function View3dOverlay({
   const desktopPanelMaxHeight = Math.max(300, Math.round(height * 0.55));
   const widePanelStyle = [styles.widePanel, { maxHeight: desktopPanelMaxHeight }];
   const sheetPanelStyle = [styles.sheetPanel, { maxHeight: sheetMaxHeight - 56 }];
+
+  const measurementTargetObj = activeMeasurementEdit
+    ? designObjects.find(o => o.id === activeMeasurementEdit.objectId)
+    : undefined;
 
   const materialsPanel = (
     <MaterialPicker
@@ -465,7 +514,16 @@ export default function View3dOverlay({
             isListInstantiableObjectsVisible && styles.modalAreaAboveDock,
           ]}
         >
-          {isDesktop && (
+          {activeMeasurementEdit && measurementTargetObj && (
+            <EditMeasurementModal
+              key={`${activeMeasurementEdit.objectId}:${activeMeasurementEdit.side}`}
+              activeEdit={activeMeasurementEdit}
+              objectName={measurementTargetObj.name}
+              onApply={handleMeasurementApply}
+              onClose={() => onClearMeasurementEdit?.()}
+            />
+          )}
+          {isDesktop && !activeMeasurementEdit && (
             (isListInstantiableObjectsVisible && (
               <ModuleCatalogue
                 objectTemplates={objectTemplates}
