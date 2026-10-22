@@ -72,12 +72,21 @@ export default function WorkspaceAdmin({ workspaceId }: { workspaceId: string })
       <Text style={s.subtitle}>{roles.find(role => role.id === newMemberRoleId)?.description}</Text>
       <View style={s.row}><ManagerAction label={busy ? 'Agregando…' : 'Agregar miembro'} primary disabled={busy || !newMemberUserId.trim() || !newMemberRoleId} onPress={handleAddMember} /><ManagerAction label="Cancelar" disabled={busy} onPress={() => setAdding(false)} /></View>
     </View>}
-    {pending && <ManagerDialog onClose={() => { if (!busy) setPending(undefined); }}>
-      {error && <ManagerNotice error message={error} />}
-      <Text style={s.name}>{pending.roleId ? 'Cambiar permisos' : 'Quitar acceso'}</Text>
-      <Text style={s.subtitle}>{pending.roleId ? `${pending.member.username ?? pending.member.userId} tendrá el rol ${roles.find(role => role.id === pending.roleId)?.name}.` : `${pending.member.username ?? pending.member.userId} dejará de acceder a este espacio.`}</Text>
-      <View style={s.row}><ManagerAction label={busy ? 'Guardando…' : 'Confirmar'} primary={!!pending.roleId} danger={!pending.roleId} disabled={busy} onPress={handleConfirm} /><ManagerAction label="Cancelar" disabled={busy} onPress={() => setPending(undefined)} /></View>
-    </ManagerDialog>}
+    {pending && (
+      <ManagerDialog
+        onClose={() => { if (!busy) setPending(undefined); }}
+        actions={
+          <View style={s.row}>
+            <ManagerAction label={busy ? 'Guardando…' : 'Confirmar'} primary={!!pending.roleId} danger={!pending.roleId} disabled={busy} onPress={handleConfirm} />
+            <ManagerAction label="Cancelar" disabled={busy} onPress={() => setPending(undefined)} />
+          </View>
+        }
+      >
+        {error && <ManagerNotice error message={error} />}
+        <Text style={s.name}>{pending.roleId ? 'Cambiar permisos' : 'Quitar acceso'}</Text>
+        <Text style={s.subtitle}>{pending.roleId ? `${pending.member.username ?? pending.member.userId} tendrá el rol ${roles.find(role => role.id === pending.roleId)?.name}.` : `${pending.member.username ?? pending.member.userId} dejará de acceder a este espacio.`}</Text>
+      </ManagerDialog>
+    )}
     <ManagerSearch value={query} onChangeText={setQuery} placeholder="Buscar miembros o roles" />
     {loading ? <ManagerNotice message="Cargando miembros…" loading /> : filtered.length === 0 ? <ManagerNotice message={query ? 'No hay coincidencias. Prueba otro nombre o rol.' : 'Este espacio todavía no tiene miembros.'} /> : filtered.map(member => {
       const self = member.userId === backendUserId;

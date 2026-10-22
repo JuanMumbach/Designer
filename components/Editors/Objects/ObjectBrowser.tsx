@@ -2,18 +2,14 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import {
   ActivityIndicator,
   Alert,
-  Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   useWindowDimensions,
   View,
 } from 'react-native';
 import { useAccess } from '../../../services/AccessContext';
 import { useAuth } from '../../../services/AuthContext';
-import Button from '../../Button';
 import {
   createObject,
   createObjectCategory,
@@ -37,7 +33,8 @@ import {
 import ObjectEditor, { ObjectFormData } from './ObjectEditor';
 import ObjectPreview from './ObjectPreview';
 import SlotAssignmentPanel, { SlotDraft } from './SlotAssignmentPanel';
-import Thumbnail from '../../Thumbnail';
+import CatalogueView, { CatalogueGroup, InspectorRow } from '../../Catalogue/CatalogueView';
+import CategoryManagerPanel from '../CategoryManagerPanel';
 import {
   createThumbnailCaptureApi,
   ThumbnailCaptureApi,
@@ -47,6 +44,15 @@ import { AppliedMaterial } from '@/components/DesignScreen/3dView/DesignObjects'
 import { COLORS } from '@/constants/theme';
 import { ModelBudgetEntry } from '../../../services/budget';
 import { MaterialPart, materialPartsArea } from '../../../services/materialParts';
+
+const VIEW_MODE_KEY = '@catalogue:objectsViewMode';
+const UNCATEGORIZED_KEY = '__none__';
+
+const GROUP_OPTIONS = [
+  { key: 'category', label: 'Categoría' },
+  { key: 'recent', label: 'Recientes' },
+];
+
 
 interface PendingVersionData {
   budgetEntries: ModelBudgetEntry[];
@@ -65,11 +71,11 @@ interface SlotAssignmentRequest {
   pendingVersion: PendingVersionData;
 }
 
-function getBreadcrumbPath(
-  categoryId: string | null,
+function getCategoryPath(
+  categoryId: string | null | undefined,
   allCategories: ObjectCategory[]
 ): string {
-  if (!categoryId) return 'Root';
+  if (!categoryId) return 'Sin categoría';
   const path: string[] = [];
   let current: ObjectCategory | undefined = allCategories.find(
     (c) => c.id === categoryId
@@ -78,7 +84,7 @@ function getBreadcrumbPath(
     path.unshift(current.categoryName);
     current = allCategories.find((c) => c.id === current?.parentCategoryId);
   }
-  return 'Root > ' + path.join(' > ');
+  return path.length ? path.join(' › ') : 'Sin categoría';
 }
 
 interface ObjectBrowserProps {
@@ -102,24 +108,16 @@ export default function ObjectBrowser({
   const isWide = screenWidth >= 900;
 
   const [search, setSearch] = useState('');
-  const [sort, setSort] = useState<'name' | 'recent'>('name');
+  const [groupBy, setGroupBy] = useState<'category' | 'recent'>('category');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [catalogRevision, setCatalogRevision] = useState(0);
   const [moduleDetails, setModuleDetails] = useState<Record<string, { count: number; area: number; failed?: boolean }>>({});
-  const [currentCategoryId, setCurrentCategoryId] = useState<string | null>(
-    null
-  );
-  const [categoryStack, setCategoryStack] = useState<string[]>([]);
   const [editingObject, setEditingObject] = useState<ObjectModel | null>(null);
   const [editingObjectVersion, setEditingObjectVersion] = useState<ObjectVersion | null>(null);
   const [editingDataFailed, setEditingDataFailed] = useState(false);
   const [showCreator, setShowCreator] = useState(false);
   const [showCategoryManager, setShowCategoryManager] = useState(false);
 
-  // ── Category manager state ──
-  const [newCatName, setNewCatName] = useState('');
-  const [newCatParent, setNewCatParent] = useState('');
-  const [editingCatId, setEditingCatId] = useState<string | null>(null);
-  const [editingCatName, setEditingCatName] = useState('');
 
   // ── Preview URI state (set by ObjectEditor callback) ──
   const [previewUri, setPreviewUri] = useState<string | null>(null);
@@ -131,14 +129,8 @@ export default function ObjectBrowser({
   >(null);
   const assignmentVersionCreatedRef = useRef(false);
 
-  const rootCategories = categories.filter(
-    (c) => c.parentCategoryId === null
-  );
-  const currentSubcategories = categories.filter(
-    (c) => c.parentCategoryId === currentCategoryId
-  );
 
-  const visibleObjects = useMemo(() => objects.filter((object) => (search.trim() || (currentCategoryId === null ? !object.categoryId : object.categoryId === currentCategoryId)) && object.name.toLowerCase().includes(search.trim().toLowerCase())).sort((a, b) => sort === 'name' ? a.name.localeCompare(b.name) : b.lastUpdate.localeCompare(a.lastUpdate)), [objects, search, currentCategoryId, sort]);
+  const visibleObjects = useMemo(() => objects.filter((object) => object.name.toLowerCase().includes(search.trim().toLowerCase())).sort((a, b) => groupBy === 'recent' ? b.lastUpdate.localeCompare(a.lastUpdate) : a.name.localeCompare(b.name)), [objects, search, groupBy]);
 
   const captureApi = useMemo<ThumbnailCaptureApi>(
     () => createThumbnailCaptureApi(),
@@ -215,23 +207,7 @@ export default function ObjectBrowser({
     return () => { active = false; };
   }, [editingObject]);
 
-  const handleCategoryPress = (cat: ObjectCategory) => {
-    setCategoryStack((prev) => [...prev, cat.id]);
-    setCurrentCategoryId(cat.id);
-  };
 
-  const handleBack = () => {
-    if (categoryStack.length === 0) {
-      setCurrentCategoryId(null);
-    } else {
-      const newStack = [...categoryStack];
-      newStack.pop();
-      setCategoryStack(newStack);
-      setCurrentCategoryId(
-        newStack.length > 0 ? newStack[newStack.length - 1] : null
-      );
-    }
-  };
 
   const handleSaveObject = async (
     data: ObjectFormData,
@@ -433,56 +409,88 @@ export default function ObjectBrowser({
     }
   };
 
-  const handleCreateCategory = async () => {
-    if (!newCatName.trim()) return;
-    try {
-      await createObjectCategory({
-        categoryName: newCatName.trim(),
-        parentCategoryId: newCatParent || undefined,
-      });
-      setNewCatName('');
-      setNewCatParent('');
-      onRefresh();
-    } catch {
-      Alert.alert('Error', 'Failed to create category.');
-    }
+  const handleCreateCategory = async (name: string, parentId?: string) => {
+    await createObjectCategory({ categoryName: name, parentCategoryId: parentId });
+    onRefresh();
   };
 
-  const handleRenameCategory = async (id: string) => {
-    if (!editingCatName.trim()) return;
-    try {
-      await updateObjectCategory(id, { categoryName: editingCatName.trim() });
-      setEditingCatId(null);
-      setEditingCatName('');
-      onRefresh();
-    } catch {
-      Alert.alert('Error', 'Failed to rename category.');
-    }
+  const handleRenameCategory = async (id: string, name: string) => {
+    await updateObjectCategory(id, { categoryName: name });
+    onRefresh();
   };
 
-  const handleDeleteCategory = (id: string) => {
-    const confirm = () => {
-      deleteObjectCategory(id)
-        .then(() => {
-          setEditingCatId(null);
-          onRefresh();
+  const handleDeleteCategory = async (id: string) => {
+    await deleteObjectCategory(id);
+    onRefresh();
+  };
+
+  const deletableCategoryIds = useMemo(
+    () =>
+      categories
+        .filter((c) => {
+          const childCats = categories.filter((cc) => cc.parentCategoryId === c.id);
+          const childObjs = objects.filter((o) => o.categoryId === c.id);
+          return childCats.length === 0 && childObjs.length === 0;
         })
-        .catch(() => Alert.alert('Error', 'Failed to delete category.'));
-    };
-    if (Platform.OS === 'web') {
-      if (window.confirm('Delete this category?')) confirm();
-    } else {
-      Alert.alert('Delete Category', 'Are you sure?', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: confirm },
-      ]);
-    }
+        .map((c) => c.id),
+    [categories, objects]
+  );
+
+  const closeEditor = () => {
+    setEditingObject(null);
+    setEditingObjectVersion(null);
+    setEditingDataFailed(false);
+    setShowCreator(false);
+    setPreviewUri(null);
   };
 
-  const isActive = editingObject || showCreator;
-  const isLoadingData = editingObject && !editingObjectVersion && !editingDataFailed;
+  const isActive = !!editingObject || showCreator || !!pendingSlotAssignment;
+  const isLoadingData = !!editingObject && !editingObjectVersion && !editingDataFailed;
 
-  // ── Render helpers ──
+  const selectedObject = useMemo(
+    () => objects.find((object) => object.id === selectedId) ?? null,
+    [objects, selectedId]
+  );
+
+  const describeModule = (id: string) => {
+    const details = moduleDetails[id];
+    if (!details) return 'Cargando despiece…';
+    if (details.failed) return 'Despiece no disponible';
+    if (!details.count) return 'Despiece pendiente';
+    return details.count + ' piezas · ' + details.area.toLocaleString('es-AR', { maximumFractionDigits: 4 }) + ' m²';
+  };
+
+  const groups = useMemo((): CatalogueGroup[] => {
+    const map = new Map<string, CatalogueGroup>();
+    for (const object of visibleObjects) {
+      const key = groupBy === 'category' ? object.categoryId ?? UNCATEGORIZED_KEY : 'recent';
+      const label = groupBy === 'category' ? getCategoryPath(object.categoryId, categories) : 'Recientes';
+      let group = map.get(key);
+      if (!group) {
+        group = { key, label, items: [] };
+        map.set(key, group);
+      }
+      group.items.push({
+        id: object.id,
+        name: object.name,
+        subtitle: 'v' + object.lastVersion + ' · ' + (object.isPublic ? 'Comunidad' : 'Privado'),
+        badge: describeModule(object.id),
+        thumbnailUri: thumbnails[object.id],
+      });
+    }
+    return Array.from(map.values()).sort((a, b) => {
+      if (a.key === UNCATEGORIZED_KEY) return 1;
+      if (b.key === UNCATEGORIZED_KEY) return -1;
+      return a.label.localeCompare(b.label);
+    });
+  }, [visibleObjects, categories, groupBy, thumbnails, moduleDetails]);
+
+  const renderLoading = () => (
+    <View style={styles.loadingContainer}>
+      <ActivityIndicator size="large" color={COLORS.primary} />
+      <Text style={styles.loadingText}>Cargando datos del módulo…</Text>
+    </View>
+  );
 
   const renderSlotAssignment = () => {
     if (!pendingSlotAssignment) return null;
@@ -506,7 +514,19 @@ export default function ObjectBrowser({
     if (editingObject && isLoadingData) {
       return renderLoading();
     }
-    if (editingObject && editingDataFailed) return <View style={styles.loadingContainer}><Text style={styles.loadingText}>No se pudo cargar el módulo. No se guardaron cambios.</Text><Pressable accessibilityRole="button" style={styles.actionButton} onPress={() => setEditingObject({ ...editingObject })}><Text style={styles.actionButtonText}>Reintentar</Text></Pressable><Pressable accessibilityRole="button" style={styles.backButton} onPress={() => setEditingObject(null)}><Text style={styles.backButtonText}>Volver al catálogo</Text></Pressable></View>;
+    if (editingObject && editingDataFailed) {
+      return (
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>No se pudo cargar el módulo. No se guardaron cambios.</Text>
+          <Pressable accessibilityRole="button" style={styles.actionButton} onPress={() => setEditingObject({ ...editingObject })}>
+            <Text style={styles.actionButtonText}>Reintentar</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" style={styles.backButton} onPress={closeEditor}>
+            <Text style={styles.backButtonText}>Volver al catálogo</Text>
+          </Pressable>
+        </View>
+      );
+    }
     return (
       <ObjectEditor
         key={editingObject?.id ?? 'new'}
@@ -533,180 +553,23 @@ export default function ObjectBrowser({
               }
             : undefined
         }
-categories={categories}
-          materialTypes={materialTypes}
-          objectId={editingObject?.id}
-          onHighlightSlot={setHighlightSlot}
-          onRegenerateThumbnail={
-            editingObject ? handleRegenerateThumbnail : undefined
-          }
-          onSave={handleSaveObject}
+        categories={categories}
+        materialTypes={materialTypes}
+        objectId={editingObject?.id}
+        onHighlightSlot={setHighlightSlot}
+        onRegenerateThumbnail={
+          editingObject ? handleRegenerateThumbnail : undefined
+        }
+        onSave={handleSaveObject}
         onDelete={editingObject ? handleDeleteObject : undefined}
-        onClose={() => {
-          setEditingObject(null);
-          setEditingObjectVersion(null);
-          setEditingDataFailed(false);
-          setShowCreator(false);
-          setPreviewUri(null);
-        }}
+        onClose={closeEditor}
         onPreviewUriChange={(uri) => setPreviewUri(uri)}
       />
     );
   };
 
-  const renderBrowserList = () => {
-    const folders = search.trim() ? [] : currentCategoryId === null ? rootCategories : currentSubcategories;
-    return <>
-      <View style={styles.managerIntro}><Text style={styles.managerTitle}>Módulos</Text><Text style={styles.managerDescription}>Catálogo, despiece y costos por material. {objects.length} módulos disponibles.</Text></View>
-      <View style={styles.header}>
-        <Pressable accessibilityRole="button" style={styles.backButton} onPress={handleBack}><Text style={styles.backButtonText}>← Volver</Text></Pressable>
-        <Text style={styles.breadcrumb} numberOfLines={1}>{getBreadcrumbPath(currentCategoryId, categories)}</Text>
-      </View>
-      <View style={styles.actionBar}>
-        <Pressable accessibilityRole="button" style={styles.actionButton} onPress={() => setShowCreator(true)}><Text style={styles.actionButtonText}>+ Nuevo módulo</Text></Pressable>
-        {canManageApplication && <Pressable accessibilityRole="button" style={styles.actionButton} onPress={() => setShowCategoryManager(true)}><Text style={styles.actionButtonText}>Categorías</Text></Pressable>}
-        <Pressable accessibilityRole="button" style={styles.backButton} onPress={() => { thumbnailAttemptedRef.current.clear(); setCatalogRevision((value) => value + 1); onRefresh(); }}><Text style={styles.backButtonText}>Actualizar</Text></Pressable>
-      </View>
-      <View style={styles.searchBar}>
-        <TextInput accessibilityLabel="Buscar módulos" style={styles.searchInput} value={search} onChangeText={setSearch} placeholder="Buscar módulos en todo el catálogo…" />
-        <Pressable accessibilityRole="button" style={styles.backButton} onPress={() => setSort(sort === 'name' ? 'recent' : 'name')}><Text style={styles.backButtonText}>{sort === 'name' ? 'A–Z' : 'Recientes'}</Text></Pressable>
-      </View>
-      <ScrollView style={styles.scrollView}>
-        {folders.sort((a, b) => a.categoryName.localeCompare(b.categoryName)).map((category) => <Pressable accessibilityRole="button" key={category.id} style={styles.folderItem} onPress={() => handleCategoryPress(category)}><Text style={styles.folderIcon}>▦</Text><Text style={styles.folderText}>{category.categoryName}</Text><Text style={styles.editIcon}>→</Text></Pressable>)}
-        {!visibleObjects.length && !folders.length && <Text style={styles.emptyText}>{search ? 'No hay módulos que coincidan con la búsqueda.' : 'Esta categoría no tiene módulos. Creá el primero para comenzar.'}</Text>}
-        <View style={styles.moduleGrid}>{visibleObjects.map((object) => <Pressable accessibilityRole="button" accessibilityLabel={'Editar módulo ' + object.name} key={object.id} style={styles.moduleCard} onPress={() => setEditingObject(object)}>
-          <View style={styles.cardPreview}><Thumbnail uri={thumbnails[object.id]} size={80} icon="cube-outline" /></View>
-          <Text style={styles.objectName} numberOfLines={2}>{object.name}</Text>
-          <Text style={styles.objectMeta}>Versión {object.lastVersion} · {object.isPublic ? 'Comunidad' : 'Privado'}</Text>
-          <Text style={styles.areaBadge}>{moduleDetails[object.id]?.failed ? 'Despiece no disponible' : moduleDetails[object.id]?.count ? moduleDetails[object.id].count + ' piezas · ' + moduleDetails[object.id].area.toLocaleString('es-AR', { maximumFractionDigits: 4 }) + ' m²' : moduleDetails[object.id] ? 'Despiece pendiente' : 'Cargando despiece…'}</Text>
-          <Text style={styles.cardEdit}>Editar módulo →</Text>
-        </Pressable>)}</View>
-      </ScrollView>
-    </>;
-  };
-
-  const renderCategoryManager = () => {
-    const deletableCats = categories.filter((c) => {
-      const childCats = categories.filter((cc) => cc.parentCategoryId === c.id);
-      const childObjs = objects.filter((o) => o.categoryId === c.id);
-      return childCats.length === 0 && childObjs.length === 0;
-    });
-
-    return (
-      <>
-        <View style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => setShowCategoryManager(false)}>
-            <Text style={styles.backButtonText}>← Back</Text>
-          </Pressable>
-          <Text style={styles.headerTitle}>Manage Categories</Text>
-        </View>
-
-        <ScrollView style={styles.scrollView}>
-          <Text style={styles.sectionTitle}>Create Category</Text>
-          <TextInput
-            style={styles.input}
-            value={newCatName}
-            onChangeText={setNewCatName}
-            placeholder="Category name"
-          />
-          <Text style={styles.label}>Parent (optional)</Text>
-          <View style={styles.chipRow}>
-            <Pressable
-              style={[styles.chip, newCatParent === '' && styles.chipActive]}
-              onPress={() => setNewCatParent('')}
-            >
-              <Text style={[styles.chipText, newCatParent === '' && styles.chipTextActive]}>
-                None
-              </Text>
-            </Pressable>
-            {categories.map((cat) => (
-              <Pressable
-                key={cat.id}
-                style={[styles.chip, newCatParent === cat.id && styles.chipActive]}
-                onPress={() => setNewCatParent(cat.id)}
-              >
-                <Text
-                  style={[styles.chipText, newCatParent === cat.id && styles.chipTextActive]}
-                >
-                  {cat.categoryName}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-          <Button label="Create" onPress={handleCreateCategory} />
-
-          {categories.length > 0 && (
-            <>
-              <Text style={[styles.sectionTitle, { marginTop: 24 }]}>
-                Existing Categories
-              </Text>
-              {categories.map((cat) => {
-                const isEditing = editingCatId === cat.id;
-                const parentName = cat.parentCategoryId
-                  ? categories.find((c) => c.id === cat.parentCategoryId)
-                      ?.categoryName ?? '?'
-                  : 'None';
-                const canDelete = deletableCats.some((d) => d.id === cat.id);
-
-                return (
-                  <View key={cat.id} style={styles.categoryRow}>
-                    {isEditing ? (
-                      <View style={styles.editCatRow}>
-                        <TextInput
-                          style={[styles.input, { flex: 1 }]}
-                          value={editingCatName}
-                          onChangeText={setEditingCatName}
-                        />
-                        <Pressable
-                          style={styles.smallButton}
-                          onPress={() => handleRenameCategory(cat.id)}
-                        >
-                          <Text style={styles.smallButtonText}>Save</Text>
-                        </Pressable>
-                        <Pressable
-                          style={styles.smallButton}
-                          onPress={() => setEditingCatId(null)}
-                        >
-                          <Text style={styles.smallButtonText}>Cancel</Text>
-                        </Pressable>
-                      </View>
-                    ) : (
-                      <>
-                        <View style={styles.catInfo}>
-                          <Text style={styles.catName}>{cat.categoryName}</Text>
-                          <Text style={styles.catParent}>Parent: {parentName}</Text>
-                        </View>
-                        <Pressable
-                          style={styles.smallButton}
-                          onPress={() => {
-                            setEditingCatId(cat.id);
-                            setEditingCatName(cat.categoryName);
-                          }}
-                        >
-                          <Text style={styles.smallButtonText}>Rename</Text>
-                        </Pressable>
-                        {canDelete && (
-                          <Pressable
-                            style={[styles.smallButton, styles.deleteSmallButton]}
-                            onPress={() => handleDeleteCategory(cat.id)}
-                          >
-                            <Text style={styles.smallButtonText}>Del</Text>
-                          </Pressable>
-                        )}
-                      </>
-                    )}
-                  </View>
-                );
-              })}
-            </>
-          )}
-        </ScrollView>
-      </>
-    );
-  };
-
   const renderPreview = () => (
-    <View style={styles.workspaceColumn}>
+    <View style={styles.previewColumn}>
       <ObjectPreview
         uri={previewUri}
         highlightSlot={highlightSlot}
@@ -717,139 +580,132 @@ categories={categories}
     </View>
   );
 
-  const renderLoading = () => (
-    <View style={styles.loadingContainer}>
-      <ActivityIndicator size="large" color={COLORS.primary} />
-      <Text style={styles.loadingText}>Loading object data…</Text>
+  if (showCategoryManager && canManageApplication) {
+    return (
+      <View style={styles.container}>
+        <CategoryManagerPanel
+          categories={categories}
+          deletableIds={deletableCategoryIds}
+          onCreate={handleCreateCategory}
+          onRename={handleRenameCategory}
+          onDelete={handleDeleteCategory}
+          onClose={() => setShowCategoryManager(false)}
+        />
+      </View>
+    );
+  }
+
+  if (isActive || isLoadingData) {
+    return (
+      <View style={[styles.container, isWide ? styles.editRow : styles.editColumn]}>
+        <View style={isWide ? styles.previewWide : styles.previewNarrow}>
+          {isLoadingData ? renderLoading() : renderPreview()}
+        </View>
+        <View style={isWide ? styles.editorWide : styles.editorNarrow}>{renderEditor()}</View>
+      </View>
+    );
+  }
+
+  const inspector = selectedObject ? (
+    <View>
+      <InspectorRow label="Nombre" value={selectedObject.name} />
+      <InspectorRow label="Categoría" value={getCategoryPath(selectedObject.categoryId, categories)} />
+      <InspectorRow label="Versión" value={'v' + selectedObject.lastVersion} />
+      <InspectorRow label="Visibilidad" value={selectedObject.isPublic ? 'Comunidad' : 'Privado'} />
+      <InspectorRow label="Despiece" value={describeModule(selectedObject.id)} />
     </View>
-  );
+  ) : null;
 
-  const renderWorkspace = () => {
-    if (showCategoryManager && canManageApplication) return <>{renderCategoryManager()}</>;
-    if (isLoadingData) return renderLoading();
-    if (isActive) return renderPreview();
-    return <>{renderBrowserList()}</>;
-  };
-
-  const renderNarrow = () => {
-    if (showCategoryManager && canManageApplication) return renderCategoryManager();
-    if (isActive || isLoadingData) {
-      return (
-        <ScrollView>
-          {isLoadingData ? renderLoading() : (
-            <View style={styles.previewRow}>
-              <ObjectPreview
-                uri={previewUri}
-                highlightSlot={highlightSlot}
-                captureApi={captureApi}
-                slotTextures={slotTextures ?? undefined}
-                onReadyChange={handlePreviewReady}
-              />
-            </View>
-          )}
-          {renderEditor()}
-        </ScrollView>
-      );
-    }
-    return renderBrowserList();
-  };
-
-  // ── Main Render ──
+  const headerActions = [
+    { label: 'Nuevo módulo', onPress: () => setShowCreator(true), primary: true },
+    ...(canManageApplication ? [{ label: 'Categorías', onPress: () => setShowCategoryManager(true) }] : []),
+    {
+      label: 'Actualizar',
+      onPress: () => {
+        thumbnailAttemptedRef.current.clear();
+        setCatalogRevision((value) => value + 1);
+        onRefresh();
+      },
+    },
+  ];
 
   return (
-    <View style={styles.container}>
-      {isWide && (isActive || isLoadingData) ? (
-        <View style={styles.rowContainer}>
-          <View style={styles.workspaceColumn}>{renderWorkspace()}</View>
-          <View style={styles.formColumn}>{renderEditor()}</View>
-        </View>
-      ) : (
-        renderNarrow()
-      )}
-    </View>
+    <CatalogueView
+      headerActions={headerActions}
+      contextLabel={objects.length + ' módulos · despiece y costos por material'}
+      groups={groups}
+      groupOptions={GROUP_OPTIONS}
+      groupKey={groupBy}
+      onGroupKeyChange={(key) => setGroupBy(key as 'category' | 'recent')}
+      query={search}
+      onQueryChange={setSearch}
+      searchPlaceholder="Buscar módulos en todo el catálogo…"
+      emptyText={search ? 'No hay módulos que coincidan con la búsqueda.' : 'Todavía no hay módulos. Creá el primero para comenzar.'}
+      selectedId={selectedId}
+      onSelect={setSelectedId}
+      onOpen={(id) => {
+        const object = objects.find((item) => item.id === id);
+        if (object) setEditingObject(object);
+      }}
+      openLabel="Editar"
+      itemIcon="cube-outline"
+      storageKey={VIEW_MODE_KEY}
+      inspectorContent={inspector}
+      inspectorEmptyText="Selecciona un módulo para ver sus detalles."
+      inspectorActions={selectedObject ? { primary: { label: 'Editar', onPress: () => setEditingObject(selectedObject) } } : undefined}
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  managerIntro: { padding: 16, gap: 6, backgroundColor: COLORS.bgAlt },
-  managerTitle: { fontSize: 26, fontWeight: '700', color: COLORS.text },
-  managerDescription: { fontSize: 13, color: COLORS.textMuted },
-  searchBar: { flexDirection: 'row', padding: 12, gap: 8, alignItems: 'center' },
-  searchInput: { flex: 1, minHeight: 44, borderWidth: 1, borderColor: COLORS.borderStrong, padding: 10, borderRadius: 8, color: COLORS.text },
-  moduleGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, paddingBottom: 24 },
-  moduleCard: { flexBasis: 250, flexGrow: 1, maxWidth: 400, minWidth: 220, padding: 16, gap: 9, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, backgroundColor: COLORS.surface },
-  cardPreview: { height: 110, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.bgAlt, borderRadius: 8 },
-  areaBadge: { padding: 8, backgroundColor: COLORS.primarySoft, color: COLORS.primary, borderRadius: 6, fontSize: 12, fontWeight: '600' },
-  cardEdit: { color: COLORS.primary, fontWeight: '600', fontSize: 13 },
   container: {
     flex: 1,
     width: '100%',
     backgroundColor: COLORS.bg,
   },
-  rowContainer: {
-    flex: 1,
+  editRow: {
     flexDirection: 'row',
   },
-  formColumn: {
-    width: '52%',
+  editColumn: {
+    flexDirection: 'column',
+  },
+  previewWide: {
+    flex: 1,
+  },
+  previewNarrow: {
+    height: 340,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  editorWide: {
+    width: '45%',
     minWidth: 400,
     maxWidth: '60%',
+    borderLeftWidth: 1,
+    borderLeftColor: COLORS.border,
   },
-  workspaceColumn: {
+  editorNarrow: {
+    flex: 1,
+  },
+  previewColumn: {
     flex: 1,
     padding: 16,
-    borderRightWidth: 1,
-    borderRightColor: COLORS.border,
   },
-  previewRow: {
-    height: 250,
-    marginBottom: 8,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    backgroundColor: COLORS.bgAlt,
-  },
-  headerTitle: {
+  loadingContainer: {
     flex: 1,
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.text,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: COLORS.textMuted,
     textAlign: 'center',
   },
-  backButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-    backgroundColor: COLORS.border,
-    marginRight: 8,
-  },
-  backButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.textHeading,
-  },
-  breadcrumb: {
-    flex: 1,
-    fontSize: 13,
-    color: COLORS.textMuted,
-    fontWeight: '500',
-  },
-  actionBar: {
-    flexDirection: 'row',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
   actionButton: {
-    flex: 1,
     paddingVertical: 8,
+    paddingHorizontal: 14,
     borderRadius: 8,
     backgroundColor: COLORS.primary,
     alignItems: 'center',
@@ -859,176 +715,15 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
-  scrollView: {
-    flex: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-  },
-  folderItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.surfaceAlt,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: COLORS.borderStrong,
-  },
-  folderIcon: {
-    fontSize: 18,
-    marginRight: 10,
-  },
-  folderText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: COLORS.textBody,
-  },
-  objectItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.bg,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  objectInfo: {
-    flex: 1,
-    marginRight: 10,
-  },
-  objectThumb: {
-    marginRight: 10,
-  },
-  objectName: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: COLORS.textBody,
-    marginBottom: 4,
-  },
-  objectMeta: {
-    fontSize: 11,
-    color: COLORS.textMuted,
-  },
-  editIcon: {
-    fontSize: 18,
-    color: COLORS.primary,
-  },
-  emptyText: {
-    textAlign: 'center',
-    color: COLORS.textMuted,
-    fontSize: 14,
-    paddingVertical: 30,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: COLORS.textHeading,
-    marginBottom: 12,
-    marginTop: 4,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  input: {
-    height: 44,
-    borderColor: COLORS.border,
-    borderWidth: 1,
+  backButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
     borderRadius: 8,
-    paddingHorizontal: 12,
-    backgroundColor: COLORS.bgAlt,
-    fontSize: 14,
-    color: COLORS.text,
-    marginBottom: 10,
-  },
-  label: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.textHeading,
-    marginBottom: 6,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: 12,
-  },
-  chip: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-    backgroundColor: COLORS.surfaceAlt,
-    borderWidth: 1,
-    borderColor: COLORS.borderStrong,
-  },
-  chipActive: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
-  chipText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.textHeading,
-  },
-  chipTextActive: {
-    color: COLORS.white,
-  },
-  categoryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.bgAlt,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    marginBottom: 6,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  catInfo: {
-    flex: 1,
-  },
-  catName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.textBody,
-  },
-  catParent: {
-    fontSize: 11,
-    color: COLORS.textMuted,
-    marginTop: 2,
-  },
-  editCatRow: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  smallButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 6,
     backgroundColor: COLORS.border,
-    marginLeft: 6,
   },
-  deleteSmallButton: {
-    backgroundColor: COLORS.danger,
-  },
-  smallButtonText: {
-    fontSize: 12,
+  backButtonText: {
+    fontSize: 13,
     fontWeight: '600',
     color: COLORS.textHeading,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 40,
-  },
-  loadingText: {
-    fontSize: 14,
-    color: COLORS.textMuted,
   },
 });

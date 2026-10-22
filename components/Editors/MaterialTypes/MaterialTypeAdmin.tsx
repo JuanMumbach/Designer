@@ -53,21 +53,39 @@ export default function MaterialTypeAdmin({ materialTypes, usageByType, onRefres
     <ManagerSearch value={query} onChangeText={setQuery} placeholder="Buscar tipos de material" />
     {!!error && <ManagerNotice error message={error} />}
     {!!message && <ManagerNotice message={message} />}
-    {editing && <ManagerDialog onClose={() => { if (!busy) setEditing(false); }}>
-      {error && <ManagerNotice error message={error} />}
-      <Text style={s.name}>{id ? 'Editar tipo' : 'Crear tipo'}</Text>
-      <Text style={s.label}>Nombre</Text>
-      <TextInput accessibilityLabel="Nombre del tipo" editable={!busy} style={s.input} value={name} onChangeText={setName} placeholder="Por ejemplo, MDF" />
-      {duplicate && <ManagerNotice error message="Ya existe un tipo con este nombre." />}
-      <Text style={s.label}>Descripción</Text>
-      <TextInput accessibilityLabel="Descripción del tipo" editable={!busy} style={s.input} value={description} onChangeText={setDescription} multiline />
-      <View style={s.row}><ManagerAction label={busy ? 'Guardando…' : 'Guardar tipo'} primary disabled={busy || !name.trim() || duplicate} onPress={handleSave} /><ManagerAction label="Cancelar" disabled={busy} onPress={() => setEditing(false)} /></View>
-    </ManagerDialog>}
-    {deleting && <ManagerDialog onClose={() => { if (!busy) setDeleting(undefined); }}>
-      {error && <ManagerNotice error message={error} />}
-      <ManagerNotice error message={`¿Eliminar “${deleting.name}”? Esta acción no se puede deshacer.`} />
-      <View style={s.row}><ManagerAction label={busy ? 'Eliminando…' : 'Eliminar tipo'} danger disabled={busy} onPress={handleDelete} /><ManagerAction label="Cancelar" disabled={busy} onPress={() => setDeleting(undefined)} /></View>
-    </ManagerDialog>}
+    {editing && (
+      <ManagerDialog
+        onClose={() => { if (!busy) setEditing(false); }}
+        actions={
+          <View style={s.row}>
+            <ManagerAction label={busy ? 'Guardando…' : 'Guardar tipo'} primary disabled={busy || !name.trim() || duplicate} onPress={handleSave} />
+            <ManagerAction label="Cancelar" disabled={busy} onPress={() => setEditing(false)} />
+          </View>
+        }
+      >
+        {error && <ManagerNotice error message={error} />}
+        <Text style={s.name}>{id ? 'Editar tipo' : 'Crear tipo'}</Text>
+        <Text style={s.label}>Nombre</Text>
+        <TextInput accessibilityLabel="Nombre del tipo" editable={!busy} style={s.input} value={name} onChangeText={setName} placeholder="Por ejemplo, MDF" />
+        {duplicate && <ManagerNotice error message="Ya existe un tipo con este nombre." />}
+        <Text style={s.label}>Descripción</Text>
+        <TextInput accessibilityLabel="Descripción del tipo" editable={!busy} style={s.input} value={description} onChangeText={setDescription} multiline />
+      </ManagerDialog>
+    )}
+    {deleting && (
+      <ManagerDialog
+        onClose={() => { if (!busy) setDeleting(undefined); }}
+        actions={
+          <View style={s.row}>
+            <ManagerAction label={busy ? 'Eliminando…' : 'Eliminar tipo'} danger disabled={busy} onPress={handleDelete} />
+            <ManagerAction label="Cancelar" disabled={busy} onPress={() => setDeleting(undefined)} />
+          </View>
+        }
+      >
+        {error && <ManagerNotice error message={error} />}
+        <ManagerNotice error message={`¿Eliminar “${deleting.name}”? Esta acción no se puede deshacer.`} />
+      </ManagerDialog>
+    )}
     <Text style={s.label}>{filtered.length} de {materialTypes.length} tipos</Text>
     {filtered.length === 0 && <ManagerNotice message="No hay tipos que mostrar. Crea uno o cambia los filtros." />}
     {filtered.map(type => {

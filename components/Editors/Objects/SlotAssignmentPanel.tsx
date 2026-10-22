@@ -3,11 +3,11 @@ import {
   ActivityIndicator,
   Alert,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import FormPanel from '../FormPanel';
 import {
   fetchMaterialVersion,
   MaterialMeta,
@@ -236,15 +236,15 @@ export default function SlotAssignmentPanel({
   const allAssigned = slots.length > 0 && slots.every((s) => s.materialTypeId);
 
   return (
-    <View style={styles.container}>
-      <View style={styles.headerBox}>
-        <Text style={styles.title}>Asignar tipos de material</Text>
-        <Text style={styles.subtitle}>
-          El modelo 3D tiene {slots.length} material(es). Asigna un tipo a cada
-          slot antes de continuar.
-        </Text>
-      </View>
-
+    <FormPanel
+      title="Asignar tipos de material"
+      subtitle={`El modelo 3D tiene ${slots.length} material(es). Asigna un tipo a cada slot antes de continuar.`}
+      primaryAction={{
+        label: saving ? 'Guardando…' : 'Guardar',
+        onPress: handleSave,
+        disabled: !allAssigned || saving,
+      }}
+    >
       {loading ? (
         <View style={styles.loadingBox}>
           <ActivityIndicator size="large" color="#2563eb" />
@@ -255,55 +255,43 @@ export default function SlotAssignmentPanel({
           No existen tipos de material. Crea uno primero.
         </Text>
       ) : (
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-          {slots.map((slot) => (
-            <View key={slot.materialIndex} style={styles.slotRow}>
-              <View style={styles.slotHeader}>
-                <Text style={styles.slotName}>
-                  #{slot.materialIndex} {slot.materialName ?? 'Unnamed material'}
-                </Text>
-                <Text style={styles.slotMeta}>{slot.displayName}</Text>
-                <Text style={styles.slotMaterial}>
-                  Material:{' '}
-                  {materialForType(slot.materialTypeId) ?? 'Selecciona un tipo'}
-                </Text>
-              </View>
-              <View style={styles.chipRow}>
-                {materialTypes.map((type) => (
-                  <Pressable
-                    key={type.id}
-                    style={[
-                      styles.chip,
-                      slot.materialTypeId === type.id && styles.chipActive,
-                    ]}
-                    onPress={() => handleSelectType(slot.materialIndex, type.id)}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        slot.materialTypeId === type.id && styles.chipTextActive,
-                      ]}
-                    >
-                      {chipLabel(type)}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
+        slots.map((slot) => (
+          <View key={slot.materialIndex} style={styles.slotRow}>
+            <View style={styles.slotHeader}>
+              <Text style={styles.slotName}>
+                #{slot.materialIndex} {slot.materialName ?? 'Unnamed material'}
+              </Text>
+              <Text style={styles.slotMeta}>{slot.displayName}</Text>
+              <Text style={styles.slotMaterial}>
+                Material:{' '}
+                {materialForType(slot.materialTypeId) ?? 'Selecciona un tipo'}
+              </Text>
             </View>
-          ))}
-        </ScrollView>
+            <View style={styles.chipRow}>
+              {materialTypes.map((type) => (
+                <Pressable
+                  key={type.id}
+                  style={[
+                    styles.chip,
+                    slot.materialTypeId === type.id && styles.chipActive,
+                  ]}
+                  onPress={() => handleSelectType(slot.materialIndex, type.id)}
+                >
+                  <Text
+                    style={[
+                      styles.chipText,
+                      slot.materialTypeId === type.id && styles.chipTextActive,
+                    ]}
+                  >
+                    {chipLabel(type)}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        ))
       )}
-
-      <Pressable
-        style={[styles.saveButton, (!allAssigned || saving) && styles.saveButtonDisabled]}
-        onPress={handleSave}
-        disabled={!allAssigned || saving}
-      >
-        <Text style={styles.saveButtonText}>
-          {saving ? 'Guardando…' : 'Guardar'}
-        </Text>
-      </Pressable>
-    </View>
+    </FormPanel>
   );
 }
 

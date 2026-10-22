@@ -6,18 +6,18 @@ import {
   Modal,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
-import Button from '../../Button';
 import Toggle from '../../Toggle';
+import { COLORS } from '../../../constants/theme';
 import { uploadFileToFirebase } from '../../../services/firebaseSetup';
 import { useAuth } from '../../../services/AuthContext';
 import { MaterialCategory, MaterialType } from '../../../services/api';
+import FormPanel, { formStyles } from '../FormPanel';
 
 export type MaterialFormData = {
   pricePerSquareMeter: number | null;
@@ -49,6 +49,12 @@ interface MaterialEditorProps {
   onScaleChange?: (scaleU: number, scaleV: number) => void;
 }
 
+const TABS = [
+  { key: 'general', label: 'General' },
+  { key: 'texture', label: 'Textura' },
+  { key: 'pricing', label: 'Precio' },
+];
+
 export default function MaterialEditor({
   initial,
   categories,
@@ -63,6 +69,7 @@ export default function MaterialEditor({
 }: MaterialEditorProps) {
   const { backendUserId } = useAuth();
 
+  const [tab, setTab] = useState('general');
   const [name, setName] = useState(initial?.name ?? '');
   const [costMultiplier, setCostMultiplier] = useState(String(initial?.costMultiplier ?? 1));
   const [pricePerSquareMeter, setPricePerSquareMeter] = useState(initial?.pricePerSquareMeter == null ? '' : String(initial.pricePerSquareMeter));
@@ -112,10 +119,11 @@ export default function MaterialEditor({
     const width = parseBudgetNumber(boardWidthMm, 100000, true);
     const height = parseBudgetNumber(boardHeightMm, 100000, true);
     const spacing = parseBudgetNumber(cutSpacingMm, 1000);
-    if (price === undefined || width === undefined || height === undefined || spacing === undefined || validateBoardSettings({ boardWidthMm: width, boardHeightMm: height, cutSpacingMm: spacing })) { Alert.alert('Material', 'Revisá el precio por m², las medidas de placa y la separación de cortes.'); return; }
+    if (price === undefined || width === undefined || height === undefined || spacing === undefined || validateBoardSettings({ boardWidthMm: width, boardHeightMm: height, cutSpacingMm: spacing })) { setTab('pricing'); Alert.alert('Material', 'Revisá el precio por m², las medidas de placa y la separación de cortes.'); return; }
     const parsedMultiplier = parseBudgetNumber(costMultiplier, 1e6, true);
-    if (parsedMultiplier === undefined) { Alert.alert('Presupuesto', 'El multiplicador debe ser mayor que 0 y hasta 1.000.000.'); return; }
+    if (parsedMultiplier === undefined) { setTab('pricing'); Alert.alert('Presupuesto', 'El multiplicador debe ser mayor que 0 y hasta 1.000.000.'); return; }
     if (!name.trim()) {
+      setTab('general');
       Alert.alert('Validation', 'Name is required.');
       return;
     }
@@ -184,11 +192,7 @@ export default function MaterialEditor({
   );
 
   const handleRequestPublicChange = (value: boolean) => {
-    if (!value) {
-      setPendingPublicValue(false);
-      return;
-    }
-    setPendingPublicValue(true);
+    setPendingPublicValue(value);
   };
 
   const confirmPublicChange = () => {
@@ -198,229 +202,167 @@ export default function MaterialEditor({
     setPendingPublicValue(null);
   };
 
-  const formContent = (
+  const inputsDisabled = disabled || saving;
+
+  const renderChips = (
+    options: { id: string; label: string }[],
+    value: string,
+    onChange: (id: string) => void
+  ) => (
+    <View style={formStyles.chipRow}>
+      {[{ id: '', label: 'Ninguno' }, ...options].map((option) => {
+        const active = value === option.id;
+        return (
+          <Pressable
+            key={option.id || 'none'}
+            style={[formStyles.chip, active && formStyles.chipActive]}
+            onPress={() => onChange(option.id)}
+          >
+            <Text style={[formStyles.chipText, active && formStyles.chipTextActive]}>{option.label}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+
+  const renderNumberField = (
+    label: string,
+    value: string,
+    onChange: (value: string) => void,
+    placeholder?: string
+  ) => (
+    <View style={[formStyles.field, formStyles.rowItem]}>
+      <Text style={formStyles.label}>{label}</Text>
+      <TextInput
+        style={[formStyles.input, inputsDisabled && formStyles.inputDisabled]}
+        value={value}
+        onChangeText={onChange}
+        editable={!inputsDisabled}
+        keyboardType="decimal-pad"
+        accessibilityLabel={label}
+        placeholder={placeholder}
+      />
+    </View>
+  );
+
+  const renderGeneral = () => (
     <>
-      <Text style={styles.headerTitle}>
-        {disabled ? 'Material Form' : isEdit ? 'Edit Material' : 'New Material'}
-      </Text>
-
-      <Text style={styles.label}>Name *</Text>
-      <TextInput
-        style={[styles.input, disabled && styles.inputDisabled]}
-        value={name}
-        onChangeText={setName}
-        placeholder="Material name"
-        editable={!disabled}
-      />
-
-      {!disabled && (
-        <>
-          <Text style={styles.label}>Category</Text>
-          <View style={styles.categoryRow}>
-            <Pressable
-              style={[
-                styles.categoryChip,
-                categoryId === '' && styles.categoryChipActive,
-              ]}
-              onPress={() => setCategoryId('')}
-            >
-              <Text
-                style={[
-                  styles.categoryChipText,
-                  categoryId === '' && styles.categoryChipTextActive,
-                ]}
-              >
-                None
-              </Text>
-            </Pressable>
-            {availableCategories.map((cat) => (
-              <Pressable
-                key={cat.id}
-                style={[
-                  styles.categoryChip,
-                  categoryId === cat.id && styles.categoryChipActive,
-                ]}
-                onPress={() => setCategoryId(cat.id)}
-              >
-                <Text
-                  style={[
-                    styles.categoryChipText,
-                    categoryId === cat.id && styles.categoryChipTextActive,
-                  ]}
-                >
-                  {cat.categoryName}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </>
-      )}
-
-      {!disabled && (
-        <>
-          <Text style={styles.label}>Material Type</Text>
-          <View style={styles.categoryRow}>
-            <Pressable
-              style={[
-                styles.categoryChip,
-                typeId === '' && styles.categoryChipActive,
-              ]}
-              onPress={() => setTypeId('')}
-            >
-              <Text
-                style={[
-                  styles.categoryChipText,
-                  typeId === '' && styles.categoryChipTextActive,
-                ]}
-              >
-                None
-              </Text>
-            </Pressable>
-            {materialTypes.map((type) => (
-              <Pressable
-                key={type.id}
-                style={[
-                  styles.categoryChip,
-                  typeId === type.id && styles.categoryChipActive,
-                ]}
-                onPress={() => setTypeId(type.id)}
-              >
-                <Text
-                  style={[
-                    styles.categoryChipText,
-                    typeId === type.id && styles.categoryChipTextActive,
-                  ]}
-                >
-                  {type.name}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </>
-      )}
-
-      <Text style={styles.sectionTitle}>
-        {isEdit ? 'Update Version Data' : 'Initial Version Data'}
-      </Text>
-
-      {!disabled && (
-        <>
-          <Text style={styles.label}>File</Text>
-          <View style={styles.fileRow}>
-            <View style={styles.fileInfo}>
-              <Text
-                style={[
-                  styles.fileInfoText,
-                  (pickedFile ?? fileURL) && styles.fileInfoTextLoaded,
-                ]}
-                numberOfLines={1}
-              >
-                {pickedFile
-                  ? `Selected: ${pickedFile.name}`
-                  : fileURL
-                    ? '\u2713 File loaded'
-                    : 'No file selected'}
-              </Text>
-              {pickedFile && (
-                <Pressable
-                  onPress={() => {
-                    setPickedFile(null);
-                    onTextureChange?.(null);
-                  }}
-                  hitSlop={8}
-                  style={styles.clearButton}
-                >
-                  <Text style={styles.clearButtonLabel}>{'\u2715'}</Text>
-                </Pressable>
-              )}
-            </View>
-            <Pressable
-              style={styles.pickButton}
-              onPress={handlePickFile}
-              disabled={saving}
-            >
-              <Text style={styles.pickButtonLabel}>
-                {pickedFile || fileURL ? 'Change' : 'Pick File'}
-              </Text>
-            </Pressable>
-          </View>
-        </>
-      )}
-
-      <Text style={styles.label}>Scale U</Text>
-      <TextInput
-        style={[styles.input, disabled && styles.inputDisabled]}
-        value={scaleU}
-        onChangeText={setScaleU}
-        keyboardType="decimal-pad"
-        placeholder="1.0"
-        editable={!disabled}
-      />
-
-      <Text style={styles.label}>Scale V</Text>
-      <TextInput
-        style={[styles.input, disabled && styles.inputDisabled]}
-        value={scaleV}
-        onChangeText={setScaleV}
-        keyboardType="decimal-pad"
-        placeholder="1.0"
-        editable={!disabled}
-      />
-
-      <Text style={styles.sectionTitle}>Precio y formato de placa</Text>
-      <Text style={styles.label}>Precio por m² (vacío = pendiente)</Text>
-      <TextInput style={styles.input} value={pricePerSquareMeter} onChangeText={setPricePerSquareMeter} editable={!disabled && !saving} keyboardType="decimal-pad" accessibilityLabel="Precio por metro cuadrado" placeholder="Precio por m²" />
-      <Text style={styles.label}>Ancho de placa (mm)</Text>
-      <TextInput style={styles.input} value={boardWidthMm} onChangeText={setBoardWidthMm} editable={!disabled && !saving} keyboardType="decimal-pad" accessibilityLabel="Ancho de placa en mm" />
-      <Text style={styles.label}>Alto de placa (mm)</Text>
-      <TextInput style={styles.input} value={boardHeightMm} onChangeText={setBoardHeightMm} editable={!disabled && !saving} keyboardType="decimal-pad" accessibilityLabel="Alto de placa en mm" />
-      <Text style={styles.label}>Separación entre cortes (mm)</Text>
-      <TextInput style={styles.input} value={cutSpacingMm} onChangeText={setCutSpacingMm} editable={!disabled && !saving} keyboardType="decimal-pad" accessibilityLabel="Separación entre cortes en mm" />
-      <Text style={styles.label}>Factor para conceptos manuales (sin despiece)</Text>
-      <TextInput style={styles.input} value={costMultiplier} onChangeText={setCostMultiplier} editable={!disabled && !saving} keyboardType="decimal-pad" accessibilityLabel="Multiplicador de costo" />
-      <Text style={styles.label}>Material Properties</Text>
-      <TextInput
-        style={[styles.input, styles.multilineInput, disabled && styles.inputDisabled]}
-        value={materialProperties}
-        onChangeText={setMaterialProperties}
-        placeholder="e.g. roughness:0.5;metalness:0.1"
-        multiline
-        editable={!disabled}
-      />
-
-      {!disabled && (
-        <Toggle
-          label="Compartir en la comunidad (público)"
-          value={isPublic}
-          onValueChange={handleRequestPublicChange}
+      <View style={formStyles.field}>
+        <Text style={formStyles.label}>Nombre *</Text>
+        <TextInput
+          style={[formStyles.input, inputsDisabled && formStyles.inputDisabled]}
+          value={name}
+          onChangeText={setName}
+          placeholder="Nombre del material"
+          editable={!inputsDisabled}
         />
-      )}
+      </View>
+      <View style={formStyles.field}>
+        <Text style={formStyles.label}>Categoría</Text>
+        {renderChips(
+          availableCategories.map((cat) => ({ id: cat.id, label: cat.categoryName })),
+          categoryId,
+          setCategoryId
+        )}
+      </View>
+      <View style={formStyles.field}>
+        <Text style={formStyles.label}>Tipo de material</Text>
+        {renderChips(
+          materialTypes.map((type) => ({ id: type.id, label: type.name })),
+          typeId,
+          setTypeId
+        )}
+      </View>
+      <Toggle
+        label="Compartir en la comunidad (público)"
+        value={isPublic}
+        onValueChange={handleRequestPublicChange}
+      />
+    </>
+  );
 
-      {!disabled && (
-        <View style={styles.actions}>
-          <Button label={saving ? 'Saving...' : 'Save'} onPress={handleSave} />
-          <Pressable style={styles.cancelButton} onPress={onClose}>
-            <Text style={styles.cancelButtonLabel}>Cancel</Text>
+  const renderTexture = () => (
+    <>
+      <View style={formStyles.field}>
+        <Text style={formStyles.label}>Archivo de textura</Text>
+        <View style={styles.fileRow}>
+          <View style={styles.fileInfo}>
+            <Text
+              style={[
+                styles.fileInfoText,
+                (pickedFile ?? fileURL) && styles.fileInfoTextLoaded,
+              ]}
+              numberOfLines={1}
+            >
+              {pickedFile
+                ? `Seleccionado: ${pickedFile.name}`
+                : fileURL
+                  ? '\u2713 Archivo cargado'
+                  : 'Sin archivo'}
+            </Text>
+            {pickedFile && (
+              <Pressable
+                onPress={() => {
+                  setPickedFile(null);
+                  onTextureChange?.(null);
+                }}
+                hitSlop={8}
+                style={styles.clearButton}
+              >
+                <Text style={styles.clearButtonLabel}>{'\u2715'}</Text>
+              </Pressable>
+            )}
+          </View>
+          <Pressable style={styles.pickButton} onPress={handlePickFile} disabled={saving}>
+            <Text style={styles.pickButtonLabel}>{pickedFile || fileURL ? 'Cambiar' : 'Elegir'}</Text>
           </Pressable>
         </View>
-      )}
+      </View>
+      <View style={formStyles.row}>
+        {renderNumberField('Escala U', scaleU, setScaleU, '1.0')}
+        {renderNumberField('Escala V', scaleV, setScaleV, '1.0')}
+      </View>
+      <View style={formStyles.field}>
+        <Text style={formStyles.label}>Propiedades del material</Text>
+        <TextInput
+          style={[formStyles.input, formStyles.multiline, inputsDisabled && formStyles.inputDisabled]}
+          value={materialProperties}
+          onChangeText={setMaterialProperties}
+          placeholder="ej. roughness:0.5;metalness:0.1"
+          multiline
+          editable={!inputsDisabled}
+        />
+      </View>
+    </>
+  );
 
-      {!disabled && isEdit && onDelete && (
-        <Pressable style={styles.deleteButton} onPress={handleDelete}>
-          <Text style={styles.deleteButtonLabel}>Delete Material</Text>
-        </Pressable>
-      )}
+  const renderPricing = () => (
+    <>
+      {renderNumberField('Precio por m² (vacío = pendiente)', pricePerSquareMeter, setPricePerSquareMeter, 'Precio por m²')}
+      <View style={formStyles.row}>
+        {renderNumberField('Ancho de placa (mm)', boardWidthMm, setBoardWidthMm)}
+        {renderNumberField('Alto de placa (mm)', boardHeightMm, setBoardHeightMm)}
+      </View>
+      {renderNumberField('Separación entre cortes (mm)', cutSpacingMm, setCutSpacingMm)}
+      {renderNumberField('Factor para conceptos manuales (sin despiece)', costMultiplier, setCostMultiplier)}
     </>
   );
 
   return (
-    <View style={styles.container}>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+    <>
+      <FormPanel
+        title={isEdit ? 'Editar material' : 'Nuevo material'}
+        tabs={TABS}
+        activeTab={tab}
+        onTabChange={setTab}
+        primaryAction={{ label: saving ? 'Guardando...' : 'Guardar', onPress: handleSave, disabled: inputsDisabled }}
+        secondaryAction={{ label: 'Cancelar', onPress: onClose, disabled: saving }}
+        dangerAction={isEdit && onDelete ? { label: 'Eliminar', onPress: handleDelete, disabled: inputsDisabled } : undefined}
       >
-        {formContent}
-      </ScrollView>
+        {tab === 'general' && renderGeneral()}
+        {tab === 'texture' && renderTexture()}
+        {tab === 'pricing' && renderPricing()}
+      </FormPanel>
 
       <Modal
         visible={pendingPublicValue !== null}
@@ -430,10 +372,13 @@ export default function MaterialEditor({
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Hacer público el material</Text>
+            <Text style={styles.modalTitle}>
+              {pendingPublicValue ? 'Hacer público el material' : 'Hacer privado el material'}
+            </Text>
             <Text style={styles.modalText}>
-              Este material será visible para la comunidad y otros usuarios
-              podrán clonarlo o agregarlo como acceso directo. ¿Continuar?
+              {pendingPublicValue
+                ? 'Este material será visible para la comunidad y otros usuarios podrán clonarlo o agregarlo como acceso directo. ¿Continuar?'
+                : 'Este material dejará de ser visible para la comunidad. ¿Continuar?'}
             </Text>
             <View style={styles.modalActions}>
               <Pressable
@@ -452,119 +397,11 @@ export default function MaterialEditor({
           </View>
         </View>
       </Modal>
-    </View>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    width: '100%',
-    backgroundColor: 'white',
-  },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 24,
-    paddingBottom: 8,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#374151',
-    marginTop: 20,
-    marginBottom: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  label: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#374151',
-    marginBottom: 6,
-    marginTop: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  input: {
-    height: 44,
-    borderColor: '#e5e7eb',
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    backgroundColor: '#f9fafb',
-    fontSize: 14,
-    color: '#111827',
-  },
-  inputDisabled: {
-    backgroundColor: '#f3f4f6',
-    color: '#9ca3af',
-  },
-  multilineInput: {
-    height: 80,
-    paddingTop: 12,
-    textAlignVertical: 'top',
-  },
-  categoryRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginTop: 4,
-  },
-  categoryChip: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-    backgroundColor: '#f3f4f6',
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-  },
-  categoryChipActive: {
-    backgroundColor: '#2563eb',
-    borderColor: '#2563eb',
-  },
-  categoryChipText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#374151',
-  },
-  categoryChipTextActive: {
-    color: '#fff',
-  },
-  actions: {
-    marginTop: 24,
-    gap: 10,
-    alignItems: 'center',
-  },
-  cancelButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 24,
-  },
-  cancelButtonLabel: {
-    fontSize: 14,
-    color: '#6b7280',
-    fontWeight: '600',
-  },
-  deleteButton: {
-    marginTop: 24,
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: 'center',
-    backgroundColor: '#dc2626',
-  },
-  deleteButtonLabel: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
   fileRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -575,16 +412,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     height: 44,
-    borderColor: '#e5e7eb',
+    borderColor: COLORS.border,
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 12,
-    backgroundColor: '#f9fafb',
+    backgroundColor: COLORS.bgAlt,
   },
   fileInfoText: {
     flex: 1,
     fontSize: 13,
-    color: '#9ca3af',
+    color: COLORS.textFaint,
   },
   fileInfoTextLoaded: {
     color: '#16a34a',
@@ -595,18 +432,18 @@ const styles = StyleSheet.create({
   },
   clearButtonLabel: {
     fontSize: 14,
-    color: '#6b7280',
+    color: COLORS.textMuted,
   },
   pickButton: {
     height: 44,
     paddingHorizontal: 16,
     borderRadius: 8,
-    backgroundColor: '#2563eb',
+    backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
   pickButtonLabel: {
-    color: '#fff',
+    color: COLORS.white,
     fontSize: 13,
     fontWeight: '700',
   },

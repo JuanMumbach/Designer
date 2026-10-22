@@ -2,18 +2,15 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
   ActivityIndicator,
   Alert,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   useWindowDimensions,
   View,
 } from 'react-native';
 import { useAccess } from '../../../services/AccessContext';
 import { useAuth } from '../../../services/AuthContext';
-import Button from '../../Button';
 import {
   createMaterial,
   updateMaterialPricing,
@@ -41,17 +38,26 @@ import { MaterialSlotInfo } from '../../../services/materialSlots';
 import { COLORS } from '@/constants/theme';
 import MaterialEditor, { MaterialFormData } from './MaterialEditor';
 import MaterialPreview from './MaterialPreview';
-import Thumbnail from '../../Thumbnail';
+import CatalogueView, { CatalogueGroup, InspectorRow } from '../../Catalogue/CatalogueView';
+import CategoryManagerPanel from '../CategoryManagerPanel';
 import {
   createThumbnailCaptureApi,
   ThumbnailCaptureApi,
 } from '../../../services/thumbnailCapture';
 
-function getBreadcrumbPath(
-  categoryId: string | null,
+const VIEW_MODE_KEY = '@catalogue:materialsViewMode';
+const UNCATEGORIZED_KEY = '__none__';
+
+const GROUP_OPTIONS = [
+  { key: 'category', label: 'Categoría' },
+  { key: 'type', label: 'Tipo' },
+];
+
+function getCategoryPath(
+  categoryId: string | null | undefined,
   allCategories: MaterialCategory[]
 ): string {
-  if (!categoryId) return 'Root';
+  if (!categoryId) return 'Sin categoría';
   const path: string[] = [];
   let current: MaterialCategory | undefined = allCategories.find(
     (c) => c.id === categoryId
@@ -60,7 +66,7 @@ function getBreadcrumbPath(
     path.unshift(current.categoryName);
     current = allCategories.find((c) => c.id === current?.parentCategoryId);
   }
-  return 'Root > ' + path.join(' > ');
+  return path.length ? path.join(' › ') : 'Sin categoría';
 }
 
 interface MaterialBrowserProps {
@@ -79,10 +85,9 @@ export default function MaterialBrowser({
   const { width: screenWidth } = useWindowDimensions();
   const isWide = screenWidth >= 700;
 
-  const [currentCategoryId, setCurrentCategoryId] = useState<string | null>(
-    null
-  );
-  const [categoryStack, setCategoryStack] = useState<string[]>([]);
+  const [query, setQuery] = useState('');
+  const [groupBy, setGroupBy] = useState<'category' | 'type'>('category');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editingMaterial, setEditingMaterial] = useState<MaterialMeta | null>(null);
   const [editingMaterialData, setEditingMaterialData] = useState<MaterialData | null>(null);
   const [editingDataFailed, setEditingDataFailed] = useState(false);
@@ -95,16 +100,11 @@ export default function MaterialBrowser({
     []
   );
 
-  // ── Thumbnail URLs per listed material (latest version) ──
   const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
   const thumbnailAttemptedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    const target =
-      currentCategoryId === null
-        ? materials.filter((m) => !m.categoryId)
-        : materials.filter((m) => m.categoryId === currentCategoryId);
-    const missing = target
+    const missing = materials
       .filter((m) => !(m.id in thumbnails))
       .filter((m) => !thumbnailAttemptedRef.current.has(m.id));
     if (missing.length === 0) return;
@@ -129,7 +129,7 @@ export default function MaterialBrowser({
     return () => {
       cancelled = true;
     };
-  }, [currentCategoryId, materials, thumbnails]);
+  }, [materials, thumbnails]);
 
   useEffect(() => {
     let isMounted = true;
@@ -143,13 +143,6 @@ export default function MaterialBrowser({
     };
   }, []);
 
-  // ── Category manager state ──
-  const [newCatName, setNewCatName] = useState('');
-  const [newCatParent, setNewCatParent] = useState('');
-  const [editingCatId, setEditingCatId] = useState<string | null>(null);
-  const [editingCatName, setEditingCatName] = useState('');
-
-  // ── Lifted preview state (from MaterialEditor) ──
   const [selectedTemplate, setSelectedTemplate] = useState<ObjectTemplate | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
   const [discoveredSlots, setDiscoveredSlots] = useState<MaterialSlotInfo[]>([]);
@@ -160,7 +153,6 @@ export default function MaterialBrowser({
   const [liveScaleU, setLiveScaleU] = useState(1);
   const [liveScaleV, setLiveScaleV] = useState(1);
 
-  // Fetch material version data when editing a material
   useEffect(() => {
     if (editingMaterial) {
       setEditingDataFailed(false);
@@ -187,34 +179,43 @@ export default function MaterialBrowser({
     }
   }, [editingMaterial]);
 
-  const rootCategories = categories.filter(
-    (c) => c.parentCategoryId === null
+  const selectedMaterial = useMemo(
+    () => materials.find((m) => m.id === selectedId) ?? null,
+    [materials, selectedId]
   );
-  const currentSubcategories = categories.filter(
-    (c) => c.parentCategoryId === currentCategoryId
-  );
-  const materialsInCategory = materials.filter(
-    (m) => m.categoryId === currentCategoryId
-  );
-  const uncategorizedMaterials = materials.filter((m) => !m.categoryId);
 
-  const handleCategoryPress = (cat: MaterialCategory) => {
-    setCategoryStack((prev) => [...prev, cat.id]);
-    setCurrentCategoryId(cat.id);
-  };
-
-  const handleBack = () => {
-    if (categoryStack.length === 0) {
-      setCurrentCategoryId(null);
-    } else {
-      const newStack = [...categoryStack];
-      newStack.pop();
-      setCategoryStack(newStack);
-      setCurrentCategoryId(
-        newStack.length > 0 ? newStack[newStack.length - 1] : null
-      );
+  const groups = useMemo((): CatalogueGroup[] => {
+    const needle = query.trim().toLocaleLowerCase();
+    const filtered = materials
+      .filter((m) => m.name.toLocaleLowerCase().includes(needle))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const map = new Map<string, CatalogueGroup>();
+    for (const material of filtered) {
+      const key = groupBy === 'category'
+        ? material.categoryId ?? UNCATEGORIZED_KEY
+        : material.typeId ?? UNCATEGORIZED_KEY;
+      const label = groupBy === 'category'
+        ? getCategoryPath(material.categoryId, categories)
+        : material.type?.name ?? materialTypes.find((t) => t.id === material.typeId)?.name ?? 'Sin tipo';
+      let group = map.get(key);
+      if (!group) {
+        group = { key, label, items: [] };
+        map.set(key, group);
+      }
+      group.items.push({
+        id: material.id,
+        name: material.name,
+        subtitle: `v${material.lastVersion}`,
+        badge: material.type?.name,
+        thumbnailUri: thumbnails[material.id],
+      });
     }
-  };
+    return Array.from(map.values()).sort((a, b) => {
+      if (a.key === UNCATEGORIZED_KEY) return 1;
+      if (b.key === UNCATEGORIZED_KEY) return -1;
+      return a.label.localeCompare(b.label);
+    });
+  }, [materials, categories, materialTypes, query, groupBy, thumbnails]);
 
   const handleSaveMaterial = async (data: MaterialFormData, isEdit: boolean) => {
     if (isEdit && editingMaterial) {
@@ -279,59 +280,39 @@ export default function MaterialBrowser({
     try {
       await deleteMaterial(editingMaterial.id);
       setEditingMaterial(null);
+      setSelectedId(null);
       onRefresh();
     } catch {
       Alert.alert('Error', 'Failed to delete material.');
     }
   };
 
-  const handleCreateCategory = async () => {
-    if (!newCatName.trim()) return;
-    try {
-      await createMaterialCategory({
-        categoryName: newCatName.trim(),
-        parentCategoryId: newCatParent || undefined,
-      });
-      setNewCatName('');
-      setNewCatParent('');
-      onRefresh();
-    } catch {
-      Alert.alert('Error', 'Failed to create category.');
-    }
+  const handleCreateCategory = async (name: string, parentId?: string) => {
+    await createMaterialCategory({ categoryName: name, parentCategoryId: parentId });
+    onRefresh();
   };
 
-  const handleRenameCategory = async (id: string) => {
-    if (!editingCatName.trim()) return;
-    try {
-      await updateMaterialCategory(id, { categoryName: editingCatName.trim() });
-      setEditingCatId(null);
-      setEditingCatName('');
-      onRefresh();
-    } catch {
-      Alert.alert('Error', 'Failed to rename category.');
-    }
+  const handleRenameCategory = async (id: string, name: string) => {
+    await updateMaterialCategory(id, { categoryName: name });
+    onRefresh();
   };
 
-  const handleDeleteCategory = (id: string) => {
-    const confirm = () => {
-      deleteMaterialCategory(id)
-        .then(() => {
-          setEditingCatId(null);
-          onRefresh();
+  const handleDeleteCategory = async (id: string) => {
+    await deleteMaterialCategory(id);
+    onRefresh();
+  };
+
+  const deletableCategoryIds = useMemo(
+    () =>
+      categories
+        .filter((c) => {
+          const childCats = categories.filter((cc) => cc.parentCategoryId === c.id);
+          const childMats = materials.filter((m) => m.categoryId === c.id);
+          return childCats.length === 0 && childMats.length === 0;
         })
-        .catch(() => Alert.alert('Error', 'Failed to delete category.'));
-    };
-    if (Platform.OS === 'web') {
-      if (window.confirm('Delete this category?')) confirm();
-    } else {
-      Alert.alert('Delete Category', 'Are you sure?', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: confirm },
-      ]);
-    }
-  };
-
-  // ── Lifted preview functions ──
+        .map((c) => c.id),
+    [categories, materials]
+  );
 
   const loadModels = useCallback(async () => {
     if (allModels.length > 0) {
@@ -383,19 +364,45 @@ export default function MaterialBrowser({
     setPreviewTextureUri(uri);
   };
 
-  const isActive = editingMaterial || showCreator;
-  const isLoadingData = editingMaterial && !editingMaterialData && !editingDataFailed;
+  const closeEditor = () => {
+    setEditingMaterial(null);
+    setEditingMaterialData(null);
+    setEditingDataFailed(false);
+    setShowCreator(false);
+    setPreviewTextureUri(null);
+    setSelectedTemplate(null);
+    setSelectedSlot(null);
+    setDiscoveredSlots([]);
+  };
 
-  // ── Render helpers ──
+  const isActive = !!editingMaterial || showCreator;
+  const isLoadingData = !!editingMaterial && !editingMaterialData && !editingDataFailed;
+
+  const renderLoading = () => (
+    <View style={styles.loadingContainer}>
+      <ActivityIndicator size="large" color={COLORS.primary} />
+      <Text style={styles.loadingText}>Cargando datos del material…</Text>
+    </View>
+  );
 
   const renderEditor = () => {
-    if (editingMaterial && isLoadingData) {
-      return renderLoading();
+    if (isLoadingData) return renderLoading();
+    if (editingMaterial && editingDataFailed) {
+      return (
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>No se pudo cargar el material.</Text>
+          <Pressable style={styles.retryButton} onPress={() => setEditingMaterial({ ...editingMaterial })}>
+            <Text style={styles.retryButtonText}>Reintentar</Text>
+          </Pressable>
+          <Pressable style={styles.retryButton} onPress={closeEditor}>
+            <Text style={styles.retryButtonText}>Volver al catálogo</Text>
+          </Pressable>
+        </View>
+      );
     }
     return (
       <MaterialEditor
         key={editingMaterial?.id ?? 'new'}
-        disabled={!isActive || editingDataFailed}
         isEdit={!!editingMaterial}
         initial={
           editingMaterial
@@ -410,7 +417,10 @@ export default function MaterialBrowser({
                 materialProperties: editingMaterialData?.materialProperties ?? '',
                 isPublic: editingMaterial.isPublic,
                 costMultiplier: editingMaterial.costMultiplier ?? 1,
-                pricePerSquareMeter: editingMaterial.pricePerSquareMeter ?? null, boardWidthMm: editingMaterial.boardWidthMm ?? 2600, boardHeightMm: editingMaterial.boardHeightMm ?? 1600, cutSpacingMm: editingMaterial.cutSpacingMm ?? 3,
+                pricePerSquareMeter: editingMaterial.pricePerSquareMeter ?? null,
+                boardWidthMm: editingMaterial.boardWidthMm ?? 2600,
+                boardHeightMm: editingMaterial.boardHeightMm ?? 1600,
+                cutSpacingMm: editingMaterial.cutSpacingMm ?? 3,
               }
             : undefined
         }
@@ -418,306 +428,51 @@ export default function MaterialBrowser({
         materialTypes={materialTypes}
         onSave={handleSaveMaterial}
         onDelete={editingMaterial ? handleDeleteMaterial : undefined}
-        onClose={() => {
-          setEditingMaterial(null);
-          setEditingMaterialData(null);
-          setEditingDataFailed(false);
-          setShowCreator(false);
-          setPreviewTextureUri(null);
-          setSelectedTemplate(null);
-          setSelectedSlot(null);
-          setDiscoveredSlots([]);
-        }}
+        onClose={closeEditor}
         onTextureChange={handleTextureChange}
         onScaleChange={(su, sv) => { setLiveScaleU(su); setLiveScaleV(sv); }}
       />
     );
   };
 
-  const renderBrowserList = () => {
-    const hasContent =
-      currentCategoryId === null
-        ? rootCategories.length > 0 || uncategorizedMaterials.length > 0
-        : currentSubcategories.length > 0 || materialsInCategory.length > 0;
-
-    return (
-      <>
-        <View style={styles.header}>
-          <Pressable style={styles.backButton} onPress={handleBack}>
-            <Text style={styles.backButtonText}>← Back</Text>
-          </Pressable>
-          <Text style={styles.breadcrumb} numberOfLines={1}>
-            {getBreadcrumbPath(currentCategoryId, categories)}
-          </Text>
-        </View>
-
-        <View style={styles.actionBar}>
-          <Pressable style={styles.actionButton} onPress={() => setShowCreator(true)}>
-            <Text style={styles.actionButtonText}>+ New Material</Text>
-          </Pressable>
-          {canManageApplication && (<Pressable
-            style={styles.actionButton}
-            onPress={() => setShowCategoryManager(true)}
-          >
-            <Text style={styles.actionButtonText}>Categories</Text>
-          </Pressable>)}
-        </View>
-
-        <ScrollView style={styles.scrollView}>
-          {!hasContent ? (
-            <Text style={styles.emptyText}>No items in this category.</Text>
-          ) : (
-            <>
-              {currentCategoryId === null &&
-                rootCategories
-                  .sort((a, b) => a.categoryName.localeCompare(b.categoryName))
-                  .map((cat) => (
-                    <Pressable
-                      key={cat.id}
-                      style={styles.folderItem}
-                      onPress={() => handleCategoryPress(cat)}
-                    >
-                      <Text style={styles.folderIcon}>📁</Text>
-                      <Text style={styles.folderText}>{cat.categoryName}</Text>
-                    </Pressable>
-                  ))}
-              {currentCategoryId !== null &&
-                currentSubcategories
-                  .sort((a, b) => a.categoryName.localeCompare(b.categoryName))
-                  .map((cat) => (
-                    <Pressable
-                      key={cat.id}
-                      style={styles.folderItem}
-                      onPress={() => handleCategoryPress(cat)}
-                    >
-                      <Text style={styles.folderIcon}>📁</Text>
-                      <Text style={styles.folderText}>{cat.categoryName}</Text>
-                    </Pressable>
-                  ))}
-              {currentCategoryId === null &&
-                uncategorizedMaterials
-                  .sort((a, b) => a.name.localeCompare(b.name))
-                  .map((mat) => (
-                    <Pressable
-                      key={mat.id}
-                      style={styles.materialItem}
-                      onPress={() => setEditingMaterial(mat)}
-                    >
-                      <View style={styles.materialThumb}>
-                        <Thumbnail
-                          uri={thumbnails[mat.id]}
-                          size={36}
-                          icon="layers-outline"
-                        />
-                      </View>
-                      <View style={styles.materialInfo}>
-                        <Text style={styles.materialName}>{mat.name}</Text>
-                        <Text style={styles.materialMeta}>
-                          v{mat.lastVersion} · {mat.creatorId.slice(0, 8)}…
-                        </Text>
-                        {mat.type?.name && (
-                          <Text style={styles.materialType}>Type: {mat.type.name}</Text>
-                        )}
-                      </View>
-                      <Text style={styles.editIcon}>✎</Text>
-                    </Pressable>
-                  ))}
-              {currentCategoryId !== null &&
-                materialsInCategory
-                  .sort((a, b) => a.name.localeCompare(b.name))
-                  .map((mat) => (
-                    <Pressable
-                      key={mat.id}
-                      style={styles.materialItem}
-                      onPress={() => setEditingMaterial(mat)}
-                    >
-                      <View style={styles.materialThumb}>
-                        <Thumbnail
-                          uri={thumbnails[mat.id]}
-                          size={36}
-                          icon="layers-outline"
-                        />
-                      </View>
-                      <View style={styles.materialInfo}>
-                        <Text style={styles.materialName}>{mat.name}</Text>
-                        <Text style={styles.materialMeta}>
-                          v{mat.lastVersion} · {mat.creatorId.slice(0, 8)}…
-                        </Text>
-                        {mat.type?.name && (
-                          <Text style={styles.materialType}>Type: {mat.type.name}</Text>
-                        )}
-                      </View>
-                      <Text style={styles.editIcon}>✎</Text>
-                    </Pressable>
-                  ))}
-            </>
-          )}
-        </ScrollView>
-      </>
-    );
-  };
-
-  const renderCategoryManager = () => {
-    const deletableCats = categories.filter((c) => {
-      const childCats = categories.filter((cc) => cc.parentCategoryId === c.id);
-      const childMats = materials.filter((m) => m.categoryId === c.id);
-      return childCats.length === 0 && childMats.length === 0;
-    });
-
-    return (
-      <>
-        <View style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => setShowCategoryManager(false)}>
-            <Text style={styles.backButtonText}>← Back</Text>
-          </Pressable>
-          <Text style={styles.headerTitle}>Manage Categories</Text>
-        </View>
-
-        <ScrollView style={styles.scrollView}>
-          <Text style={styles.sectionTitle}>Create Category</Text>
-          <TextInput
-            style={styles.input}
-            value={newCatName}
-            onChangeText={setNewCatName}
-            placeholder="Category name"
-          />
-          <Text style={styles.label}>Parent (optional)</Text>
-          <View style={styles.chipRow}>
-            <Pressable
-              style={[styles.chip, newCatParent === '' && styles.chipActive]}
-              onPress={() => setNewCatParent('')}
-            >
-              <Text style={[styles.chipText, newCatParent === '' && styles.chipTextActive]}>
-                None
-              </Text>
-            </Pressable>
-            {categories.map((cat) => (
-              <Pressable
-                key={cat.id}
-                style={[styles.chip, newCatParent === cat.id && styles.chipActive]}
-                onPress={() => setNewCatParent(cat.id)}
-              >
-                <Text
-                  style={[styles.chipText, newCatParent === cat.id && styles.chipTextActive]}
-                >
-                  {cat.categoryName}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-          <Button label="Create" onPress={handleCreateCategory} />
-
-          {categories.length > 0 && (
-            <>
-              <Text style={[styles.sectionTitle, { marginTop: 24 }]}>
-                Existing Categories
-              </Text>
-              {categories.map((cat) => {
-                const isEditing = editingCatId === cat.id;
-                const parentName = cat.parentCategoryId
-                  ? categories.find((c) => c.id === cat.parentCategoryId)
-                      ?.categoryName ?? '?'
-                  : 'None';
-                const canDelete = deletableCats.some((d) => d.id === cat.id);
-
-                return (
-                  <View key={cat.id} style={styles.categoryRow}>
-                    {isEditing ? (
-                      <View style={styles.editCatRow}>
-                        <TextInput
-                          style={[styles.input, { flex: 1 }]}
-                          value={editingCatName}
-                          onChangeText={setEditingCatName}
-                        />
-                        <Pressable
-                          style={styles.smallButton}
-                          onPress={() => handleRenameCategory(cat.id)}
-                        >
-                          <Text style={styles.smallButtonText}>Save</Text>
-                        </Pressable>
-                        <Pressable
-                          style={styles.smallButton}
-                          onPress={() => setEditingCatId(null)}
-                        >
-                          <Text style={styles.smallButtonText}>Cancel</Text>
-                        </Pressable>
-                      </View>
-                    ) : (
-                      <>
-                        <View style={styles.catInfo}>
-                          <Text style={styles.catName}>{cat.categoryName}</Text>
-                          <Text style={styles.catParent}>Parent: {parentName}</Text>
-                        </View>
-                        <Pressable
-                          style={styles.smallButton}
-                          onPress={() => {
-                            setEditingCatId(cat.id);
-                            setEditingCatName(cat.categoryName);
-                          }}
-                        >
-                          <Text style={styles.smallButtonText}>Rename</Text>
-                        </Pressable>
-                        {canDelete && (
-                          <Pressable
-                            style={[styles.smallButton, styles.deleteSmallButton]}
-                            onPress={() => handleDeleteCategory(cat.id)}
-                          >
-                            <Text style={styles.smallButtonText}>Del</Text>
-                          </Pressable>
-                        )}
-                      </>
-                    )}
-                  </View>
-                );
-              })}
-            </>
-          )}
-        </ScrollView>
-      </>
-    );
-  };
-
   const renderPreview = () => (
-    <View style={styles.workspaceColumn}>
+    <View style={styles.previewColumn}>
       <View style={styles.modelSelectorRow}>
-        <Text style={styles.modelSelectorLabel}>
-          {selectedTemplate ? `Model: ${selectedTemplate.name}` : 'Preview Model'}
+        <Text style={styles.modelSelectorLabel} numberOfLines={1}>
+          {selectedTemplate ? `Modelo: ${selectedTemplate.name}` : 'Modelo de vista previa'}
         </Text>
         <Pressable style={styles.selectModelButton} onPress={loadModels}>
           <Text style={styles.selectModelButtonLabel}>
-            {selectedTemplate ? 'Change' : 'Select Model'}
+            {selectedTemplate ? 'Cambiar' : 'Elegir modelo'}
           </Text>
         </Pressable>
       </View>
-      <MaterialPreview
-        modelUrl={selectedTemplate?.modelUrl ?? null}
-        textureUri={previewTextureUri}
-        selectedSlot={selectedSlot}
-        onSlotsDiscovered={handleSlotsDiscovered}
-        scaleU={liveScaleU}
-        scaleV={liveScaleV}
-        captureApi={captureApi}
-      />
+      <View style={styles.previewCanvas}>
+        <MaterialPreview
+          modelUrl={selectedTemplate?.modelUrl ?? null}
+          textureUri={previewTextureUri}
+          selectedSlot={selectedSlot}
+          onSlotsDiscovered={handleSlotsDiscovered}
+          scaleU={liveScaleU}
+          scaleV={liveScaleV}
+          captureApi={captureApi}
+        />
+      </View>
       {discoveredSlots.length > 0 && (
         <View style={styles.meshSlotsSection}>
-          <Text style={styles.meshSlotsLabel}>Texture Slots</Text>
+          <Text style={styles.meshSlotsLabel}>Slots de textura</Text>
           <View style={styles.meshSlotsRow}>
             {discoveredSlots.map((slotInfo) => {
-              const isActive = selectedSlot === slotInfo.slot;
+              const active = selectedSlot === slotInfo.slot;
               return (
                 <Pressable
                   key={slotInfo.slot}
-                  style={[styles.meshChip, isActive && styles.meshChipActive]}
+                  style={[styles.meshChip, active && styles.meshChipActive]}
                   onPress={() =>
                     setSelectedSlot(selectedSlot === slotInfo.slot ? null : slotInfo.slot)
                   }
                 >
-                  <Text
-                    style={[
-                      styles.meshChipText,
-                      isActive && styles.meshChipTextActive,
-                    ]}
-                  >
+                  <Text style={[styles.meshChipText, active && styles.meshChipTextActive]}>
                     {slotInfo.displayName || `Slot ${slotInfo.slot}`}
                   </Text>
                 </Pressable>
@@ -729,14 +484,14 @@ export default function MaterialBrowser({
       {showModelPicker && (
         <View style={styles.modelPickerOverlay}>
           <View style={styles.modelPickerCard}>
-            <Text style={styles.pickerTitle}>Select a 3D Model for Preview</Text>
+            <Text style={styles.pickerTitle}>Elegí un modelo 3D para la vista previa</Text>
             {modelsLoading ? (
               <View style={styles.loadingRow}>
                 <ActivityIndicator size="small" color={COLORS.primary} />
-                <Text style={styles.loadingText}>Loading models...</Text>
+                <Text style={styles.loadingText}>Cargando modelos…</Text>
               </View>
             ) : allModels.length === 0 ? (
-              <Text style={styles.emptyText}>No models available.</Text>
+              <Text style={styles.emptyText}>No hay modelos disponibles.</Text>
             ) : (
               <ScrollView style={styles.modelPickerList}>
                 {allModels.map((model) => (
@@ -751,16 +506,13 @@ export default function MaterialBrowser({
                         {model.width} x {model.height} x {model.depth}
                       </Text>
                     </View>
-                    <Text style={styles.selectArrow}>Select</Text>
+                    <Text style={styles.selectArrow}>Elegir</Text>
                   </Pressable>
                 ))}
               </ScrollView>
             )}
-            <Pressable
-              style={styles.cancelModelPicker}
-              onPress={() => setShowModelPicker(false)}
-            >
-              <Text style={styles.cancelButtonLabel}>Cancel</Text>
+            <Pressable style={styles.cancelModelPicker} onPress={() => setShowModelPicker(false)}>
+              <Text style={styles.cancelButtonLabel}>Cancelar</Text>
             </Pressable>
           </View>
         </View>
@@ -768,44 +520,76 @@ export default function MaterialBrowser({
     </View>
   );
 
-  const renderLoading = () => (
-    <View style={styles.loadingContainer}>
-      <Text style={styles.loadingText}>Loading material data…</Text>
-    </View>
-  );
+  if (showCategoryManager && canManageApplication) {
+    return (
+      <View style={styles.container}>
+        <CategoryManagerPanel
+          categories={categories}
+          deletableIds={deletableCategoryIds}
+          onCreate={handleCreateCategory}
+          onRename={handleRenameCategory}
+          onDelete={handleDeleteCategory}
+          onClose={() => setShowCategoryManager(false)}
+        />
+      </View>
+    );
+  }
 
-  const renderWorkspace = () => {
-    if (showCategoryManager && canManageApplication) return <>{renderCategoryManager()}</>;
-    if (isLoadingData) return renderLoading();
-    if (isActive) return renderPreview();
-    return <>{renderBrowserList()}</>;
-  };
-
-  const renderNarrow = () => {
-    if (isActive || isLoadingData) {
-      return (
-        <ScrollView>
-          {renderEditor()}
+  if (isActive) {
+    return (
+      <View style={[styles.container, isWide ? styles.editRow : styles.editColumn]}>
+        <View style={isWide ? styles.previewWide : styles.previewNarrow}>
           {isLoadingData ? renderLoading() : renderPreview()}
-        </ScrollView>
-      );
-    }
-    return renderBrowserList();
-  };
+        </View>
+        <View style={isWide ? styles.editorWide : styles.editorNarrow}>{renderEditor()}</View>
+      </View>
+    );
+  }
 
-  // ── Main Render ──
+  const inspector = selectedMaterial ? (
+    <View>
+      <InspectorRow label="Nombre" value={selectedMaterial.name} />
+      <InspectorRow label="Categoría" value={getCategoryPath(selectedMaterial.categoryId, categories)} />
+      <InspectorRow label="Tipo" value={selectedMaterial.type?.name ?? 'Sin tipo'} />
+      <InspectorRow label="Versión" value={`v${selectedMaterial.lastVersion}`} />
+      <InspectorRow label="Visibilidad" value={selectedMaterial.isPublic ? 'Comunidad' : 'Privado'} />
+      <InspectorRow
+        label="Precio por m²"
+        value={selectedMaterial.pricePerSquareMeter == null ? 'Pendiente' : String(selectedMaterial.pricePerSquareMeter)}
+      />
+    </View>
+  ) : null;
+
+  const headerActions = [
+    { label: 'Nuevo material', onPress: () => setShowCreator(true), primary: true },
+    ...(canManageApplication ? [{ label: 'Categorías', onPress: () => setShowCategoryManager(true) }] : []),
+  ];
 
   return (
-    <View style={styles.container}>
-      {isWide ? (
-        <View style={styles.rowContainer}>
-          <View style={styles.formColumn}>{renderEditor()}</View>
-          <View style={styles.workspaceColumn}>{renderWorkspace()}</View>
-        </View>
-      ) : (
-        renderNarrow()
-      )}
-    </View>
+    <CatalogueView
+      headerActions={headerActions}
+      contextLabel={`${materials.length} materiales`}
+      groups={groups}
+      groupOptions={GROUP_OPTIONS}
+      groupKey={groupBy}
+      onGroupKeyChange={(key) => setGroupBy(key as 'category' | 'type')}
+      query={query}
+      onQueryChange={setQuery}
+      searchPlaceholder="Buscar materiales por nombre"
+      emptyText={query ? 'No hay materiales que coincidan con la búsqueda.' : 'Todavía no hay materiales. Creá el primero para comenzar.'}
+      selectedId={selectedId}
+      onSelect={setSelectedId}
+      onOpen={(id) => {
+        const material = materials.find((m) => m.id === id);
+        if (material) setEditingMaterial(material);
+      }}
+      openLabel="Editar"
+      itemIcon="layers-outline"
+      storageKey={VIEW_MODE_KEY}
+      inspectorContent={inspector}
+      inspectorEmptyText="Selecciona un material para ver sus detalles."
+      inspectorActions={selectedMaterial ? { primary: { label: 'Editar', onPress: () => setEditingMaterial(selectedMaterial) } } : undefined}
+    />
   );
 }
 
@@ -815,136 +599,35 @@ const styles = StyleSheet.create({
     width: '100%',
     backgroundColor: COLORS.bg,
   },
-  rowContainer: {
-    flex: 1,
+  editRow: {
     flexDirection: 'row',
   },
-  formColumn: {
-    width: 340,
-    maxWidth: '35%',
-    borderRightWidth: 1,
-    borderRightColor: COLORS.border,
+  editColumn: {
+    flexDirection: 'column',
   },
-  workspaceColumn: {
+  previewWide: {
+    flex: 1,
+  },
+  previewNarrow: {
+    height: 380,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  editorWide: {
+    width: 400,
+    maxWidth: '45%',
+    borderLeftWidth: 1,
+    borderLeftColor: COLORS.border,
+  },
+  editorNarrow: {
+    flex: 1,
+  },
+  previewColumn: {
     flex: 1,
     padding: 16,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    backgroundColor: COLORS.bgAlt,
-  },
-  headerTitle: {
+  previewCanvas: {
     flex: 1,
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.text,
-    textAlign: 'center',
-  },
-  backButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-    backgroundColor: COLORS.border,
-    marginRight: 8,
-  },
-  backButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.textHeading,
-  },
-  breadcrumb: {
-    flex: 1,
-    fontSize: 13,
-    color: COLORS.textMuted,
-    fontWeight: '500',
-  },
-  actionBar: {
-    flexDirection: 'row',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  actionButton: {
-    flex: 1,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: COLORS.primary,
-    alignItems: 'center',
-  },
-  actionButtonText: {
-    color: COLORS.white,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  scrollView: {
-    flex: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-  },
-  folderItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.surfaceAlt,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: COLORS.borderStrong,
-  },
-  folderIcon: {
-    fontSize: 18,
-    marginRight: 10,
-  },
-  folderText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: COLORS.textBody,
-  },
-  materialItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.bg,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  materialInfo: {
-    flex: 1,
-    marginRight: 10,
-  },
-  materialThumb: {
-    marginRight: 10,
-  },
-  materialName: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: COLORS.textBody,
-    marginBottom: 4,
-  },
-  materialMeta: {
-    fontSize: 11,
-    color: COLORS.textMuted,
-  },
-  materialType: {
-    fontSize: 11,
-    color: COLORS.primary,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  editIcon: {
-    fontSize: 18,
-    color: COLORS.primary,
   },
   emptyText: {
     textAlign: 'center',
@@ -952,116 +635,28 @@ const styles = StyleSheet.create({
     fontSize: 14,
     paddingVertical: 30,
   },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: COLORS.textHeading,
-    marginBottom: 12,
-    marginTop: 4,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  input: {
-    height: 44,
-    borderColor: COLORS.border,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    backgroundColor: COLORS.bgAlt,
-    fontSize: 14,
-    color: COLORS.text,
-    marginBottom: 10,
-  },
-  label: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.textHeading,
-    marginBottom: 6,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: 12,
-  },
-  chip: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-    backgroundColor: COLORS.surfaceAlt,
-    borderWidth: 1,
-    borderColor: COLORS.borderStrong,
-  },
-  chipActive: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
-  chipText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.textHeading,
-  },
-  chipTextActive: {
-    color: COLORS.white,
-  },
-  categoryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.bgAlt,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    marginBottom: 6,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  catInfo: {
-    flex: 1,
-  },
-  catName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.textBody,
-  },
-  catParent: {
-    fontSize: 11,
-    color: COLORS.textMuted,
-    marginTop: 2,
-  },
-  editCatRow: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  smallButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-    backgroundColor: COLORS.border,
-    marginLeft: 6,
-  },
-  deleteSmallButton: {
-    backgroundColor: COLORS.danger,
-  },
-  smallButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.textHeading,
-  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 40,
+    gap: 12,
   },
   loadingText: {
     fontSize: 14,
     color: COLORS.textMuted,
   },
-  // ── Preview styles (lifted from MaterialEditor) ──
+  retryButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    backgroundColor: COLORS.border,
+  },
+  retryButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.textHeading,
+  },
   modelSelectorRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1132,7 +727,8 @@ const styles = StyleSheet.create({
   },
   modelPickerCard: {
     width: 340,
-    maxHeight: '80%',
+    maxWidth: '100%',
+    maxHeight: '90%',
     backgroundColor: COLORS.bg,
     borderRadius: 16,
     padding: 24,

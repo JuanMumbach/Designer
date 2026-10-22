@@ -46,11 +46,16 @@ export default function UsersScreen() {
     </View>
     {error && <ManagerNotice message={error} error />}
     {!!message && <ManagerNotice message={message} />}
-    {pending && <ManagerDialog onClose={() => { if (!busy) setPending(undefined); }}>
+    {pending && <ManagerDialog
+      onClose={() => { if (!busy) setPending(undefined); }}
+      actions={<>
+        <ManagerAction label={busy ? 'Guardando…' : 'Confirmar cambio'} primary disabled={busy} onPress={handleChangeRole} />
+        <ManagerAction label="Cancelar" disabled={busy} onPress={() => setPending(undefined)} />
+      </>}
+    >
       {error && <ManagerNotice error message={error} />}
       <Text style={s.name}>Cambiar acceso de {pending.user.username}</Text>
       <Text style={s.subtitle}>Nuevo rol: {pending.role.name}. {pending.role.canManageApplication ? 'Podrá administrar la aplicación y todos sus usuarios.' : 'Tendrá acceso de usuario estándar.'}</Text>
-      <View style={s.row}><ManagerAction label={busy ? 'Guardando…' : 'Confirmar cambio'} primary disabled={busy} onPress={handleChangeRole} /><ManagerAction label="Cancelar" disabled={busy} onPress={() => setPending(undefined)} /></View>
     </ManagerDialog>}
     {loading ? <ManagerNotice message="Cargando usuarios…" loading /> : <>
       <Text style={s.label}>{filtered.length} usuarios encontrados</Text>

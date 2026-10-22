@@ -67,7 +67,13 @@ export default function RoleManager({ scope }: { scope: 'AppRole' | 'WorkspaceRo
     <ManagerSearch value={query} onChangeText={setQuery} placeholder="Buscar por nombre o descripción" />
     {error && <ManagerNotice message={error} error />}
     {!!message && <ManagerNotice message={message} />}
-    {editing && <ManagerDialog onClose={() => { if (!busy) reset(); }}>
+    {editing && <ManagerDialog
+      onClose={() => { if (!busy) reset(); }}
+      actions={<>
+        <ManagerAction label={busy ? 'Guardando…' : 'Guardar rol'} primary disabled={busy || !name.trim() || duplicate} onPress={handleSave} />
+        <ManagerAction label="Cancelar" disabled={busy} onPress={reset} />
+      </>}
+    >
       <Text style={s.name}>{id ? 'Editar rol' : 'Crear rol'}</Text>
       <Text style={s.label}>Nombre · máximo 16 caracteres</Text>
       <TextInput accessibilityLabel="Nombre del rol" editable={!busy} style={s.input} value={name} onChangeText={setName} maxLength={16} />
@@ -83,10 +89,6 @@ export default function RoleManager({ scope }: { scope: 'AppRole' | 'WorkspaceRo
         <View style={s.row}>{levels.map((label, level) => <ManagerAction key={level} label={label} primary={accessLevel === level} disabled={busy} onPress={() => setAccessLevel(level)} />)}</View>
         <Text style={s.subtitle}>{capabilities[accessLevel]}</Text>
       </>}
-      <View style={s.row}>
-        <ManagerAction label={busy ? 'Guardando…' : 'Guardar rol'} primary disabled={busy || !name.trim() || duplicate} onPress={handleSave} />
-        <ManagerAction label="Cancelar" disabled={busy} onPress={reset} />
-      </View>
     </ManagerDialog>}
     {loading ? <ManagerNotice message="Cargando roles…" loading /> : filtered.length === 0 ? <ManagerNotice message={query ? 'No hay roles que coincidan con la búsqueda.' : 'Crea el primer rol para definir sus permisos.'} /> : filtered.map(role => <View key={role.id} style={s.card}>
       <View style={s.row}><Text style={s.name}>{role.name}</Text>{systemIds.has(role.id.toLowerCase()) && <Text style={s.badge}>Sistema · protegido</Text>}</View>

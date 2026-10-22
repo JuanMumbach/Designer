@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Modal,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -13,33 +12,41 @@ import { useAuth } from '../../services/AuthContext';
 import { fetchAllWorkspaces, Workspace } from '../../services/api';
 import { useObjects } from '../../services/useObjects';
 import { useMaterials } from '../../services/useMaterials';
-import Button from '../Button';
 import { COLORS } from '@/constants/theme';
+import CatalogueView, { CatalogueGroup, InspectorRow } from '../Catalogue/CatalogueView';
+
+type Kind = 'objects' | 'materials';
 
 type PendingAction =
   | {
-      type: 'cloneObject';
+      type: 'clone';
+      kind: Kind;
       id: string;
       name: string;
       versionId: number;
     }
   | {
-      type: 'cloneMaterial';
-      id: string;
-      name: string;
-      versionId: number;
-    }
-  | {
-      type: 'addObjectShortcut';
-      id: string;
-      name: string;
-    }
-  | {
-      type: 'addMaterialShortcut';
+      type: 'shortcut';
+      kind: Kind;
       id: string;
       name: string;
     }
   | null;
+
+interface PublicItem {
+  id: string;
+  name: string;
+  lastVersion: number;
+  creatorId?: string;
+  type?: { name: string } | null;
+}
+
+const VIEW_MODE_KEY = '@catalogue:communityViewMode';
+
+const TABS = [
+  { key: 'objects', label: 'Módulos' },
+  { key: 'materials', label: 'Materiales' },
+];
 
 export default function CommunityExplorer() {
   const { backendUserId, selectedWorkspaceId: contextSelectedWorkspaceId } = useAuth();
@@ -49,6 +56,9 @@ export default function CommunityExplorer() {
     null
   );
   const [workspacesLoading, setWorkspacesLoading] = useState(true);
+  const [kind, setKind] = useState<Kind>('objects');
+  const [query, setQuery] = useState('');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const objectsQuery = useObjects(selectedWorkspaceId ?? undefined);
   const materialsQuery = useMaterials(selectedWorkspaceId ?? undefined);
@@ -87,31 +97,19 @@ export default function CommunityExplorer() {
     if (!pendingAction) return;
     setPendingAction(null);
     try {
-      switch (pendingAction.type) {
-        case 'cloneObject':
-          await objectsQuery.cloneObject({
-            sourceId: pendingAction.id,
-            versionId: pendingAction.versionId,
-            creatorId: backendUserId ?? '',
-          });
-          Alert.alert('Clonado', `"${pendingAction.name}" se clonó en tu espacio de trabajo.`);
-          break;
-        case 'cloneMaterial':
-          await materialsQuery.cloneMaterial({
-            sourceId: pendingAction.id,
-            versionId: pendingAction.versionId,
-            creatorId: backendUserId ?? '',
-          });
-          Alert.alert('Clonado', `"${pendingAction.name}" se clonó en tu espacio de trabajo.`);
-          break;
-        case 'addObjectShortcut':
-          await objectsQuery.addShortcut(pendingAction.id);
-          Alert.alert('Acceso directo', `"${pendingAction.name}" se agregó como acceso directo.`);
-          break;
-        case 'addMaterialShortcut':
-          await materialsQuery.addShortcut(pendingAction.id);
-          Alert.alert('Acceso directo', `"${pendingAction.name}" se agregó como acceso directo.`);
-          break;
+      if (pendingAction.type === 'clone') {
+        const payload = {
+          sourceId: pendingAction.id,
+          versionId: pendingAction.versionId,
+          creatorId: backendUserId ?? '',
+        };
+        if (pendingAction.kind === 'objects') await objectsQuery.cloneObject(payload);
+        else await materialsQuery.cloneMaterial(payload);
+        Alert.alert('Clonado', `"${pendingAction.name}" se clonó en tu espacio de trabajo.`);
+      } else {
+        if (pendingAction.kind === 'objects') await objectsQuery.addShortcut(pendingAction.id);
+        else await materialsQuery.addShortcut(pendingAction.id);
+        Alert.alert('Acceso directo', `"${pendingAction.name}" se agregó como acceso directo.`);
       }
     } catch {
       Alert.alert('Error', 'No se pudo completar la operación.');
@@ -126,35 +124,97 @@ export default function CommunityExplorer() {
     setPendingAction(action);
   };
 
+  const items: PublicItem[] = kind === 'objects'
+    ? objectsQuery.publicObjects
+    : materialsQuery.publicMaterials;
+  const loading = kind === 'objects'
+    ? objectsQuery.publicObjectsLoading
+    : materialsQuery.publicMaterialsLoading;
+  const queryError = kind === 'objects' ? objectsQuery.error : materialsQuery.error;
+
+  const groups = useMemo((): CatalogueGroup[] => {
+    const needle = query.trim().toLocaleLowerCase();
+    const filtered = items
+      .filter((item) => item.name.toLocaleLowerCase().includes(needle))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    if (!filtered.length) return [];
+    return [
+      {
+        key: kind,
+        label: kind === 'objects' ? 'Módulos públicos' : 'Materiales públicos',
+        items: filtered.map((item) => ({
+          id: item.id,
+          name: item.name,
+          subtitle: `v${item.lastVersion} · ${item.creatorId?.slice(0, 8) ?? ''}…`,
+          badge: item.type?.name,
+        })),
+      },
+    ];
+  }, [items, kind, query]);
+
+  const selectedItem = items.find((item) => item.id === selectedId) ?? null;
+
+  const cloneAction = (item: PublicItem): PendingAction => ({
+    type: 'clone',
+    kind,
+    id: item.id,
+    name: item.name,
+    versionId: item.lastVersion,
+  });
+
+  const shortcutAction = (item: PublicItem): PendingAction => ({
+    type: 'shortcut',
+    kind,
+    id: item.id,
+    name: item.name,
+  });
+
+  const handleTabChange = (key: string) => {
+    setKind(key as Kind);
+    setSelectedId(null);
+  };
+
+  const renderToolbar = () => (
+    <View style={styles.workspaceBar}>
+      <Text style={styles.workspaceLabel}>Espacio de trabajo destino</Text>
+      <View style={styles.chipRow}>
+        {workspacesLoading ? (
+          <ActivityIndicator size="small" color={COLORS.primary} />
+        ) : workspaces.length === 0 ? (
+          <Text style={styles.emptyText}>No hay espacios de trabajo disponibles.</Text>
+        ) : (
+          workspaces.map((ws) => {
+            const isActive = selectedWorkspaceId === ws.id;
+            return (
+              <Pressable
+                key={ws.id}
+                style={[styles.chip, isActive && styles.chipActive]}
+                onPress={() => setSelectedWorkspaceId(ws.id)}
+              >
+                <Text style={[styles.chipText, isActive && styles.chipTextActive]}>{ws.name}</Text>
+              </Pressable>
+            );
+          })
+        )}
+      </View>
+    </View>
+  );
+
   const renderPendingModal = () => {
     if (!pendingAction) return null;
-    const titles: Record<string, string> = {
-      cloneObject: 'Clonar a mi espacio de trabajo',
-      cloneMaterial: 'Clonar a mi espacio de trabajo',
-      addObjectShortcut: 'Agregar acceso directo',
-      addMaterialShortcut: 'Agregar acceso directo',
-    };
-    const descriptions: Record<string, string> = {
-      cloneObject:
-        `Se creará una copia de "${pendingAction.name}" en tu espacio de trabajo actual. ¿Continuar?`,
-      cloneMaterial:
-        `Se creará una copia de "${pendingAction.name}" en tu espacio de trabajo actual. ¿Continuar?`,
-      addObjectShortcut:
-        `Se vinculará "${pendingAction.name}" como acceso directo en tu espacio de trabajo. ¿Continuar?`,
-      addMaterialShortcut:
-        `Se vinculará "${pendingAction.name}" como acceso directo en tu espacio de trabajo. ¿Continuar?`,
-    };
+    const isClone = pendingAction.type === 'clone';
     return (
-      <Modal
-        visible
-        transparent
-        animationType="fade"
-        onRequestClose={() => setPendingAction(null)}
-      >
+      <Modal visible transparent animationType="fade" onRequestClose={() => setPendingAction(null)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>{titles[pendingAction.type]}</Text>
-            <Text style={styles.modalText}>{descriptions[pendingAction.type]}</Text>
+            <Text style={styles.modalTitle}>
+              {isClone ? 'Clonar a mi espacio de trabajo' : 'Agregar acceso directo'}
+            </Text>
+            <Text style={styles.modalText}>
+              {isClone
+                ? `Se creará una copia de "${pendingAction.name}" en tu espacio de trabajo actual. ¿Continuar?`
+                : `Se vinculará "${pendingAction.name}" como acceso directo en tu espacio de trabajo. ¿Continuar?`}
+            </Text>
             <View style={styles.modalActions}>
               <Pressable
                 style={[styles.modalButton, styles.modalButtonSecondary]}
@@ -162,10 +222,7 @@ export default function CommunityExplorer() {
               >
                 <Text style={styles.modalButtonTextSecondary}>Cancelar</Text>
               </Pressable>
-              <Pressable
-                style={[styles.modalButton, styles.modalButtonPrimary]}
-                onPress={runAction}
-              >
+              <Pressable style={[styles.modalButton, styles.modalButtonPrimary]} onPress={runAction}>
                 <Text style={styles.modalButtonTextPrimary}>Confirmar</Text>
               </Pressable>
             </View>
@@ -175,203 +232,71 @@ export default function CommunityExplorer() {
     );
   };
 
-  const renderWorkspacePicker = () => {
-    return (
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Explorador de la Comunidad</Text>
-        <Text style={styles.headerSubtitle}>Espacio de trabajo</Text>
-        <View style={styles.chipRow}>
-          {workspacesLoading ? (
-            <ActivityIndicator size="small" color={COLORS.primary} />
-          ) : workspaces.length === 0 ? (
-            <Text style={styles.emptyText}>No hay espacios de trabajo disponibles.</Text>
-          ) : (
-            workspaces.map((ws) => {
-              const isActive = selectedWorkspaceId === ws.id;
-              return (
-                <Pressable
-                  key={ws.id}
-                  style={[styles.chip, isActive && styles.chipActive]}
-                  onPress={() => setSelectedWorkspaceId(ws.id)}
-                >
-                  <Text style={[styles.chipText, isActive && styles.chipTextActive]}>
-                    {ws.name}
-                  </Text>
-                </Pressable>
-              );
-            })
-          )}
-        </View>
-      </View>
-    );
-  };
+  const inspector = selectedItem ? (
+    <View>
+      <InspectorRow label="Nombre" value={selectedItem.name} />
+      <InspectorRow label="Versión" value={`v${selectedItem.lastVersion}`} />
+      <InspectorRow label="Creador" value={`${selectedItem.creatorId?.slice(0, 8) ?? ''}…`} />
+      {!!selectedItem.type?.name && <InspectorRow label="Tipo" value={selectedItem.type.name} />}
+    </View>
+  ) : null;
 
-  const renderBrowserLists = () => {
-    const objects = objectsQuery.publicObjects;
-    const materials = materialsQuery.publicMaterials;
-    const objsLoading = objectsQuery.publicObjectsLoading;
-    const matsLoading = materialsQuery.publicMaterialsLoading;
-    const objsError = objectsQuery.error;
-    const matsError = materialsQuery.error;
-
-    const renderObjectsSection = () => {
-      if (objsLoading) {
-        return (
-          <View style={styles.centerRow}>
-            <ActivityIndicator size="small" color={COLORS.primary} />
-          </View>
-        );
-      }
-      if (objsError) {
-        console.warn('Failed to load public objects:', objsError);
-        return <Text style={styles.emptyText}>No se pudieron cargar los objetos públicos.</Text>;
-      }
-      if (objects.length === 0) {
-        return <Text style={styles.emptyText}>No hay objetos públicos disponibles.</Text>;
-      }
-      return objects.map((item) => (
-        <View key={item.id} style={styles.resourceCard}>
-          <View style={styles.resourceInfo}>
-            <Text style={styles.resourceName}>{item.name}</Text>
-            <Text style={styles.resourceMeta}>
-              v{item.lastVersion} · {item.creatorId?.slice(0, 8)}…
-            </Text>
-          </View>
-          <View style={styles.resourceActions}>
-            <Button
-              label="Clone to my Workspace"
-              onPress={() =>
-                requestAction({
-                  type: 'cloneObject',
-                  id: item.id,
-                  name: item.name,
-                  versionId: item.lastVersion,
-                })
-              }
-            />
-            <Button
-              label="Add Shortcut"
-              onPress={() =>
-                requestAction({
-                  type: 'addObjectShortcut',
-                  id: item.id,
-                  name: item.name,
-                })
-              }
-            />
-          </View>
-        </View>
-      ));
-    };
-
-    const renderMaterialsSection = () => {
-      if (matsLoading) {
-        return (
-          <View style={styles.centerRow}>
-            <ActivityIndicator size="small" color={COLORS.primary} />
-          </View>
-        );
-      }
-      if (matsError) {
-        console.warn('Failed to load public materials:', matsError);
-        return <Text style={styles.emptyText}>No se pudieron cargar los materiales públicos.</Text>;
-      }
-      if (materials.length === 0) {
-        return <Text style={styles.emptyText}>No hay materiales públicos disponibles.</Text>;
-      }
-      return materials.map((item) => (
-        <View key={item.id} style={styles.resourceCard}>
-          <View style={styles.resourceInfo}>
-            <Text style={styles.resourceName}>{item.name}</Text>
-            <Text style={styles.resourceMeta}>
-              v{item.lastVersion} · {item.creatorId?.slice(0, 8)}…
-            </Text>
-            {item.type?.name && (
-              <Text style={styles.resourceType}>Type: {item.type.name}</Text>
-            )}
-          </View>
-          <View style={styles.resourceActions}>
-            <Button
-              label="Clone to my Workspace"
-              onPress={() =>
-                requestAction({
-                  type: 'cloneMaterial',
-                  id: item.id,
-                  name: item.name,
-                  versionId: item.lastVersion,
-                })
-              }
-            />
-            <Button
-              label="Add Shortcut"
-              onPress={() =>
-                requestAction({
-                  type: 'addMaterialShortcut',
-                  id: item.id,
-                  name: item.name,
-                })
-              }
-            />
-          </View>
-        </View>
-      ));
-    };
-
-    return (
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.sectionTitle}>Objetos públicos</Text>
-        {renderObjectsSection()}
-
-        <Text style={[styles.sectionTitle, styles.sectionSpacing]}>Materiales públicos</Text>
-        {renderMaterialsSection()}
-      </ScrollView>
-    );
-  };
+  const isObjects = kind === 'objects';
 
   return (
-    <View style={styles.container}>
-      {renderWorkspacePicker()}
-      <View style={styles.contentColumn}>{renderBrowserLists()}</View>
+    <>
+      <CatalogueView
+        contextLabel="Explorador de la comunidad"
+        tabs={TABS}
+        activeTab={kind}
+        onTabChange={handleTabChange}
+        toolbar={renderToolbar()}
+        groups={groups}
+        query={query}
+        onQueryChange={setQuery}
+        searchPlaceholder={isObjects ? 'Buscar módulos públicos' : 'Buscar materiales públicos'}
+        loading={loading}
+        loadingText="Cargando..."
+        error={queryError ? (isObjects ? 'No se pudieron cargar los módulos públicos.' : 'No se pudieron cargar los materiales públicos.') : undefined}
+        emptyText={query
+          ? 'No hay resultados para la búsqueda.'
+          : isObjects ? 'No hay módulos públicos disponibles.' : 'No hay materiales públicos disponibles.'}
+        selectedId={selectedId}
+        onSelect={setSelectedId}
+        onOpen={(id) => {
+          const item = items.find((candidate) => candidate.id === id);
+          if (item) requestAction(cloneAction(item));
+        }}
+        openLabel="Clonar"
+        itemIcon={isObjects ? 'cube-outline' : 'layers-outline'}
+        storageKey={VIEW_MODE_KEY}
+        inspectorContent={inspector}
+        inspectorEmptyText="Selecciona un elemento para clonarlo o agregarlo como acceso directo."
+        inspectorActions={selectedItem ? {
+          primary: { label: 'Clonar a mi espacio', onPress: () => requestAction(cloneAction(selectedItem)) },
+          secondary: { label: 'Acceso directo', onPress: () => requestAction(shortcutAction(selectedItem)) },
+        } : undefined}
+      />
       {renderPendingModal()}
-    </View>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    width: '100%',
-    backgroundColor: COLORS.bg,
+  workspaceBar: {
+    gap: 6,
   },
-  contentColumn: {
-    flex: 1,
-  },
-  header: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    backgroundColor: COLORS.bgAlt,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: COLORS.text,
-    marginBottom: 12,
-  },
-  headerSubtitle: {
+  workspaceLabel: {
     fontSize: 12,
     fontWeight: '700',
     color: COLORS.textHeading,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginBottom: 8,
   },
   chipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
-    alignItems: 'center',
   },
   chip: {
     paddingVertical: 6,
@@ -393,72 +318,13 @@ const styles = StyleSheet.create({
   chipTextActive: {
     color: COLORS.white,
   },
-  scrollView: {
-    flex: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-  },
-  scrollContent: {
-    paddingBottom: 24,
-  },
-  centerRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    paddingVertical: 20,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: COLORS.textHeading,
-    marginTop: 4,
-    marginBottom: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  sectionSpacing: {
-    marginTop: 24,
-  },
   emptyText: {
-    textAlign: 'center',
     color: COLORS.textMuted,
-    fontSize: 14,
-    paddingVertical: 20,
-  },
-  resourceCard: {
-    backgroundColor: COLORS.bg,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  resourceInfo: {
-    marginBottom: 10,
-  },
-  resourceName: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: COLORS.textBody,
-    marginBottom: 4,
-  },
-  resourceMeta: {
-    fontSize: 11,
-    color: COLORS.textMuted,
-  },
-  resourceType: {
-    fontSize: 11,
-    color: COLORS.primary,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  resourceActions: {
-    flexDirection: 'column',
-    alignItems: 'stretch',
+    fontSize: 13,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: COLORS.overlay,
+    backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
@@ -466,7 +332,7 @@ const styles = StyleSheet.create({
   modalCard: {
     width: '100%',
     maxWidth: 420,
-    backgroundColor: COLORS.bg,
+    backgroundColor: 'white',
     borderRadius: 16,
     padding: 24,
     shadowColor: '#000',
@@ -478,12 +344,12 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: COLORS.text,
+    color: '#111827',
     marginBottom: 12,
   },
   modalText: {
     fontSize: 14,
-    color: COLORS.textMuted,
+    color: '#4b5563',
     lineHeight: 20,
     marginBottom: 20,
   },
@@ -498,18 +364,18 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   modalButtonPrimary: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: '#2563eb',
   },
   modalButtonSecondary: {
-    backgroundColor: COLORS.surfaceAlt,
+    backgroundColor: '#f3f4f6',
   },
   modalButtonTextPrimary: {
-    color: COLORS.white,
+    color: '#fff',
     fontSize: 14,
     fontWeight: '600',
   },
   modalButtonTextSecondary: {
-    color: COLORS.textHeading,
+    color: '#374151',
     fontSize: 14,
     fontWeight: '600',
   },

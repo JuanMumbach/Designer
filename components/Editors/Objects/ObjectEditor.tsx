@@ -8,19 +8,19 @@ import {
   Modal,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
-import Button from '../../Button';
 import Toggle from '../../Toggle';
+import { COLORS } from '../../../constants/theme';
 import { uploadFileToFirebase } from '../../../services/firebaseSetup';
 import { useAuth } from '../../../services/AuthContext';
 import { fetchModelMaterialTypes, fetchObjectVersion, MaterialType, ObjectCategory } from '../../../services/api';
 import ModelSlotsSection from './ModelSlotsSection';
+import FormPanel, { formStyles } from '../FormPanel';
 
 export type ObjectFormData = {
   materialParts: MaterialPart[];
@@ -108,7 +108,7 @@ export default function ObjectEditor({
   const [name, setName] = useState(initial?.name ?? '');
   const [budgetDrafts, setBudgetDrafts] = useState(() => budgetEntryDrafts(initial?.budgetEntries ?? []));
   const [partDrafts, setPartDrafts] = useState(() => materialPartDrafts(initial?.materialParts ?? []));
-  const [tab, setTab] = useState<'general' | 'parts' | 'costs' | 'materials'>('general');
+  const [tab, setTab] = useState<'general' | 'model' | 'parts' | 'costs' | 'materials'>('general');
   const [budgetSlots, setBudgetSlots] = useState<{ slot: number; displayName: string }[]>([]);
   useEffect(() => {
     let active = true;
@@ -262,255 +262,187 @@ export default function ObjectEditor({
     setPendingPublicValue(null);
   };
 
-  const formContent = (
+  const inputsDisabled = disabled || saving;
+
+  const tabs = [
+    { key: 'general', label: 'General' },
+    { key: 'model', label: 'Modelo 3D' },
+    { key: 'parts', label: 'Despiece' },
+    { key: 'costs', label: 'Extras' },
+    { key: 'materials', label: 'Materiales' },
+  ];
+
+  const renderChips = (
+    options: { id: string; label: string }[],
+    value: string,
+    onChange: (id: string) => void
+  ) => (
+    <View style={formStyles.chipRow}>
+      {[{ id: '', label: 'Ninguno' }, ...options].map((option) => {
+        const active = value === option.id;
+        return (
+          <Pressable
+            key={option.id || 'none'}
+            style={[formStyles.chip, active && formStyles.chipActive]}
+            onPress={() => onChange(option.id)}
+          >
+            <Text style={[formStyles.chipText, active && formStyles.chipTextActive]}>{option.label}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+
+  const renderSizeField = (label: string, value: string, onChange: (value: string) => void) => (
+    <View style={[formStyles.field, formStyles.rowItem]}>
+      <Text style={formStyles.label}>{label}</Text>
+      <TextInput
+        style={[formStyles.input, inputsDisabled && formStyles.inputDisabled]}
+        value={value}
+        onChangeText={onChange}
+        keyboardType="decimal-pad"
+        placeholder="1.0"
+        editable={!inputsDisabled}
+      />
+    </View>
+  );
+
+  const renderGeneral = () => (
     <>
-      <Text style={styles.headerTitle}>
-        {disabled ? 'Módulo' : isEdit ? 'Editar módulo' : 'Nuevo módulo'}
-      </Text>
-
-      <View style={styles.categoryRow}>{([['general', 'General'], ['parts', 'Despiece'], ['costs', 'Extras'], ['materials', 'Materiales']] as const).map(([key, label]) => <Pressable accessibilityRole="tab" accessibilityState={{ selected: tab === key }} key={key} style={[styles.categoryChip, tab === key && styles.categoryChipActive]} onPress={() => setTab(key)}><Text style={[styles.categoryChipText, tab === key && styles.categoryChipTextActive]}>{label}</Text></Pressable>)}</View>
-      {tab === 'general' && <>
-
-      <Text style={styles.label}>Name *</Text>
-      <TextInput
-        style={[styles.input, disabled && styles.inputDisabled]}
-        value={name}
-        onChangeText={setName}
-        placeholder="Object name"
-        editable={!disabled}
-      />
-
-      {!disabled && (
-        <>
-          <Text style={styles.label}>Category</Text>
-          <View style={styles.categoryRow}>
-            <Pressable
-              style={[
-                styles.categoryChip,
-                categoryId === '' && styles.categoryChipActive,
-              ]}
-              onPress={() => setCategoryId('')}
-            >
-              <Text
-                style={[
-                  styles.categoryChipText,
-                  categoryId === '' && styles.categoryChipTextActive,
-                ]}
-              >
-                None
-              </Text>
-            </Pressable>
-            {availableCategories.map((cat) => (
-              <Pressable
-                key={cat.id}
-                style={[
-                  styles.categoryChip,
-                  categoryId === cat.id && styles.categoryChipActive,
-                ]}
-                onPress={() => setCategoryId(cat.id)}
-              >
-                <Text
-                  style={[
-                    styles.categoryChipText,
-                    categoryId === cat.id && styles.categoryChipTextActive,
-                  ]}
-                >
-                  {cat.categoryName}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </>
-      )}
-
-      <Text style={styles.sectionTitle}>
-        {isEdit ? 'Update Version Data' : 'Initial Version Data'}
-      </Text>
-
-      {!disabled && (
-        <>
-          <Text style={styles.label}>File</Text>
-          <View style={styles.fileRow}>
-            <View style={styles.fileInfo}>
-              <Text
-                style={[
-                  styles.fileInfoText,
-                  (pickedFile ?? fileURL) && styles.fileInfoTextLoaded,
-                ]}
-                numberOfLines={1}
-              >
-                {pickedFile
-                  ? `Selected: ${pickedFile.name}`
-                  : fileURL
-                    ? '\u2713 File loaded'
-                    : 'No file selected'}
-              </Text>
-              {pickedFile && (
-                <Pressable
-                  onPress={() => {
-                    setPickedFile(null);
-                    onPreviewUriChange?.(null);
-                  }}
-                  hitSlop={8}
-                  style={styles.clearButton}
-                >
-                  <Text style={styles.clearButtonLabel}>{'\u2715'}</Text>
-                </Pressable>
-              )}
-            </View>
-            <Pressable
-              style={styles.pickButton}
-              onPress={handlePickFile}
-              disabled={saving}
-            >
-              <Text style={styles.pickButtonLabel}>
-                {pickedFile || fileURL ? 'Change' : 'Pick File'}
-              </Text>
-            </Pressable>
-          </View>
-        </>
-      )}
-
-      <Text style={styles.label}>Size X</Text>
-      <TextInput
-        style={[styles.input, disabled && styles.inputDisabled]}
-        value={sizeX}
-        onChangeText={setSizeX}
-        keyboardType="decimal-pad"
-        placeholder="1.0"
-        editable={!disabled}
-      />
-
-      <Text style={styles.label}>Size Y</Text>
-      <TextInput
-        style={[styles.input, disabled && styles.inputDisabled]}
-        value={sizeY}
-        onChangeText={setSizeY}
-        keyboardType="decimal-pad"
-        placeholder="1.0"
-        editable={!disabled}
-      />
-
-      <Text style={styles.label}>Size Z</Text>
-      <TextInput
-        style={[styles.input, disabled && styles.inputDisabled]}
-        value={sizeZ}
-        onChangeText={setSizeZ}
-        keyboardType="decimal-pad"
-        placeholder="1.0"
-        editable={!disabled}
-      />
-
-      {!disabled && (
-        <>
-          <Text style={styles.label}>Moving Behaviour</Text>
-          <View style={styles.categoryRow}>
-            <Pressable
-              style={[
-                styles.categoryChip,
-                selectedBehaviour === '' && styles.categoryChipActive,
-              ]}
-              onPress={() => setSelectedBehaviour('')}
-            >
-              <Text
-                style={[
-                  styles.categoryChipText,
-                  selectedBehaviour === '' && styles.categoryChipTextActive,
-                ]}
-              >
-                None
-              </Text>
-            </Pressable>
-            {KNOWN_BEHAVIOURS.map((behaviour) => (
-              <Pressable
-                key={behaviour}
-                style={[
-                  styles.categoryChip,
-                  selectedBehaviour === behaviour && styles.categoryChipActive,
-                ]}
-                onPress={() => setSelectedBehaviour(behaviour)}
-              >
-                <Text
-                  style={[
-                    styles.categoryChipText,
-                    selectedBehaviour === behaviour &&
-                      styles.categoryChipTextActive,
-                  ]}
-                >
-                  {behaviour.charAt(0).toUpperCase() + behaviour.slice(1)}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </>
-      )}
-
-      <Text style={styles.label}>Object Properties</Text>
-      <TextInput
-        style={[styles.input, styles.multilineInput, disabled && styles.inputDisabled]}
-        value={objectProperties}
-        onChangeText={setObjectProperties}
-        placeholder="e.g. height:0.8"
-        multiline
-        editable={!disabled}
-      />
-
-      </>}
-      {tab === 'parts' && <MaterialPartsEditor drafts={partDrafts} onChange={setPartDrafts} slots={budgetSlots} disabled={disabled || saving} />}
-      {tab === 'costs' && <>
-      <Text style={styles.label}>Costos adicionales del módulo</Text>
-      <Text style={styles.budgetHint}>Los materiales definidos en Despiece se calculan por m². Los conceptos vinculados a esos mismos slots se reemplazan para evitar duplicarlos. Los costos fijos siempre se suman.</Text>
-      <BudgetEntriesEditor drafts={budgetDrafts} onChange={setBudgetDrafts} slots={budgetSlots} disabled={disabled || saving} />
-      </>}
-      {tab === 'materials' && (isEdit && objectId ? <ModelSlotsSection objectId={objectId} materialTypes={materialTypes ?? []} disabled={disabled} onHighlightSlot={onHighlightSlot} /> : <Text style={styles.budgetHint}>Guardá el modelo 3D para descubrir y asignar los materiales de sus slots.</Text>)}
-      {!disabled && (
-        <Toggle
-          label="Compartir en la comunidad (público)"
-          value={isPublic}
-          onValueChange={handleRequestPublicChange}
+      <View style={formStyles.field}>
+        <Text style={formStyles.label}>Nombre *</Text>
+        <TextInput
+          style={[formStyles.input, inputsDisabled && formStyles.inputDisabled]}
+          value={name}
+          onChangeText={setName}
+          placeholder="Nombre del módulo"
+          editable={!inputsDisabled}
         />
-      )}
+      </View>
+      <View style={formStyles.field}>
+        <Text style={formStyles.label}>Categoría</Text>
+        {renderChips(
+          availableCategories.map((cat) => ({ id: cat.id, label: cat.categoryName })),
+          categoryId,
+          setCategoryId
+        )}
+      </View>
+      <View style={formStyles.field}>
+        <Text style={formStyles.label}>Comportamiento de movimiento</Text>
+        {renderChips(
+          KNOWN_BEHAVIOURS.map((behaviour) => ({
+            id: behaviour,
+            label: behaviour.charAt(0).toUpperCase() + behaviour.slice(1),
+          })),
+          selectedBehaviour,
+          setSelectedBehaviour
+        )}
+      </View>
+      <Toggle
+        label="Compartir en la comunidad (público)"
+        value={isPublic}
+        onValueChange={handleRequestPublicChange}
+      />
+    </>
+  );
 
-      {!disabled && (
-        <View style={styles.actions}>
-          <Button label={saving ? 'Saving...' : 'Save'} onPress={handleSave} />
-          <Pressable style={styles.cancelButton} onPress={onClose}>
-            <Text style={styles.cancelButtonLabel}>Cancel</Text>
+  const renderModel = () => (
+    <>
+      <View style={formStyles.field}>
+        <Text style={formStyles.label}>Archivo del modelo</Text>
+        <View style={styles.fileRow}>
+          <View style={styles.fileInfo}>
+            <Text
+              style={[styles.fileInfoText, (pickedFile ?? fileURL) && styles.fileInfoTextLoaded]}
+              numberOfLines={1}
+            >
+              {pickedFile
+                ? `Seleccionado: ${pickedFile.name}`
+                : fileURL
+                  ? '\u2713 Archivo cargado'
+                  : 'Sin archivo'}
+            </Text>
+            {pickedFile && (
+              <Pressable
+                onPress={() => {
+                  setPickedFile(null);
+                  onPreviewUriChange?.(null);
+                }}
+                hitSlop={8}
+                style={styles.clearButton}
+              >
+                <Text style={styles.clearButtonLabel}>{'\u2715'}</Text>
+              </Pressable>
+            )}
+          </View>
+          <Pressable style={styles.pickButton} onPress={handlePickFile} disabled={saving}>
+            <Text style={styles.pickButtonLabel}>{pickedFile || fileURL ? 'Cambiar' : 'Elegir'}</Text>
           </Pressable>
         </View>
-      )}
-
-      {!disabled && isEdit && onDelete && (
-        <Pressable style={styles.deleteButton} onPress={handleDelete}>
-          <Text style={styles.deleteButtonLabel}>Delete Object</Text>
-        </Pressable>
-      )}
-
-      {!disabled && isEdit && onRegenerateThumbnail && (
+      </View>
+      <View style={formStyles.row}>
+        {renderSizeField('Ancho (X)', sizeX, setSizeX)}
+        {renderSizeField('Alto (Y)', sizeY, setSizeY)}
+        {renderSizeField('Prof. (Z)', sizeZ, setSizeZ)}
+      </View>
+      <View style={formStyles.field}>
+        <Text style={formStyles.label}>Propiedades del objeto</Text>
+        <TextInput
+          style={[formStyles.input, formStyles.multiline, inputsDisabled && formStyles.inputDisabled]}
+          value={objectProperties}
+          onChangeText={setObjectProperties}
+          placeholder="ej. height:0.8"
+          multiline
+          editable={!inputsDisabled}
+        />
+      </View>
+      {isEdit && !!onRegenerateThumbnail && (
         <Pressable
-          style={[
-            styles.regenerateButton,
-            (regenerating || pickedFile) && styles.regenerateButtonDisabled,
-          ]}
+          style={[styles.regenerateButton, (regenerating || pickedFile) && styles.regenerateButtonDisabled]}
           onPress={handleRegenerateThumbnail}
           disabled={regenerating || saving || !!pickedFile}
         >
           <Text style={styles.regenerateButtonLabel}>
-            {regenerating ? 'Regenerating thumbnail…' : 'Regenerate Thumbnail'}
+            {regenerating ? 'Regenerando miniatura…' : 'Regenerar miniatura'}
           </Text>
         </Pressable>
       )}
     </>
   );
 
+  const renderTab = () => {
+    if (tab === 'general') return renderGeneral();
+    if (tab === 'model') return renderModel();
+    if (tab === 'parts') {
+      return <MaterialPartsEditor drafts={partDrafts} onChange={setPartDrafts} slots={budgetSlots} disabled={inputsDisabled} />;
+    }
+    if (tab === 'costs') {
+      return (
+        <>
+          <Text style={[formStyles.label, styles.costsTitle]}>Costos adicionales del módulo</Text>
+          <Text style={[formStyles.hint, styles.costsHint]}>Los materiales definidos en Despiece se calculan por m². Los conceptos vinculados a esos mismos slots se reemplazan para evitar duplicarlos. Los costos fijos siempre se suman.</Text>
+          <BudgetEntriesEditor drafts={budgetDrafts} onChange={setBudgetDrafts} slots={budgetSlots} disabled={inputsDisabled} />
+        </>
+      );
+    }
+    return isEdit && objectId
+      ? <ModelSlotsSection objectId={objectId} materialTypes={materialTypes ?? []} disabled={disabled} onHighlightSlot={onHighlightSlot} />
+      : <Text style={formStyles.hint}>Guardá el modelo 3D para descubrir y asignar los materiales de sus slots.</Text>;
+  };
+
   return (
-    <View style={styles.container}>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+    <>
+      <FormPanel
+        title={isEdit ? 'Editar módulo' : 'Nuevo módulo'}
+        tabs={tabs}
+        activeTab={tab}
+        onTabChange={(key) => setTab(key as typeof tab)}
+        primaryAction={{ label: saving ? 'Guardando...' : 'Guardar', onPress: handleSave, disabled: inputsDisabled }}
+        secondaryAction={{ label: 'Cancelar', onPress: onClose, disabled: saving }}
+        dangerAction={isEdit && onDelete ? { label: 'Eliminar', onPress: handleDelete, disabled: inputsDisabled } : undefined}
       >
-        {formContent}
-      </ScrollView>
+        {renderTab()}
+      </FormPanel>
 
       <Modal
         visible={pendingPublicValue !== null}
@@ -520,10 +452,13 @@ export default function ObjectEditor({
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Hacer público el objeto</Text>
+            <Text style={styles.modalTitle}>
+              {pendingPublicValue ? 'Hacer público el objeto' : 'Hacer privado el objeto'}
+            </Text>
             <Text style={styles.modalText}>
-              Este objeto será visible para la comunidad y otros usuarios podrán
-              clonarlo o agregarlo como acceso directo. ¿Continuar?
+              {pendingPublicValue
+                ? 'Este objeto será visible para la comunidad y otros usuarios podrán clonarlo o agregarlo como acceso directo. ¿Continuar?'
+                : 'Este objeto dejará de ser visible para la comunidad. ¿Continuar?'}
             </Text>
             <View style={styles.modalActions}>
               <Pressable
@@ -542,134 +477,16 @@ export default function ObjectEditor({
           </View>
         </View>
       </Modal>
-    </View>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  budgetHint: { color: '#6b7280', fontSize: 12, lineHeight: 18, marginVertical: 12 },
-  container: {
-    flex: 1,
-    width: '100%',
-    backgroundColor: 'white',
-  },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 24,
-    paddingBottom: 8,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#374151',
-    marginTop: 20,
-    marginBottom: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  label: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#374151',
+  costsTitle: {
     marginBottom: 6,
-    marginTop: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
   },
-  input: {
-    height: 44,
-    borderColor: '#e5e7eb',
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    backgroundColor: '#f9fafb',
-    fontSize: 14,
-    color: '#111827',
-  },
-  inputDisabled: {
-    backgroundColor: '#f3f4f6',
-    color: '#9ca3af',
-  },
-  multilineInput: {
-    height: 80,
-    paddingTop: 12,
-    textAlignVertical: 'top',
-  },
-  categoryRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginTop: 4,
-  },
-  categoryChip: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-    backgroundColor: '#f3f4f6',
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-  },
-  categoryChipActive: {
-    backgroundColor: '#2563eb',
-    borderColor: '#2563eb',
-  },
-  categoryChipText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#374151',
-  },
-  categoryChipTextActive: {
-    color: '#fff',
-  },
-  actions: {
-    marginTop: 24,
-    gap: 10,
-    alignItems: 'center',
-  },
-  cancelButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 24,
-  },
-  cancelButtonLabel: {
-    fontSize: 14,
-    color: '#6b7280',
-    fontWeight: '600',
-  },
-  deleteButton: {
-    marginTop: 24,
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: 'center',
-    backgroundColor: '#dc2626',
-  },
-  deleteButtonLabel: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  regenerateButton: {
-    marginTop: 16,
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: 'center',
-    backgroundColor: '#2563eb',
-  },
-  regenerateButtonDisabled: {
-    backgroundColor: '#9ca3af',
-  },
-  regenerateButtonLabel: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
+  costsHint: {
+    marginBottom: 12,
   },
   fileRow: {
     flexDirection: 'row',
@@ -681,16 +498,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     height: 44,
-    borderColor: '#e5e7eb',
+    borderColor: COLORS.border,
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 12,
-    backgroundColor: '#f9fafb',
+    backgroundColor: COLORS.bgAlt,
   },
   fileInfoText: {
     flex: 1,
     fontSize: 13,
-    color: '#9ca3af',
+    color: COLORS.textFaint,
   },
   fileInfoTextLoaded: {
     color: '#16a34a',
@@ -701,20 +518,36 @@ const styles = StyleSheet.create({
   },
   clearButtonLabel: {
     fontSize: 14,
-    color: '#6b7280',
+    color: COLORS.textMuted,
   },
   pickButton: {
     height: 44,
     paddingHorizontal: 16,
     borderRadius: 8,
-    backgroundColor: '#2563eb',
+    backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
   pickButtonLabel: {
-    color: '#fff',
+    color: COLORS.white,
     fontSize: 13,
     fontWeight: '700',
+  },
+  regenerateButton: {
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+    backgroundColor: COLORS.primarySoft,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+  },
+  regenerateButtonDisabled: {
+    opacity: 0.5,
+  },
+  regenerateButtonLabel: {
+    color: COLORS.primary,
+    fontSize: 14,
+    fontWeight: '600',
   },
   modalOverlay: {
     flex: 1,

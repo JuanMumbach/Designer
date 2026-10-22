@@ -3,11 +3,12 @@ import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, Sc
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { COLORS } from '../../constants/theme';
 
-export function ManagerDialog({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+export function ManagerDialog({ children, onClose, actions }: { children: React.ReactNode; onClose: () => void; actions?: React.ReactNode }) {
   return <Modal transparent animationType="fade" onRequestClose={onClose}>
     <KeyboardAvoidingView style={styles.scrim} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View accessibilityViewIsModal style={styles.dialog}>
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.dialogContent}>{children}</ScrollView>
+        <ScrollView style={styles.dialogScroll} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.dialogContent}>{children}</ScrollView>
+        {!!actions && <View style={styles.dialogFooter}>{actions}</View>}
       </View>
     </KeyboardAvoidingView>
   </Modal>;
@@ -57,7 +58,9 @@ export const managerStyles = StyleSheet.create({
 const styles = StyleSheet.create({
   scrim: { flex: 1, backgroundColor: COLORS.overlay, justifyContent: 'center', alignItems: 'center', padding: 20 },
   dialog: { width: '100%', maxWidth: 600, maxHeight: '90%', borderRadius: 18, backgroundColor: COLORS.surface, overflow: 'hidden' },
+  dialogScroll: { flexShrink: 1 },
   dialogContent: { padding: 24, gap: 14 },
+  dialogFooter: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 10, paddingHorizontal: 24, paddingVertical: 14, borderTopWidth: 1, borderTopColor: COLORS.border, backgroundColor: COLORS.surface },
   search: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface, borderRadius: 12, paddingHorizontal: 14, minHeight: 46 },
   searchInput: { flex: 1, minWidth: 0, paddingVertical: 12, color: COLORS.text, fontSize: 14 },
   action: { minHeight: 42, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 9, backgroundColor: COLORS.surfaceAlt },

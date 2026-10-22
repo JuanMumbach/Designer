@@ -57,6 +57,7 @@ export default function EditFurnitureInstanceMenu({
   const [positionX, setPositionX] = useState(object.position?.[0]?.toFixed(2) ?? "0.00");
   const [positionY, setPositionY] = useState(object.position?.[1]?.toFixed(2) ?? "0.00");
   const [positionZ, setPositionZ] = useState(object.position?.[2]?.toFixed(2) ?? "0.00");
+  const [activeTab, setActiveTab] = useState<'transform' | 'materials'>('transform');
   const [dirtyOverrides, setDirtyOverrides] = useState<Record<number, string>>(object.materialOverrides || {});
   const [editingSlot, setEditingSlot] = useState<number | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -322,194 +323,221 @@ export default function EditFurnitureInstanceMenu({
         )}
       </View>
 
+      {/* Tabs */}
+      <View style={styles.tabRow}>
+        <Pressable
+          style={[styles.tabBtn, activeTab === 'transform' && styles.tabBtnActive]}
+          onPress={() => setActiveTab('transform')}
+        >
+          <Text style={[styles.tabBtnText, activeTab === 'transform' && styles.tabBtnTextActive]}>
+            General y Medidas
+          </Text>
+        </Pressable>
+        <Pressable
+          style={[styles.tabBtn, activeTab === 'materials' && styles.tabBtnActive]}
+          onPress={() => setActiveTab('materials')}
+        >
+          <Text style={[styles.tabBtnText, activeTab === 'materials' && styles.tabBtnTextActive]}>
+            Materiales
+          </Text>
+        </Pressable>
+      </View>
+
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.label}>Name</Text>
-        <TextInput
-          style={styles.input}
-          onChangeText={onChangeName}
-          value={name}
-          placeholder={object.name}
-          placeholderTextColor={GLASS.textFaint}
-        />
-
-        <Text style={styles.sectionTitle}>Coordinates (m)</Text>
-        <View style={styles.coordsRow}>
-          {/* Coordinate X */}
-          <View style={styles.coordCol}>
-            <View style={styles.coordHeader}>
-              <View style={[styles.axisBadge, styles.axisBadgeX]}>
-                <Text style={styles.axisBadgeText}>X</Text>
-              </View>
-              <View style={styles.stepperWrap}>
-                <Pressable
-                  style={({ pressed }) => [styles.stepperBtn, pressed && styles.stepperBtnPressed]}
-                  onPress={() => stepCoord(setPositionX, -0.05)}
-                  hitSlop={4}
-                >
-                  <Text style={styles.stepperText}>−</Text>
-                </Pressable>
-                <Pressable
-                  style={({ pressed }) => [styles.stepperBtn, pressed && styles.stepperBtnPressed]}
-                  onPress={() => stepCoord(setPositionX, 0.05)}
-                  hitSlop={4}
-                >
-                  <Text style={styles.stepperText}>+</Text>
-                </Pressable>
-              </View>
-            </View>
-            <TextInput
-              style={styles.coordInput}
-              onChangeText={setPositionX}
-              value={positionX}
-              keyboardType="numeric"
-            />
-          </View>
-
-          {/* Coordinate Y */}
-          <View style={styles.coordCol}>
-            <View style={styles.coordHeader}>
-              <View style={[styles.axisBadge, styles.axisBadgeY]}>
-                <Text style={styles.axisBadgeText}>Y</Text>
-              </View>
-              <View style={styles.stepperWrap}>
-                <Pressable
-                  style={({ pressed }) => [styles.stepperBtn, pressed && styles.stepperBtnPressed]}
-                  onPress={() => stepCoord(setPositionY, -0.05)}
-                  hitSlop={4}
-                >
-                  <Text style={styles.stepperText}>−</Text>
-                </Pressable>
-                <Pressable
-                  style={({ pressed }) => [styles.stepperBtn, pressed && styles.stepperBtnPressed]}
-                  onPress={() => stepCoord(setPositionY, 0.05)}
-                  hitSlop={4}
-                >
-                  <Text style={styles.stepperText}>+</Text>
-                </Pressable>
-              </View>
-            </View>
-            <TextInput
-              style={styles.coordInput}
-              onChangeText={setPositionY}
-              value={positionY}
-              keyboardType="numeric"
-            />
-          </View>
-
-          {/* Coordinate Z */}
-          <View style={styles.coordCol}>
-            <View style={styles.coordHeader}>
-              <View style={[styles.axisBadge, styles.axisBadgeZ]}>
-                <Text style={styles.axisBadgeText}>Z</Text>
-              </View>
-              <View style={styles.stepperWrap}>
-                <Pressable
-                  style={({ pressed }) => [styles.stepperBtn, pressed && styles.stepperBtnPressed]}
-                  onPress={() => stepCoord(setPositionZ, -0.05)}
-                  hitSlop={4}
-                >
-                  <Text style={styles.stepperText}>−</Text>
-                </Pressable>
-                <Pressable
-                  style={({ pressed }) => [styles.stepperBtn, pressed && styles.stepperBtnPressed]}
-                  onPress={() => stepCoord(setPositionZ, 0.05)}
-                  hitSlop={4}
-                >
-                  <Text style={styles.stepperText}>+</Text>
-                </Pressable>
-              </View>
-            </View>
-            <TextInput
-              style={styles.coordInput}
-              onChangeText={setPositionZ}
-              value={positionZ}
-              keyboardType="numeric"
-            />
-          </View>
-        </View>
-
-        <Text style={styles.sectionTitle}>Size (m)</Text>
-        <View style={styles.coordsRow}>
-          {sizeFields.map(field => (
-            <View key={field.key} style={styles.coordCol}>
-              <View style={styles.coordHeader}>
-                <View style={[styles.axisBadge, styles.sizeBadge]}>
-                  <Text style={styles.axisBadgeText}>{field.label}</Text>
-                </View>
-                <View style={styles.stepperWrap}>
-                  <Pressable
-                    style={({ pressed }) => [styles.stepperBtn, pressed && styles.stepperBtnPressed]}
-                    onPress={() => stepSize(field.setValue, -SIZE_STEP)}
-                    accessibilityLabel={`Decrease module ${field.key}`}
-                    hitSlop={4}
-                  >
-                    <Text style={styles.stepperText}>−</Text>
-                  </Pressable>
-                  <Pressable
-                    style={({ pressed }) => [styles.stepperBtn, pressed && styles.stepperBtnPressed]}
-                    onPress={() => stepSize(field.setValue, SIZE_STEP)}
-                    accessibilityLabel={`Increase module ${field.key}`}
-                    hitSlop={4}
-                  >
-                    <Text style={styles.stepperText}>+</Text>
-                  </Pressable>
-                </View>
-              </View>
-              <TextInput
-                style={styles.coordInput}
-                onChangeText={field.setValue}
-                value={field.value}
-                accessibilityLabel={`Module ${field.key} in meters`}
-                keyboardType="numeric"
-              />
-            </View>
-          ))}
-        </View>
-        {!isSizeValid && (
-          <Text style={styles.sizeError}>Enter a width, height and depth greater than zero.</Text>
-        )}
-
-        {slotList.length > 0 && (
+        {activeTab === 'transform' ? (
           <>
-            <Text style={styles.sectionTitle}>Textures</Text>
-            {slotList.map(slotInfo => {
-              const hasOverride = dirtyOverrides[slotInfo.slot] !== undefined;
-              return (
-                <View key={slotInfo.slot} style={styles.textureRow}>
-                  <View style={styles.textureInfo}>
-                    <Text style={styles.textureMeshName} numberOfLines={1}>
-                      {slotInfo.displayName || `Slot ${slotInfo.slot}`}
-                    </Text>
-                    <Text style={styles.textureStatus} numberOfLines={1}>
-                      {describeSlot(slotInfo)}
-                    </Text>
+            <Text style={styles.label}>Name</Text>
+            <TextInput
+              style={styles.input}
+              onChangeText={onChangeName}
+              value={name}
+              placeholder={object.name}
+              placeholderTextColor={GLASS.textFaint}
+            />
+
+            <Text style={styles.sectionTitle}>Coordinates (m)</Text>
+            <View style={styles.coordsRow}>
+              {/* Coordinate X */}
+              <View style={styles.coordCol}>
+                <View style={styles.coordHeader}>
+                  <View style={[styles.axisBadge, styles.axisBadgeX]}>
+                    <Text style={styles.axisBadgeText}>X</Text>
                   </View>
-                  <View style={styles.textureActions}>
+                  <View style={styles.stepperWrap}>
                     <Pressable
-                      style={({ pressed }) => [styles.textureButton, pressed && styles.itemPressed]}
-                      onPress={() => setEditingSlot(slotInfo.slot)}
+                      style={({ pressed }) => [styles.stepperBtn, pressed && styles.stepperBtnPressed]}
+                      onPress={() => stepCoord(setPositionX, -0.05)}
+                      hitSlop={4}
                     >
-                      <Text style={styles.textureButtonLabel}>Change</Text>
+                      <Text style={styles.stepperText}>−</Text>
                     </Pressable>
-                    {hasOverride && (
-                      <Pressable
-                        style={({ pressed }) => [styles.textureResetButton, pressed && styles.itemPressed]}
-                        onPress={() => handleResetSlot(slotInfo.slot)}
-                      >
-                        <Text style={styles.textureResetLabel}>Reset</Text>
-                      </Pressable>
-                    )}
+                    <Pressable
+                      style={({ pressed }) => [styles.stepperBtn, pressed && styles.stepperBtnPressed]}
+                      onPress={() => stepCoord(setPositionX, 0.05)}
+                      hitSlop={4}
+                    >
+                      <Text style={styles.stepperText}>+</Text>
+                    </Pressable>
                   </View>
                 </View>
-              );
-            })}
+                <TextInput
+                  style={styles.coordInput}
+                  onChangeText={setPositionX}
+                  value={positionX}
+                  keyboardType="numeric"
+                />
+              </View>
+
+              {/* Coordinate Y */}
+              <View style={styles.coordCol}>
+                <View style={styles.coordHeader}>
+                  <View style={[styles.axisBadge, styles.axisBadgeY]}>
+                    <Text style={styles.axisBadgeText}>Y</Text>
+                  </View>
+                  <View style={styles.stepperWrap}>
+                    <Pressable
+                      style={({ pressed }) => [styles.stepperBtn, pressed && styles.stepperBtnPressed]}
+                      onPress={() => stepCoord(setPositionY, -0.05)}
+                      hitSlop={4}
+                    >
+                      <Text style={styles.stepperText}>−</Text>
+                    </Pressable>
+                    <Pressable
+                      style={({ pressed }) => [styles.stepperBtn, pressed && styles.stepperBtnPressed]}
+                      onPress={() => stepCoord(setPositionY, 0.05)}
+                      hitSlop={4}
+                    >
+                      <Text style={styles.stepperText}>+</Text>
+                    </Pressable>
+                  </View>
+                </View>
+                <TextInput
+                  style={styles.coordInput}
+                  onChangeText={setPositionY}
+                  value={positionY}
+                  keyboardType="numeric"
+                />
+              </View>
+
+              {/* Coordinate Z */}
+              <View style={styles.coordCol}>
+                <View style={styles.coordHeader}>
+                  <View style={[styles.axisBadge, styles.axisBadgeZ]}>
+                    <Text style={styles.axisBadgeText}>Z</Text>
+                  </View>
+                  <View style={styles.stepperWrap}>
+                    <Pressable
+                      style={({ pressed }) => [styles.stepperBtn, pressed && styles.stepperBtnPressed]}
+                      onPress={() => stepCoord(setPositionZ, -0.05)}
+                      hitSlop={4}
+                    >
+                      <Text style={styles.stepperText}>−</Text>
+                    </Pressable>
+                    <Pressable
+                      style={({ pressed }) => [styles.stepperBtn, pressed && styles.stepperBtnPressed]}
+                      onPress={() => stepCoord(setPositionZ, 0.05)}
+                      hitSlop={4}
+                    >
+                      <Text style={styles.stepperText}>+</Text>
+                    </Pressable>
+                  </View>
+                </View>
+                <TextInput
+                  style={styles.coordInput}
+                  onChangeText={setPositionZ}
+                  value={positionZ}
+                  keyboardType="numeric"
+                />
+              </View>
+            </View>
+
+            <Text style={styles.sectionTitle}>Size (m)</Text>
+            <View style={styles.coordsRow}>
+              {sizeFields.map(field => (
+                <View key={field.key} style={styles.coordCol}>
+                  <View style={styles.coordHeader}>
+                    <View style={[styles.axisBadge, styles.sizeBadge]}>
+                      <Text style={styles.axisBadgeText}>{field.label}</Text>
+                    </View>
+                    <View style={styles.stepperWrap}>
+                      <Pressable
+                        style={({ pressed }) => [styles.stepperBtn, pressed && styles.stepperBtnPressed]}
+                        onPress={() => stepSize(field.setValue, -SIZE_STEP)}
+                        accessibilityLabel={`Decrease module ${field.key}`}
+                        hitSlop={4}
+                      >
+                        <Text style={styles.stepperText}>−</Text>
+                      </Pressable>
+                      <Pressable
+                        style={({ pressed }) => [styles.stepperBtn, pressed && styles.stepperBtnPressed]}
+                        onPress={() => stepSize(field.setValue, SIZE_STEP)}
+                        accessibilityLabel={`Increase module ${field.key}`}
+                        hitSlop={4}
+                      >
+                        <Text style={styles.stepperText}>+</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                  <TextInput
+                    style={styles.coordInput}
+                    onChangeText={field.setValue}
+                    value={field.value}
+                    accessibilityLabel={`Module ${field.key} in meters`}
+                    keyboardType="numeric"
+                  />
+                </View>
+              ))}
+            </View>
+            {!isSizeValid && (
+              <Text style={styles.sizeError}>Enter a width, height and depth greater than zero.</Text>
+            )}
+          </>
+        ) : (
+          <>
+            {slotList.length > 0 ? (
+              <>
+                <Text style={styles.sectionTitle}>Textures</Text>
+                {slotList.map(slotInfo => {
+                  const hasOverride = dirtyOverrides[slotInfo.slot] !== undefined;
+                  return (
+                    <View key={slotInfo.slot} style={styles.textureRow}>
+                      <View style={styles.textureInfo}>
+                        <Text style={styles.textureMeshName} numberOfLines={1}>
+                          {slotInfo.displayName || `Slot ${slotInfo.slot}`}
+                        </Text>
+                        <Text style={styles.textureStatus} numberOfLines={1}>
+                          {describeSlot(slotInfo)}
+                        </Text>
+                      </View>
+                      <View style={styles.textureActions}>
+                        <Pressable
+                          style={({ pressed }) => [styles.textureButton, pressed && styles.itemPressed]}
+                          onPress={() => setEditingSlot(slotInfo.slot)}
+                        >
+                          <Text style={styles.textureButtonLabel}>Change</Text>
+                        </Pressable>
+                        {hasOverride && (
+                          <Pressable
+                            style={({ pressed }) => [styles.textureResetButton, pressed && styles.itemPressed]}
+                            onPress={() => handleResetSlot(slotInfo.slot)}
+                          >
+                            <Text style={styles.textureResetLabel}>Reset</Text>
+                          </Pressable>
+                        )}
+                      </View>
+                    </View>
+                  );
+                })}
+              </>
+            ) : (
+              <Text style={styles.discoveringText}>Discovering textures...</Text>
+            )}
           </>
         )}
+      </ScrollView>
 
-        {slotList.length === 0 && (
-          <Text style={styles.discoveringText}>Discovering textures...</Text>
-        )}
-
+      {/* Fixed bottom action buttons */}
+      <View style={styles.footer}>
         <View style={styles.actionRow}>
           <Button label="Save Changes" onPress={handleSave} />
         </View>
@@ -521,7 +549,7 @@ export default function EditFurnitureInstanceMenu({
           <Ionicons name="trash-outline" size={16} color={COLORS.dangerStrong} />
           <Text style={styles.deleteButtonLabel}>Delete Object</Text>
         </Pressable>
-      </ScrollView>
+      </View>
     </GlassSurface>
   );
 }
@@ -568,6 +596,39 @@ const styles = StyleSheet.create({
     backgroundColor: GLASS.bgInput,
     alignItems: "center",
     justifyContent: "center",
+  },
+  tabRow: {
+    flexDirection: "row",
+    borderBottomWidth: 1,
+    borderBottomColor: GLASS.border,
+    backgroundColor: GLASS.bg,
+  },
+  tabBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent",
+  },
+  tabBtnActive: {
+    borderBottomColor: COLORS.primary,
+  },
+  tabBtnText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: GLASS.textMuted,
+  },
+  tabBtnTextActive: {
+    color: COLORS.primary,
+    fontWeight: "700",
+  },
+  footer: {
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: GLASS.border,
+    backgroundColor: GLASS.bgStrong,
   },
   scroll: {
     flex: 1,

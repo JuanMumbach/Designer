@@ -335,17 +335,19 @@ export default function ProjectPicker({
             placeholder="New project name"
             placeholderTextColor={GLASS.textFaint}
           />
-
-          <View style={styles.footer}>
-            <Button
-              label={saving ? 'Saving...' : 'Save to Cloud'}
-              onPress={handleSave}
-            />
-            <Pressable style={styles.cancelButton} onPress={onClose}>
-              <Text style={styles.cancelButtonLabel}>Cancel</Text>
-            </Pressable>
-          </View>
         </ScrollView>
+      )}
+
+      {!loading && (
+        <View style={styles.footer}>
+          <Button
+            label={saving ? 'Saving...' : 'Save to Cloud'}
+            onPress={handleSave}
+          />
+          <Pressable style={styles.cancelButton} onPress={onClose}>
+            <Text style={styles.cancelButtonLabel}>Cancel</Text>
+          </Pressable>
+        </View>
       )}
     </GlassSurface>
   );

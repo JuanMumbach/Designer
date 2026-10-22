@@ -1,19 +1,9 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Pressable,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  useWindowDimensions,
-  View,
-} from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { useAccess } from "../services/AccessContext";
 import { useAuth } from "../services/AuthContext";
-import { COLORS, RADII } from "../constants/theme";
+import { COLORS } from "../constants/theme";
 import {
   BackendUser,
   fetchAllProjects,
@@ -24,8 +14,7 @@ import {
   Project,
   Workspace,
 } from "../services/api";
-import Thumbnail from "../components/Thumbnail";
-import { ManagerAction, ManagerNotice, ManagerSearch } from "../components/Editors/ManagerControls";
+import CatalogueView, { CatalogueGroup, InspectorRow } from "../components/Catalogue/CatalogueView";
 
 const MONTH_NAMES = [
   "enero",
@@ -44,9 +33,12 @@ const MONTH_NAMES = [
 
 const CARD_SIZE_KEY = "@design:projectCardSize";
 
-const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+const GROUP_OPTIONS = [
+  { key: "lastUpdate", label: "Actualizado" },
+  { key: "createdAt", label: "Creado" },
+];
 
-type CardSize = "large" | "compact";
+const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 const hasUsableDate = (iso?: string) => {
   if (!iso) return false;
@@ -58,8 +50,6 @@ export default function ProjectManagerScreen() {
   const { canManageApplication } = useAccess();
   const router = useRouter();
   const { selectedWorkspaceId } = useAuth();
-  const { width: screenWidth } = useWindowDimensions();
-  const isWide = screenWidth >= 700;
 
   const [query, setQuery] = useState("");
   const [loadError, setLoadError] = useState("");
@@ -71,31 +61,10 @@ export default function ProjectManagerScreen() {
   const [derivingDate, setDerivingDate] = useState(false);
   const [groupBy, setGroupBy] = useState<"lastUpdate" | "createdAt">("lastUpdate");
   const [loading, setLoading] = useState(true);
-  const lastPressRef = useRef(0);
-  const [cardSize, setCardSize] = useState<CardSize>("large");
-  const cardSizeLoadedRef = useRef(false);
-
-  useEffect(() => {
-    AsyncStorage.getItem(CARD_SIZE_KEY)
-      .then((raw) => {
-        const parsed = raw ? JSON.parse(raw) : null;
-        if (parsed === "large" || parsed === "compact") {
-          setCardSize(parsed);
-        }
-      })
-      .catch(() => {})
-      .finally(() => {
-        cardSizeLoadedRef.current = true;
-      });
-  }, []);
-
-  useEffect(() => {
-    if (!cardSizeLoadedRef.current) return;
-    AsyncStorage.setItem(CARD_SIZE_KEY, JSON.stringify(cardSize)).catch(() => {});
-  }, [cardSize]);
 
   const loadData = useCallback(async () => {
-    setLoading(true); setLoadError("");
+    setLoading(true);
+    setLoadError("");
     try {
       const [ws, pr, us] = await Promise.all([
         fetchAllWorkspaces(),
@@ -106,7 +75,7 @@ export default function ProjectManagerScreen() {
       setProjects(pr);
       setUsers(us);
     } catch {
-      setLoadError('No se pudieron cargar los proyectos. Inténtalo de nuevo.');
+      setLoadError("No se pudieron cargar los proyectos. Inténtalo de nuevo.");
     } finally {
       setLoading(false);
     }
@@ -204,13 +173,7 @@ export default function ProjectManagerScreen() {
     };
   }, [visibleProjects, thumbnails]);
 
-  interface ProjectGroup {
-    key: string;
-    label: string;
-    projects: Project[];
-  }
-
-  const projectGroups = useMemo((): ProjectGroup[] => {
+  const projectGroups = useMemo((): CatalogueGroup[] => {
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth();
@@ -218,8 +181,8 @@ export default function ProjectManagerScreen() {
     const prevYear = prevMonthDate.getFullYear();
     const prevMonth = prevMonthDate.getMonth();
 
-    const groups: ProjectGroup[] = [];
-    const groupMap = new Map<string, ProjectGroup>();
+    const groups: { key: string; label: string; projects: Project[] }[] = [];
+    const groupMap = new Map<string, { key: string; label: string; projects: Project[] }>();
     const getGroup = (key: string, label: string) => {
       let group = groupMap.get(key);
       if (!group) {
@@ -259,8 +222,19 @@ export default function ProjectManagerScreen() {
       );
     }
 
-    return groups.filter((g) => g.projects.length > 0);
-  }, [visibleProjects, groupBy]);
+    return groups
+      .filter((g) => g.projects.length > 0)
+      .map((g) => ({
+        key: g.key,
+        label: g.label,
+        items: g.projects.map((project) => ({
+          id: project.id,
+          name: project.name,
+          subtitle: `v${project.lastVersion}`,
+          thumbnailUri: thumbnails[project.id],
+        })),
+      }));
+  }, [visibleProjects, groupBy, thumbnails]);
 
   const currentWorkspaceName =
     selectedWorkspaceId === null
@@ -283,16 +257,7 @@ export default function ProjectManagerScreen() {
     router.push("/design");
   };
 
-  const selectProject = (project: Project) => {
-    const now = Date.now();
-    if (now - lastPressRef.current < 300) {
-      lastPressRef.current = 0;
-      openProject(project);
-      return;
-    }
-    lastPressRef.current = now;
-    setSelectedProject(project);
-  };
+  const findProject = (id: string) => projects.find((p) => p.id === id);
 
   const formatRelativeTime = (iso?: string) => {
     if (!hasUsableDate(iso)) return "";
@@ -336,586 +301,54 @@ export default function ProjectManagerScreen() {
     return formatDate(createdDate ?? undefined);
   };
 
-  const renderPreview = () => {
-    if (!selectedProject) {
-      return (
-        <View style={styles.previewEmpty}>
-          <Text style={styles.previewEmptyText}>
-            Selecciona un proyecto para ver sus detalles.
-          </Text>
-        </View>
-      );
-    }
-    return (
-      <>
-        <Text style={styles.sectionTitle}>PROYECTO</Text>
-        <View style={styles.previewRow}>
-          <Text style={styles.previewLabel}>Nombre</Text>
-          <Text style={styles.previewValue}>{selectedProject.name}</Text>
-        </View>
-        <View style={styles.previewRow}>
-          <Text style={styles.previewLabel}>Espacio de trabajo</Text>
-          <Text style={styles.previewValue}>
-            {workspaceLabel(selectedProject)}
-          </Text>
-        </View>
-        <View style={styles.previewRow}>
-          <Text style={styles.previewLabel}>Creador</Text>
-          <Text style={styles.previewValue}>{creatorLabel(selectedProject)}</Text>
-        </View>
-        <View style={styles.previewRow}>
-          <Text style={styles.previewLabel}>Versión</Text>
-          <Text style={styles.previewValue}>
-            v{selectedProject.lastVersion}
-          </Text>
-        </View>
-        <View style={styles.previewRow}>
-          <Text style={styles.previewLabel}>Creado</Text>
-          <Text style={styles.previewValue}>
-            {creationDateLabel(selectedProject)}
-          </Text>
-        </View>
-        <View style={styles.previewRow}>
-          <Text style={styles.previewLabel}>Última actualización</Text>
-          <Text style={styles.previewValue}>
-            {formatRelativeTime(selectedProject.lastUpdate)}
-          </Text>
-        </View>
-        <Pressable
-          style={({ pressed }) => [
-            styles.openButton,
-            pressed && styles.openButtonPressed,
-          ]}
-          onPress={() => openProject(selectedProject)}
-        >
-          <Text style={styles.openButtonText}>Abrir</Text>
-        </Pressable>
-      </>
-    );
-  };
+  const inspector = selectedProject ? (
+    <View>
+      <Text style={styles.sectionTitle}>PROYECTO</Text>
+      <InspectorRow label="Nombre" value={selectedProject.name} />
+      <InspectorRow label="Espacio de trabajo" value={workspaceLabel(selectedProject) ?? ""} />
+      <InspectorRow label="Creador" value={creatorLabel(selectedProject)} />
+      <InspectorRow label="Versión" value={`v${selectedProject.lastVersion}`} />
+      <InspectorRow label="Creado" value={creationDateLabel(selectedProject)} />
+      <InspectorRow label="Última actualización" value={formatRelativeTime(selectedProject.lastUpdate)} />
+    </View>
+  ) : null;
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Pressable
-          style={({ pressed }) => [
-            styles.backButton,
-            pressed && styles.backButtonPressed,
-          ]}
-          onPress={goBack}
-        >
-          <Text style={styles.backButtonText}>{router.canGoBack() ? "← Volver" : "← Inicio"}</Text>
-        </Pressable>
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          Proyectos
-        </Text>
-        <Pressable
-          style={({ pressed }) => [
-            styles.newProjectButton,
-            pressed && styles.newProjectButtonPressed,
-          ]}
-          onPress={createNewProject}
-        >
-          <Text style={styles.newProjectButtonText}>Nuevo Proyecto</Text>
-        </Pressable>
-      </View>
-
-      <View style={styles.statusRow}>
-        <Text style={styles.statusText} numberOfLines={1}>
-          {currentWorkspaceName}
-        </Text>
-        <View style={styles.statusActions}>
-          <View style={styles.segmented}>
-            <Pressable
-              style={[
-                styles.segmentButton,
-                cardSize === "large" && styles.segmentButtonActive,
-              ]}
-              onPress={() => setCardSize("large")}
-            >
-              <Text
-                style={[
-                  styles.segmentButtonText,
-                  cardSize === "large" && styles.segmentButtonTextActive,
-                ]}
-              >
-                Grande
-              </Text>
-            </Pressable>
-            <Pressable
-              style={[
-                styles.segmentButton,
-                cardSize === "compact" && styles.segmentButtonActive,
-              ]}
-              onPress={() => setCardSize("compact")}
-            >
-              <Text
-                style={[
-                  styles.segmentButtonText,
-                  cardSize === "compact" && styles.segmentButtonTextActive,
-                ]}
-              >
-                Compacta
-              </Text>
-            </Pressable>
-          </View>
-          <View style={styles.segmented}>
-          <Pressable
-            style={[
-              styles.segmentButton,
-              groupBy === "lastUpdate" && styles.segmentButtonActive,
-            ]}
-            onPress={() => setGroupBy("lastUpdate")}
-          >
-            <Text
-              style={[
-                styles.segmentButtonText,
-                groupBy === "lastUpdate" && styles.segmentButtonTextActive,
-              ]}
-            >
-              Actualizado
-            </Text>
-          </Pressable>
-          <Pressable
-            style={[
-              styles.segmentButton,
-              groupBy === "createdAt" && styles.segmentButtonActive,
-            ]}
-            onPress={() => setGroupBy("createdAt")}
-          >
-            <Text
-              style={[
-                styles.segmentButtonText,
-                groupBy === "createdAt" && styles.segmentButtonTextActive,
-              ]}
-            >
-              Creado
-            </Text>
-          </Pressable>
-          </View>
-        </View>
-      </View>
-
-      <View style={styles.searchSection}>
-        <ManagerSearch value={query} onChangeText={setQuery} placeholder="Buscar proyectos por nombre" />
-        {!!loadError && <ManagerNotice message={loadError} error />}
-        {!!loadError && <ManagerAction label="Reintentar" onPress={loadData} disabled={loading} />}
-      </View>
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
-          <Text style={styles.loadingText}>Cargando proyectos...</Text>
-        </View>
-      ) : visibleProjects.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>
-            {query ? "No hay proyectos que coincidan con la búsqueda." : "Tu próximo diseño empieza aquí. Crea tu primer proyecto."}
-          </Text>
-        </View>
-      ) : (
-        <View style={styles.content}>
-          <View style={styles.listColumn}>
-            <ScrollView
-              style={styles.scrollView}
-              contentContainerStyle={styles.projectList}
-              showsVerticalScrollIndicator={false}
-            >
-              {projectGroups.map((group) => (
-                <View key={group.key} style={styles.groupSection}>
-                  <Text style={styles.groupTitle}>
-                    {group.label}
-                    <Text style={styles.groupCount}>
-                      {" · "}
-                      {group.projects.length}
-                    </Text>
-                  </Text>
-                  <View
-                    style={
-                      cardSize === "large" ? styles.cardGrid : styles.pillGrid
-                    }
-                  >
-                    {group.projects.map((project) => {
-                      const isSelected = selectedProject?.id === project.id;
-                      if (cardSize === "large") {
-                        return (
-                          <View
-                            key={project.id}
-                            style={[styles.card, isSelected && styles.cardSelected]}
-                          >
-                            <Pressable
-                              style={styles.cardMain}
-                              onPress={() => selectProject(project)}
-                            >
-                              <View style={styles.cardThumb}>
-                                <Thumbnail
-                                  uri={thumbnails[project.id]}
-                                  width="100%"
-                                  height={150}
-                                  icon="folder-outline"
-                                  radius={RADII.sm}
-                                />
-                              </View>
-                              <View style={styles.cardBody}>
-                                <Text
-                                  style={[
-                                    styles.cardName,
-                                    isSelected && styles.cardNameSelected,
-                                  ]}
-                                  numberOfLines={1}
-                                >
-                                  {project.name}
-                                </Text>
-                                <Text style={styles.cardMeta} numberOfLines={1}>
-                                  v{project.lastVersion}
-                                </Text>
-                              </View>
-                            </Pressable>
-                            <Pressable
-                              style={({ pressed }) => [
-                                styles.cardOpen,
-                                pressed && styles.cardOpenPressed,
-                              ]}
-                              onPress={() => openProject(project)}
-                            >
-                              <Text style={styles.cardOpenText}>Abrir</Text>
-                            </Pressable>
-                          </View>
-                        );
-                      }
-                      return (
-                        <View
-                          key={project.id}
-                          style={[
-                            styles.pill,
-                            isSelected && styles.pillSelected,
-                          ]}
-                        >
-                          <Pressable
-                            style={styles.pillInfo}
-                            onPress={() => selectProject(project)}
-                          >
-                            <View style={styles.pillThumb}>
-                              <Thumbnail
-                                uri={thumbnails[project.id]}
-                                size={32}
-                                icon="folder-outline"
-                              />
-                            </View>
-                            <Text
-                              style={[
-                                styles.pillName,
-                                isSelected && styles.pillNameSelected,
-                              ]}
-                              numberOfLines={1}
-                            >
-                              {project.name}
-                            </Text>
-                          </Pressable>
-                          <Pressable
-                            style={({ pressed }) => [
-                              styles.openChip,
-                              pressed && styles.openChipPressed,
-                            ]}
-                            hitSlop={4}
-                            onPress={() => openProject(project)}
-                          >
-                            <Text style={styles.openChipText}>Abrir</Text>
-                          </Pressable>
-                        </View>
-                      );
-                    })}
-                  </View>
-                </View>
-              ))}
-            </ScrollView>
-          </View>
-          {isWide && <View style={styles.previewColumn}>{renderPreview()}</View>}
-        </View>
-      )}
-    </SafeAreaView>
+    <CatalogueView
+      title="Proyectos"
+      backLabel={router.canGoBack() ? "← Volver" : "← Inicio"}
+      onBack={goBack}
+      headerActions={[{ label: "Nuevo Proyecto", onPress: createNewProject, primary: true }]}
+      contextLabel={currentWorkspaceName}
+      groups={projectGroups}
+      groupOptions={GROUP_OPTIONS}
+      groupKey={groupBy}
+      onGroupKeyChange={(key) => setGroupBy(key as "lastUpdate" | "createdAt")}
+      query={query}
+      onQueryChange={setQuery}
+      searchPlaceholder="Buscar proyectos por nombre"
+      loading={loading}
+      loadingText="Cargando proyectos..."
+      error={loadError}
+      onRetry={loadData}
+      emptyText={query ? "No hay proyectos que coincidan con la búsqueda." : "Tu próximo diseño empieza aquí. Crea tu primer proyecto."}
+      selectedId={selectedProject?.id ?? null}
+      onSelect={(id) => setSelectedProject(findProject(id) ?? null)}
+      onOpen={(id) => {
+        const project = findProject(id);
+        if (project) openProject(project);
+      }}
+      openLabel="Abrir"
+      itemIcon="folder-outline"
+      storageKey={CARD_SIZE_KEY}
+      inspectorContent={inspector}
+      inspectorEmptyText="Selecciona un proyecto para ver sus detalles."
+      inspectorActions={selectedProject ? { primary: { label: "Abrir", onPress: () => openProject(selectedProject) } } : undefined}
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  searchSection: { paddingHorizontal: 20, paddingVertical: 12, gap: 10 },
-  container: {
-    flex: 1,
-    width: "100%",
-    backgroundColor: COLORS.bg,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    backgroundColor: COLORS.bgAlt,
-  },
-  backButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-    backgroundColor: COLORS.border,
-  },
-  backButtonPressed: {
-    backgroundColor: COLORS.borderStrong,
-  },
-  backButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.textHeading,
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: "700",
-    color: COLORS.text,
-    textAlign: "center",
-  },
-  newProjectButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: COLORS.primary,
-    alignItems: "center",
-  },
-  newProjectButtonPressed: {
-    backgroundColor: COLORS.primaryPressed,
-  },
-  newProjectButtonText: {
-    color: COLORS.white,
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  statusRow: {
-    flexWrap: "wrap",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    backgroundColor: COLORS.white,
-  },
-  statusText: {
-    flex: 1,
-    fontSize: 13,
-    color: COLORS.textMuted,
-  },
-  statusActions: {
-    flexWrap: "wrap",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  segmented: {
-    flexDirection: "row",
-    borderRadius: 8,
-    backgroundColor: COLORS.surfaceAlt,
-    padding: 2,
-  },
-  segmentButton: {
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-  },
-  segmentButtonActive: {
-    backgroundColor: COLORS.primary,
-  },
-  segmentButtonText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: COLORS.textMuted,
-  },
-  segmentButtonTextActive: {
-    color: COLORS.white,
-  },
-  loadingContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 40,
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 13,
-    color: COLORS.textMuted,
-  },
-  emptyContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 32,
-  },
-  emptyText: {
-    textAlign: "center",
-    color: COLORS.textMuted,
-    fontSize: 14,
-    paddingVertical: 30,
-  },
-  content: {
-    flex: 1,
-    flexDirection: "row",
-  },
-  listColumn: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  projectList: {
-    padding: 12,
-    paddingBottom: 24,
-  },
-  groupSection: {
-    marginBottom: 18,
-  },
-  groupTitle: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: COLORS.textHeading,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 8,
-  },
-  groupCount: {
-    color: COLORS.textFaint,
-    fontWeight: "600",
-  },
-  cardGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-  },
-  card: {
-    flexBasis: 230,
-    flexGrow: 1,
-    flexShrink: 1,
-    maxWidth: 320,
-    backgroundColor: COLORS.bg,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: RADII.md,
-    padding: 12,
-    gap: 10,
-  },
-  cardSelected: {
-    backgroundColor: COLORS.primarySoft,
-    borderColor: COLORS.primary,
-  },
-  cardMain: {
-    alignItems: "center",
-    gap: 10,
-  },
-  cardThumb: {
-    width: "100%",
-    alignItems: "center",
-  },
-  cardBody: {
-    alignItems: "center",
-    gap: 2,
-  },
-  cardName: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.textBody,
-    textAlign: "center",
-  },
-  cardNameSelected: {
-    color: COLORS.primary,
-  },
-  cardMeta: {
-    fontSize: 12,
-    color: COLORS.textFaint,
-    fontWeight: "600",
-  },
-  cardOpen: {
-    paddingVertical: 7,
-    paddingHorizontal: 14,
-    borderRadius: RADII.sm,
-    backgroundColor: COLORS.border,
-    alignItems: "center",
-  },
-  cardOpenPressed: {
-    backgroundColor: COLORS.borderStrong,
-  },
-  cardOpenText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: COLORS.textHeading,
-  },
-  pillGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 7,
-  },
-  pill: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: COLORS.bg,
-    paddingLeft: 14,
-    paddingRight: 6,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    gap: 10,
-  },
-  pillSelected: {
-    backgroundColor: COLORS.primarySoft,
-    borderColor: COLORS.primary,
-  },
-  pillInfo: {
-    maxWidth: 260,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  pillThumb: {
-    marginRight: 8,
-  },
-  pillName: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.textBody,
-  },
-  pillNameSelected: {
-    color: COLORS.primary,
-  },
-  openChip: {
-    paddingVertical: 5,
-    paddingHorizontal: 12,
-    borderRadius: 13,
-    backgroundColor: COLORS.border,
-  },
-  openChipPressed: {
-    backgroundColor: COLORS.borderStrong,
-  },
-  openChipText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: COLORS.textHeading,
-  },
-  previewColumn: {
-    width: 300,
-    padding: 16,
-    borderLeftWidth: 1,
-    borderLeftColor: COLORS.border,
-  },
-  previewEmpty: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 16,
-  },
-  previewEmptyText: {
-    textAlign: "center",
-    color: COLORS.textMuted,
-    fontSize: 13,
-    lineHeight: 19,
-  },
   sectionTitle: {
     fontSize: 14,
     fontWeight: "700",
@@ -924,37 +357,5 @@ const styles = StyleSheet.create({
     marginTop: 4,
     textTransform: "uppercase",
     letterSpacing: 0.5,
-  },
-  previewRow: {
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  previewLabel: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: COLORS.textFaint,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  previewValue: {
-    fontSize: 14,
-    color: COLORS.text,
-  },
-  openButton: {
-    marginTop: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: COLORS.primary,
-    alignItems: "center",
-  },
-  openButtonPressed: {
-    backgroundColor: COLORS.primaryPressed,
-  },
-  openButtonText: {
-    color: COLORS.white,
-    fontSize: 13,
-    fontWeight: "600",
   },
 });
