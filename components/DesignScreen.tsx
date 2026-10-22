@@ -251,6 +251,9 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
           });
         } catch (err) {
           console.warn(`Could not fetch material types for ${key}:`, err);
+          if (!cancelled) {
+            setSlotTypesByModel(prev => (prev[key] ? prev : { ...prev, [key]: [] }));
+          }
         }
       }
     })();

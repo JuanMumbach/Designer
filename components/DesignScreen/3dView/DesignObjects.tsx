@@ -337,6 +337,8 @@ function DesignObjectWithMaterials({
       interactionDisabled={interactionDisabled}
       instanceOverrides={instanceOverrides}
       globalMaterials={globalMaterials}
+      globalMaterialsRaw={globalMaterialsRaw}
+      materialDataById={materialDataById}
       slotTypesByModel={slotTypesByModel}
       typeToDesignSlot={typeToDesignSlot}
       forcedHidden={forcedHidden}

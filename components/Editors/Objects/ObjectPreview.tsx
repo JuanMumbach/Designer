@@ -1,4 +1,4 @@
-import { Box, Gltf } from '@react-three/drei/native';
+import { Billboard, Box, Gltf, ScreenSizer } from '@react-three/drei/native';
 import { Canvas, useFrame } from '@react-three/fiber';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
@@ -18,6 +18,56 @@ import { extractGlbParts, readGlbBytes } from '../../../services/glbParts';
 import { AppliedMaterial } from '@/components/DesignScreen/3dView/DesignObjects';
 
 const RED = new THREE.Color('#ff2a2a');
+const uiPixelScale = 10;
+
+function createWhitePlaceholderMaterial(baseMaterial: THREE.Material): THREE.Material {
+  const mat = baseMaterial.clone() as THREE.MeshStandardMaterial;
+  if ('map' in mat) {
+    mat.map = null;
+  }
+  if (mat.color instanceof THREE.Color) {
+    mat.color.set('#ffffff');
+  }
+  mat.needsUpdate = true;
+  return mat;
+}
+
+function LoadingSpinner3D({ position }: { position: [number, number, number] }) {
+  const spinnerRef = useRef<THREE.Mesh>(null);
+
+  useFrame((_, delta) => {
+    if (spinnerRef.current) {
+      spinnerRef.current.rotation.z -= delta * 5;
+    }
+  });
+
+  return (
+    <ScreenSizer position={position} scale={0.45 * uiPixelScale}>
+      <Billboard>
+        <mesh renderOrder={998}>
+          <ringGeometry args={[0.32, 0.48, 32]} />
+          <meshBasicMaterial
+            color="#e5e7eb"
+            transparent
+            opacity={0.75}
+            depthTest={false}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+        <mesh ref={spinnerRef} renderOrder={999}>
+          <ringGeometry args={[0.32, 0.48, 24, 1, 0, Math.PI * 1.35]} />
+          <meshBasicMaterial
+            color="#2563eb"
+            transparent
+            opacity={0.95}
+            depthTest={false}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+      </Billboard>
+    </ScreenSizer>
+  );
+}
 
 function restoreMaterials(anim: {
   materials: THREE.MeshStandardMaterial[];
@@ -134,7 +184,9 @@ export default function ObjectPreview({
   const [mapsReady, setMapsReady] = useState(false);
   const [maps, setMaps] = useState<SlotIndexMaps | null>(null);
   const [texturesReady, setTexturesReady] = useState(false);
+  const [modelCenter, setModelCenter] = useState<[number, number, number]>([0, 0.25, 0]);
 
+  const meshOriginalMaterialsRef = useRef<WeakMap<THREE.Mesh, THREE.Material>>(new WeakMap());
   const originalMaterialsRef = useRef<Map<number, THREE.Material>>(new Map());
   const overrideVersionRef = useRef(0);
   const textureLoaderRef = useRef<THREE.TextureLoader | null>(null);
@@ -213,16 +265,23 @@ export default function ObjectPreview({
     if (!group) return;
 
     group.traverse((child) => {
-      if (child instanceof THREE.Mesh && child.material) {
-        child.material = child.material.clone();
+      if (child instanceof THREE.Mesh && child.material && !Array.isArray(child.material)) {
+        const origMat = child.material.clone();
+        meshOriginalMaterialsRef.current.set(child, origMat);
+        child.material = createWhitePlaceholderMaterial(origMat);
       }
     });
 
     group.updateWorldMatrix(true, true);
     const box = new THREE.Box3().setFromObject(group);
     const size = new THREE.Vector3();
+    const center = new THREE.Vector3();
     box.getSize(size);
+    box.getCenter(center);
     modelDimensionsRef.current = [size.x || 1, size.y || 1, size.z || 1];
+    if (!box.isEmpty()) {
+      setModelCenter([center.x, center.y, center.z]);
+    }
 
     setGltfLoaded(true);
   }, []);
@@ -232,12 +291,35 @@ export default function ObjectPreview({
     if (!group || !maps || !gltfLoaded || !mapsReady) return;
 
     const { originalMaterials } = collectSlots(group, maps);
-    originalMaterialsRef.current = originalMaterials;
+    const preservedMaterials = new Map<number, THREE.Material>(originalMaterials);
+    group.traverse((child) => {
+      if (child instanceof THREE.Mesh && child.material) {
+        const slot = resolveMeshSlot(child, maps);
+        const orig = meshOriginalMaterialsRef.current.get(child);
+        if (slot !== null && orig) {
+          preservedMaterials.set(slot, orig.clone());
+        }
+      }
+    });
+    originalMaterialsRef.current = preservedMaterials;
   }, [gltfLoaded, mapsReady, maps, processedUri]);
 
   useEffect(() => {
     const group = gltfGroupRef.current;
-    if (!group || !maps || !gltfLoaded || !mapsReady) return;
+    if (!group || !gltfLoaded || !mapsReady) return;
+
+    if (!maps) {
+      group.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          const orig = meshOriginalMaterialsRef.current.get(child);
+          if (orig && child.material !== orig) {
+            child.material = orig;
+          }
+        }
+      });
+      setTexturesReady(true);
+      return;
+    }
 
     overrideVersionRef.current++;
     const currentVersion = overrideVersionRef.current;
@@ -260,24 +342,34 @@ export default function ObjectPreview({
 
     const resolveLoad = () => {
       pendingCount--;
-      if (pendingCount <= 0) setTexturesReady(true);
+      if (pendingCount <= 0 && currentVersion === overrideVersionRef.current) {
+        setTexturesReady(true);
+      }
     };
 
     group.traverse((child) => {
       if (!(child instanceof THREE.Mesh) || !child.material) return;
+      const orig = meshOriginalMaterialsRef.current.get(child);
       const slot = resolveMeshSlot(child, maps);
-      if (slot === null) return;
+      if (slot === null) {
+        if (orig && child.material !== orig) {
+          child.material = orig;
+        }
+        return;
+      }
 
       const override = overrides.get(slot);
+      const origMat = originalMaterialsRef.current.get(slot) ?? orig;
+      const baseMat = (origMat ?? child.material) as THREE.MeshStandardMaterial;
+
       if (override) {
-        const origMat = originalMaterialsRef.current.get(slot);
-        const baseMat = (origMat ?? child.material) as THREE.MeshStandardMaterial;
-        const newMat = baseMat.clone();
+        child.material = createWhitePlaceholderMaterial(baseMat);
         pendingCount++;
         textureLoaderRef.current!.load(
           override.fileURL,
           (texture) => {
             if (currentVersion !== overrideVersionRef.current) return;
+            const newMat = baseMat.clone();
             if (baseMat.map) {
               texture.wrapS = baseMat.map.wrapS;
               texture.wrapT = baseMat.map.wrapT;
@@ -303,12 +395,17 @@ export default function ObjectPreview({
             resolveLoad();
           },
           undefined,
-          resolveLoad
+          () => {
+            if (currentVersion !== overrideVersionRef.current) return;
+            if (origMat && child.material !== origMat) {
+              child.material = origMat;
+            }
+            resolveLoad();
+          }
         );
       } else {
-        const orig = originalMaterialsRef.current.get(slot);
-        if (orig && child.material !== orig) {
-          child.material = orig;
+        if (origMat && child.material !== origMat) {
+          child.material = origMat;
         }
       }
     });
@@ -365,9 +462,12 @@ export default function ObjectPreview({
           {processedUri && (
             <Suspense
               fallback={
-                <Box args={[0.5, 0.5, 0.5]}>
-                  <meshStandardMaterial color="#ef4444" />
-                </Box>
+                <group>
+                  <Box args={[0.5, 0.5, 0.5]}>
+                    <meshStandardMaterial color="#ffffff" />
+                  </Box>
+                  <LoadingSpinner3D position={[0, 0, 0]} />
+                </group>
               }
             >
               <Gltf
@@ -376,6 +476,9 @@ export default function ObjectPreview({
                 ref={handleGltfReady}
               />
             </Suspense>
+          )}
+          {processedUri && !captureReady && (
+            <LoadingSpinner3D position={modelCenter} />
           )}
           <SlotFlash
             groupRef={gltfGroupRef}

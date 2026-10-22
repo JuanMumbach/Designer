@@ -1,11 +1,12 @@
 import { Billboard, Box, Gltf, ScreenSizer, Text, useTexture } from '@react-three/drei/native';
+import { useFrame } from '@react-three/fiber';
 import { Asset } from 'expo-asset';
 import * as FileSystem from 'expo-file-system';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Platform } from 'react-native';
 import * as THREE from 'three';
 import { ObjectMaterialType } from '../../../services/api';
-import { normalizeTypeName } from '../../../services/designMaterialDefaults';
+import { normalizeTypeName, resolveMaterialValue } from '../../../services/designMaterialDefaults';
 import { extractGlbParts, readGlbBytes, sanitizeNodeName } from '../../../services/glbParts';
 import { fitScaleFromSize, measureModelSizeInParent } from '../../../services/modelFit';
 import {
@@ -15,7 +16,7 @@ import {
     resolveMeshSlot,
     SlotIndexMaps,
 } from '../../../services/materialSlots';
-import { AppliedMaterial, DesignObject } from './DesignObjects';
+import { AppliedMaterial, DesignObject, GlobalMaterials, resolveGlobalMaterials } from './DesignObjects';
 import ObjectMeasurements3D from './ObjectMeasurements3D';
 import { Room3dProps } from './Room3d';
 import { computeDragMove, MoveContext } from './moveBehaviours';
@@ -23,6 +24,55 @@ import { computeDragMove, MoveContext } from './moveBehaviours';
 let globalIsDragging = false;
 
 const uiPixelScale = 10;
+
+function createWhitePlaceholderMaterial(baseMaterial: THREE.Material): THREE.Material {
+    const mat = baseMaterial.clone() as THREE.MeshStandardMaterial;
+    if ('map' in mat) {
+        mat.map = null;
+    }
+    if (mat.color instanceof THREE.Color) {
+        mat.color.set('#ffffff');
+    }
+    mat.needsUpdate = true;
+    return mat;
+}
+
+function LoadingSpinner3D({ position }: { position: [number, number, number] }) {
+    const spinnerRef = useRef<THREE.Mesh>(null);
+
+    useFrame((_, delta) => {
+        if (spinnerRef.current) {
+            spinnerRef.current.rotation.z -= delta * 5;
+        }
+    });
+
+    return (
+        <ScreenSizer position={position} scale={0.45 * uiPixelScale}>
+            <Billboard>
+                <mesh renderOrder={998}>
+                    <ringGeometry args={[0.32, 0.48, 32]} />
+                    <meshBasicMaterial
+                        color="#e5e7eb"
+                        transparent
+                        opacity={0.75}
+                        depthTest={false}
+                        side={THREE.DoubleSide}
+                    />
+                </mesh>
+                <mesh ref={spinnerRef} renderOrder={999}>
+                    <ringGeometry args={[0.32, 0.48, 24, 1, 0, Math.PI * 1.35]} />
+                    <meshBasicMaterial
+                        color="#2563eb"
+                        transparent
+                        opacity={0.95}
+                        depthTest={false}
+                        side={THREE.DoubleSide}
+                    />
+                </mesh>
+            </Billboard>
+        </ScreenSizer>
+    );
+}
 
 export function useDownload3dModel(remoteUrl: string, assetName: string = 'asset') {
     const [assetUri, setAssetUri] = useState<string | null>(null);
@@ -72,7 +122,7 @@ export function useDownload3dModel(remoteUrl: string, assetName: string = 'asset
 }
 
 export function DesignObject3D({
-    obj, position, origin, dimensions, modelScale, rotation, onObjectInteraction, isSelected, onObjectEdited, onObjectDeleted, onEditObject, room3d, magnetEnabled, allObjects, onDragStateChange, onSlotsDiscovered, interactionDisabled, instanceOverrides, globalMaterials, slotTypesByModel, typeToDesignSlot, forcedHidden
+    obj, position, origin, dimensions, modelScale, rotation, onObjectInteraction, isSelected, onObjectEdited, onObjectDeleted, onEditObject, room3d, magnetEnabled, allObjects, onDragStateChange, onSlotsDiscovered, interactionDisabled, instanceOverrides, globalMaterials, globalMaterialsRaw, materialDataById, slotTypesByModel, typeToDesignSlot, forcedHidden
 }: {
     obj: DesignObject,
     position: [number, number, number],
@@ -93,6 +143,8 @@ export function DesignObject3D({
     interactionDisabled?: boolean,
     instanceOverrides?: Record<number, AppliedMaterial>,
     globalMaterials?: Record<string, AppliedMaterial>,
+    globalMaterialsRaw?: GlobalMaterials,
+    materialDataById?: Record<string, AppliedMaterial>,
     slotTypesByModel?: Record<string, ObjectMaterialType[]>,
     typeToDesignSlot?: Record<string, string>,
     forcedHidden?: boolean
@@ -126,6 +178,7 @@ export function DesignObject3D({
 
     const gltfRef = useRef<THREE.Group | null>(null);
     const edgeLinesRef = useRef<THREE.LineSegments[]>([]);
+    const meshOriginalMaterialsRef = useRef<WeakMap<THREE.Mesh, THREE.Material>>(new WeakMap());
     const originalMaterialsRef = useRef<Map<number, THREE.Material>>(new Map());
     const slotMapsRef = useRef<SlotIndexMaps | null>(null);
     const overrideVersionRef = useRef(0);
@@ -133,6 +186,7 @@ export function DesignObject3D({
     const slotsDiscoveredRef = useRef(false);
     const [groupReady, setGroupReady] = useState(false);
     const [slotMapsReady, setSlotMapsReady] = useState(false);
+    const [texturesResolved, setTexturesResolved] = useState(false);
     const [gltfVersion, setGltfVersion] = useState(0);
     const [modelFitSize, setModelFitSize] = useState<THREE.Vector3 | null>(null);
     const onSlotsDiscoveredRef = useRef(onSlotsDiscovered);
@@ -142,16 +196,20 @@ export function DesignObject3D({
       gltfRef.current = group;
       if (!group) {
         setGroupReady(false);
+        setTexturesResolved(false);
         setModelFitSize(null);
         return;
       }
 
       group.traverse((child) => {
-        if (child instanceof THREE.Mesh && child.material) {
-          (child as THREE.Mesh).material = child.material.clone();
+        if (child instanceof THREE.Mesh && child.material && !Array.isArray(child.material)) {
+          const origMat = child.material.clone();
+          meshOriginalMaterialsRef.current.set(child, origMat);
+          child.material = createWhitePlaceholderMaterial(origMat);
         }
       });
 
+      setTexturesResolved(false);
       setGroupReady(true);
       setGltfVersion(version => version + 1);
     }, []);
@@ -242,7 +300,19 @@ export function DesignObject3D({
       if (!group || !maps || !slotMapsReady) return;
 
       const { slots, originalMaterials } = collectSlots(group, maps);
-      originalMaterialsRef.current = originalMaterials;
+      const preservedMaterials = new Map<number, THREE.Material>(originalMaterials);
+      group.traverse((child) => {
+        if (child instanceof THREE.Mesh && child.material) {
+          const slot = resolveMeshSlot(child, maps);
+          const orig = meshOriginalMaterialsRef.current.get(child);
+          if (slot !== null && orig && !preservedMaterials.has(slot)) {
+            preservedMaterials.set(slot, orig.clone());
+          } else if (slot !== null && orig) {
+            preservedMaterials.set(slot, orig.clone());
+          }
+        }
+      });
+      originalMaterialsRef.current = preservedMaterials;
       if (slots.length > 0 && !slotsDiscoveredRef.current) {
         slotsDiscoveredRef.current = true;
         onSlotsDiscoveredRef.current?.(obj.id, slots);
@@ -250,24 +320,75 @@ export function DesignObject3D({
     }, [groupReady, slotMapsReady, obj.id]);
 
     const modelKey = `${obj.modelId}:${obj.version}`;
-    const objectSlotTypes = slotTypesByModel ? slotTypesByModel[modelKey] ?? null : null;
+    const objectSlotTypes = slotTypesByModel ? slotTypesByModel[modelKey] ?? null : undefined;
 
     useEffect(() => {
       const group = gltfRef.current;
       const maps = slotMapsRef.current;
-      if (!group || !maps || !localUri || !slotMapsReady) return;
+      if (!group || !localUri || !groupReady) return;
+
+      if (!slotMapsReady || (obj.modelId && slotTypesByModel && objectSlotTypes === undefined)) {
+        setTexturesResolved(false);
+        return;
+      }
+
+      if (!maps) {
+        group.traverse((child) => {
+          if (child instanceof THREE.Mesh) {
+            const orig = meshOriginalMaterialsRef.current.get(child);
+            if (orig && child.material !== orig) {
+              child.material = orig;
+            }
+          }
+        });
+        setTexturesResolved(true);
+        return;
+      }
 
       overrideVersionRef.current++;
       const currentVersion = overrideVersionRef.current;
 
       if (!textureLoaderRef.current) textureLoaderRef.current = new THREE.TextureLoader();
 
+      const resolvedGlobalIds = globalMaterialsRaw ? resolveGlobalMaterials(globalMaterialsRaw) : {};
+      let pendingCount = 0;
+      let waitingForMaterialData = false;
+
+      const resolveOne = () => {
+        pendingCount--;
+        if (pendingCount <= 0 && !waitingForMaterialData && currentVersion === overrideVersionRef.current) {
+          setTexturesResolved(true);
+        }
+      };
+
       group.traverse((child) => {
         if (child instanceof THREE.Mesh && child.material) {
-          const material = child.material as THREE.Material;
-          const slotName = material.name || sanitizeNodeName(child.name);
+          const orig = meshOriginalMaterialsRef.current.get(child) ?? originalMaterialsRef.current.get(resolveMeshSlot(child, maps) ?? -1);
+          const baseMat = (orig ?? child.material) as THREE.MeshStandardMaterial;
+          const slotName = baseMat.name || sanitizeNodeName(child.name);
           const slot = resolveMeshSlot(child, maps);
-          if (slot === null) return;
+          if (slot === null) {
+            if (orig && child.material !== orig) {
+              child.material = orig;
+            }
+            return;
+          }
+
+          let targetMaterialId: string | undefined;
+          const rawOverride = obj.materialOverrides?.[slot];
+          if (rawOverride) {
+            targetMaterialId = resolveMaterialValue(rawOverride, globalMaterialsRaw ?? {});
+          }
+          if (!targetMaterialId) {
+            const slotType = objectSlotTypes?.find(t => t.slot === slot);
+            const typeName = slotType?.materialTypeName || slotType?.materialTypeId || '';
+            const designKey = typeName && typeToDesignSlot ? typeToDesignSlot[normalizeTypeName(typeName)] : undefined;
+            if (designKey && resolvedGlobalIds[designKey]) {
+              targetMaterialId = resolvedGlobalIds[designKey];
+            } else if (resolvedGlobalIds[slotName]) {
+              targetMaterialId = resolvedGlobalIds[slotName];
+            }
+          }
 
           let override: AppliedMaterial | undefined;
           if (instanceOverrides && instanceOverrides[slot]) {
@@ -283,48 +404,76 @@ export function DesignObject3D({
               override = globalMaterials[slotName];
             }
           }
+          if (!override && targetMaterialId && materialDataById?.[targetMaterialId]) {
+            override = materialDataById[targetMaterialId];
+          }
+
+          if (targetMaterialId && (!override || !override.fileURL)) {
+            waitingForMaterialData = true;
+            child.material = createWhitePlaceholderMaterial(baseMat);
+            return;
+          }
 
           if (override && override.fileURL) {
-            const orig = originalMaterialsRef.current.get(slot);
-            const origMat = (orig ?? child.material) as THREE.MeshStandardMaterial;
-            const newMat = origMat.clone();
+            const placeholderMat = createWhitePlaceholderMaterial(baseMat) as THREE.MeshStandardMaterial;
+            child.material = placeholderMat;
+            pendingCount++;
 
-            textureLoaderRef.current!.load(override.fileURL, (texture) => {
-              if (currentVersion !== overrideVersionRef.current) return;
+            textureLoaderRef.current!.load(
+              override.fileURL,
+              (texture) => {
+                if (currentVersion !== overrideVersionRef.current) return;
 
-              if (origMat.map) {
-                texture.wrapS = origMat.map.wrapS;
-                texture.wrapT = origMat.map.wrapT;
-              } else {
-                texture.wrapS = THREE.RepeatWrapping;
-                texture.wrapT = THREE.RepeatWrapping;
+                const newMat = baseMat.clone();
+                if (baseMat.map) {
+                  texture.wrapS = baseMat.map.wrapS;
+                  texture.wrapT = baseMat.map.wrapT;
+                } else {
+                  texture.wrapS = THREE.RepeatWrapping;
+                  texture.wrapT = THREE.RepeatWrapping;
+                }
+
+                if (
+                  override.scaleU > 0 &&
+                  override.scaleV > 0 &&
+                  texture.image?.width &&
+                  texture.image?.height
+                ) {
+                  texture.repeat.set(
+                    (override.scaleU * dimensions[0]) / texture.image.width,
+                    (override.scaleV * dimensions[1]) / texture.image.height
+                  );
+                }
+
+                newMat.map = texture;
+                newMat.needsUpdate = true;
+                child.material = newMat;
+                resolveOne();
+              },
+              undefined,
+              () => {
+                if (currentVersion !== overrideVersionRef.current) return;
+                if (orig && child.material !== orig) {
+                  child.material = orig;
+                }
+                resolveOne();
               }
-
-              if (
-                override.scaleU > 0 &&
-                override.scaleV > 0 &&
-                texture.image?.width &&
-                texture.image?.height
-              ) {
-                texture.repeat.set(
-                  (override.scaleU * dimensions[0]) / texture.image.width,
-                  (override.scaleV * dimensions[1]) / texture.image.height
-                );
-              }
-
-              newMat.map = texture;
-              newMat.needsUpdate = true;
-            });
-            child.material = newMat;
+            );
           } else {
-            const orig = originalMaterialsRef.current.get(slot);
-            if (orig && child.material !== orig) {
-              child.material = orig;
+            const slotOrig = originalMaterialsRef.current.get(slot) ?? orig;
+            if (slotOrig && child.material !== slotOrig) {
+              child.material = slotOrig;
             }
           }
         }
       });
-    }, [instanceOverrides, globalMaterials, localUri, dimensions, slotMapsReady, groupReady, objectSlotTypes, typeToDesignSlot]);
+
+      if (pendingCount === 0 && !waitingForMaterialData) {
+        setTexturesResolved(true);
+      } else {
+        setTexturesResolved(false);
+      }
+    }, [instanceOverrides, globalMaterials, globalMaterialsRaw, materialDataById, obj.materialOverrides, obj.modelId, localUri, dimensions, slotMapsReady, groupReady, objectSlotTypes, slotTypesByModel, typeToDesignSlot]);
 
     useEffect(() => {
         if (Platform.OS === 'web') {
@@ -489,11 +638,16 @@ export function DesignObject3D({
         }
     };
 
+    const hideObject = !!obj.hidden || !!forcedHidden;
+
     if (isLoading) {
         return (
-            <Box key={obj.id} position={boxPosition} args={dimensions} >
-                <meshStandardMaterial attach="material" color="black" />
-            </Box>
+            <group>
+                <Box key={obj.id} position={boxPosition} args={dimensions} visible={!hideObject}>
+                    <meshStandardMaterial attach="material" color="#ffffff" />
+                </Box>
+                {!hideObject && <LoadingSpinner3D position={boxPosition} />}
+            </group>
         );
     }
 
@@ -558,6 +712,7 @@ export function DesignObject3D({
      };
 
      const fitScale: [number, number, number] = fitScaleFromSize(modelFitSize, dimensions) ?? [1, 1, 1];
+     const isTextureLoading = !groupReady || !slotMapsReady || !texturesResolved;
  
      return (
          <group>
@@ -573,6 +728,10 @@ export function DesignObject3D({
                          />
                      </Suspense>
                  </group>
+
+                 {isTextureLoading && !hideObject && (
+                     <LoadingSpinner3D position={[dimensions[0] / 2, dimensions[1] / 2, dimensions[2] / 2]} />
+                 )}
 
                  {(isSelected &&
                      <group>
