@@ -15,6 +15,7 @@ export interface MoveContext {
     position: [number, number, number];
     rotation: number;
     dimensions: [number, number, number];
+    objectProperties?: ObjectProperties;
   }[];
 }
 
@@ -97,8 +98,10 @@ export function wallSnapMove(
     const currentAngle = newRot;
     const EPSILON_MAG = 0.1;
 
+    const movingBehaviour = ctx.objectProperties?.movingBehaviour;
     const candidates = ctx.allObjects.filter(other => {
       if (other.id === ctx.objectId) return false;
+      if (other.objectProperties?.movingBehaviour !== movingBehaviour) return false;
       const otherAngle = other.rotation || 0;
       return Math.abs(otherAngle - currentAngle) < EPSILON_MAG;
     });
@@ -120,14 +123,14 @@ export function wallSnapMove(
         if (bestSnap !== null) newX = Math.max(0, Math.min(ctx.room3d.width - ctx.objectDimensions[0], bestSnap));
       } else if (Math.abs(currentAngle - Math.PI / 2) < EPSILON_MAG) {
         const draggedFront = newZ;
-        const draggedBack = newZ + ctx.objectDimensions[0];
+        const draggedBack = newZ - ctx.objectDimensions[0];
         let bestSnap: number | null = null;
         let bestDist = MAGNET_THRESHOLD;
         for (const other of candidates) {
           const otherFront = other.position[2];
-          const otherBack = other.position[2] + other.dimensions[0];
+          const otherBack = other.position[2] - other.dimensions[0];
           let dist = Math.abs(draggedBack - otherFront);
-          if (dist < bestDist) { bestDist = dist; bestSnap = otherFront - ctx.objectDimensions[0]; }
+          if (dist < bestDist) { bestDist = dist; bestSnap = otherFront + ctx.objectDimensions[0]; }
           dist = Math.abs(draggedFront - otherBack);
           if (dist < bestDist) { bestDist = dist; bestSnap = otherBack; }
         }
