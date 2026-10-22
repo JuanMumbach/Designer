@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useAuth } from './AuthContext';
 import {
   addObjectShortcut,
   cloneObject,
   fetchAllCategories,
-  fetchAllObjectModels,
+  fetchObjectCatalog,
   fetchPublicObjectModels,
   removeObjectShortcut,
   ObjectModel,
@@ -11,6 +12,7 @@ import {
 } from './api';
 
 export function useObjects(workspaceId?: string) {
+  const { backendUserId } = useAuth();
   const [objects, setObjects] = useState<ObjectModel[]>([]);
   const [categories, setCategories] = useState<ObjectCategory[]>([]);
   const [publicObjects, setPublicObjects] = useState<ObjectModel[]>([]);
@@ -19,11 +21,12 @@ export function useObjects(workspaceId?: string) {
   const [error, setError] = useState<Error | null>(null);
 
   const load = useCallback(async () => {
+    if (!backendUserId) return;
     try {
       setIsLoading(true);
       setError(null);
       const [objectsData, categoriesData] = await Promise.all([
-        fetchAllObjectModels(),
+        fetchObjectCatalog(workspaceId, backendUserId),
         fetchAllCategories(),
       ]);
       const seen = new Set<string>();
@@ -38,7 +41,7 @@ export function useObjects(workspaceId?: string) {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [workspaceId, backendUserId]);
 
   const loadPublic = useCallback(async () => {
     if (!workspaceId) return;

@@ -1,345 +1,110 @@
-import { useCallback, useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
-import WorkspaceAdmin from '@/components/Editors/Workspaces/WorkspaceAdmin';
-import Thumbnail from '@/components/Thumbnail';
-import {
-  createWorkspace,
-  fetchAllWorkspaces,
-  updateWorkspace,
-  Workspace,
-} from '@/services/api';
-import { useAuth } from '@/services/AuthContext';
-import { uploadFileToFirebase } from '@/services/firebaseSetup';
-import { pickImage } from '@/services/imagePicker';
-import { COLORS, commonStyles, RADII } from '@/constants/theme';
+import React, { useCallback, useEffect, useState } from 'react';
+import { ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import WorkspaceAdmin from '../../components/Editors/Workspaces/WorkspaceAdmin';
+import Thumbnail from '../../components/Thumbnail';
+import { ManagerAction, ManagerNotice, ManagerSearch, managerStyles as s } from '../../components/Editors/ManagerControls';
+import { createWorkspace, fetchAllWorkspaces, updateWorkspace, Workspace } from '../../services/api';
+import { useAccess } from '../../services/AccessContext';
+import { useAuth } from '../../services/AuthContext';
+import { uploadFileToFirebase } from '../../services/firebaseSetup';
+import { pickImage } from '../../services/imagePicker';
+import { COLORS } from '../../constants/theme';
 
 export default function WorkspacesScreen() {
-  const { backendUserId, selectedWorkspaceId: contextSelectedWorkspaceId } = useAuth();
+  const access = useAccess();
+  const { backendUserId, selectedWorkspaceId: contextId } = useAuth();
+  const { width } = useWindowDimensions();
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [newWorkspaceName, setNewWorkspaceName] = useState('');
-  const [showNewWorkspace, setShowNewWorkspace] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [query, setQuery] = useState('');
   const [creating, setCreating] = useState(false);
-  const [uploadingLogo, setUploadingLogo] = useState(false);
-
-  const currentlySelected = workspaces.find(
-    (ws) => ws.id === selectedWorkspaceId
-  );
-
-  const loadWorkspaces = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const [renaming, setRenaming] = useState(false);
+  const [name, setName] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState('');
+  const selected = workspaces.find(ws => ws.id === selectedId);
+  const load = useCallback(async () => {
+    setLoading(true); setError(null);
     try {
-      const ws = await fetchAllWorkspaces();
-      setWorkspaces(ws);
-      setSelectedWorkspaceId((prev) => {
-        if (prev) return prev;
-        if (
-          contextSelectedWorkspaceId &&
-          ws.some((w) => w.id === contextSelectedWorkspaceId)
-        ) {
-          return contextSelectedWorkspaceId;
-        }
-        return null;
-      });
-    } catch {
-      setError('Failed to load workspaces.');
-    } finally {
-      setLoading(false);
-    }
-  }, [contextSelectedWorkspaceId]);
-
-  useEffect(() => {
-    loadWorkspaces();
-  }, [loadWorkspaces]);
-
-  const handleCreateWorkspace = async () => {
-    const name = newWorkspaceName.trim();
-    if (!name) return;
-    if (!backendUserId) {
-      Alert.alert('Validation', 'You must be logged in to create a workspace.');
-      return;
-    }
-    setCreating(true);
+      const all = await fetchAllWorkspaces();
+      const manageable = all.filter(ws => access.canManageApplication || access.manageableWorkspaceIds.includes(ws.id));
+      setWorkspaces(manageable);
+      setSelectedId(prev => manageable.some(ws => ws.id === prev) ? prev : manageable.find(ws => ws.id === contextId)?.id ?? manageable[0]?.id ?? null);
+    } catch (e) { setError((e as Error).message); }
+    finally { setLoading(false); }
+  }, [contextId, access.canManageApplication, access.manageableWorkspaceIds]);
+  useEffect(() => { void load(); }, [load]);
+  const handleSave = async () => {
+    if (busy || !name.trim() || !backendUserId) return;
+    setBusy(true); setError(null); setMessage('');
     try {
-      const ws = await createWorkspace({ name, creatorId: backendUserId });
-      setWorkspaces((prev) => [...prev, ws]);
-      setSelectedWorkspaceId(ws.id);
-      setNewWorkspaceName('');
-      setShowNewWorkspace(false);
-    } catch {
-      Alert.alert('Error', 'Failed to create workspace.');
-    } finally {
-      setCreating(false);
-    }
+      if (creating) {
+        const ws = await createWorkspace({ name: name.trim(), creatorId: backendUserId });
+        setWorkspaces(prev => [...prev, ws]); setSelectedId(ws.id); access.refresh();
+      } else if (selected) {
+        await updateWorkspace(selected.id, { name: name.trim() });
+        setWorkspaces(prev => prev.map(ws => ws.id === selected.id ? { ...ws, name: name.trim() } : ws));
+      }
+      setCreating(false); setRenaming(false); setName(''); setMessage('Espacio guardado.');
+    } catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
   };
-
-  const handleChangeLogo = async (ws: Workspace) => {
-    const uri = await pickImage();
-    if (!uri) return;
-    setUploadingLogo(true);
+  const handleLogo = async () => {
+    if (!selected || busy) return;
+    setBusy(true); setError(null); setMessage('');
     try {
-      const fileURL = await uploadFileToFirebase(
-        uri,
-        'workspace-logos',
-        `logo_${ws.id}_${Date.now()}.jpeg`
-      );
-      await updateWorkspace(ws.id, { logoURL: fileURL });
-      await loadWorkspaces();
-    } catch {
-      Alert.alert('Error', 'Failed to update workspace logo.');
-    } finally {
-      setUploadingLogo(false);
-    }
+      const uri = await pickImage();
+      if (!uri) return;
+      const logoURL = await uploadFileToFirebase(uri, 'workspace-logos', `logo_${selected.id}_${Date.now()}.jpeg`);
+      await updateWorkspace(selected.id, { logoURL });
+      setWorkspaces(prev => prev.map(ws => ws.id === selected.id ? { ...ws, logoURL } : ws));
+      setMessage('Logo actualizado.');
+    } catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
   };
-
-  if (loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-        <Text style={styles.loadingText}>Loading workspaces…</Text>
-      </View>
-    );
-  }
-
-  if (error) {
-    return (
-      <View style={styles.center}>
-        <Text style={styles.errorText}>{error}</Text>
-        <Pressable style={styles.retryButton} onPress={loadWorkspaces}>
-          <Text style={styles.retryText}>Retry</Text>
-        </Pressable>
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.container}>
-      <View style={styles.pickerSection}>
-        <Text style={commonStyles.label}>Workspace</Text>
-        {workspaces.length > 0 ? (
-          <View style={commonStyles.chipRow}>
-            {workspaces.map((ws) => (
-              <Pressable
-                key={ws.id}
-                style={[
-                  commonStyles.chip,
-                  styles.chipRow,
-                  selectedWorkspaceId === ws.id && commonStyles.chipActive,
-                ]}
-                onPress={() => setSelectedWorkspaceId(ws.id)}
-              >
-                {ws.logoURL && (
-                  <Thumbnail
-                    uri={ws.logoURL}
-                    size={16}
-                    icon="business"
-                    radius={RADII.full}
-                  />
-                )}
-                <Text
-                  style={[
-                    commonStyles.chipText,
-                    selectedWorkspaceId === ws.id && commonStyles.chipTextActive,
-                  ]}
-                >
-                  {ws.name}
-                </Text>
-              </Pressable>
-            ))}
-            <Pressable
-              style={[commonStyles.chip, showNewWorkspace && commonStyles.chipActive]}
-              onPress={() => setShowNewWorkspace((v) => !v)}
-            >
-              <Text
-                style={[commonStyles.chipText, showNewWorkspace && commonStyles.chipTextActive]}
-              >
-                + New
-              </Text>
-            </Pressable>
-          </View>
-        ) : (
-          <Text style={styles.emptyText}>No workspaces found. Create one below.</Text>
-        )}
-        {(showNewWorkspace || workspaces.length === 0) && (
-          <ScrollView keyboardShouldPersistTaps="handled">
-            <TextInput
-              style={[commonStyles.input, styles.inlineInput]}
-              value={newWorkspaceName}
-              onChangeText={setNewWorkspaceName}
-              placeholder="New workspace name"
-            />
-            <Pressable
-              style={({ pressed }) => [
-                styles.createButton,
-                pressed && styles.createButtonPressed,
-              ]}
-              onPress={handleCreateWorkspace}
-              disabled={creating}
-            >
-              <Text style={styles.createButtonText}>
-                {creating ? 'Creating…' : 'Create Workspace'}
-              </Text>
-            </Pressable>
-          </ScrollView>
-        )}
-      </View>
-
-      {selectedWorkspaceId ? (
-        currentlySelected && (
-          <View style={styles.logoRow}>
-            <Thumbnail
-              uri={currentlySelected.logoURL}
-              size={44}
-              icon="business"
-              radius={RADII.md}
-            />
-            <View style={styles.logoInfo}>
-              <Text style={styles.logoName} numberOfLines={1}>
-                {currentlySelected.name}
-              </Text>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.logoButton,
-                  pressed && styles.logoButtonPressed,
-                  uploadingLogo && styles.logoButtonDisabled,
-                ]}
-                onPress={() => handleChangeLogo(currentlySelected)}
-                disabled={uploadingLogo}
-                accessibilityRole="button"
-                accessibilityLabel="Cambiar logo del workspace"
-              >
-                <Text style={styles.logoButtonText}>
-                  {uploadingLogo ? 'Subiendo…' : 'Cambiar logo'}
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        )
-      ) : null}
-
-      {selectedWorkspaceId ? (
-        <WorkspaceAdmin workspaceId={selectedWorkspaceId} />
-      ) : (
-        <View style={styles.center}>
-          <Text style={styles.emptyText}>Select or create a workspace to manage members and roles.</Text>
-        </View>
-      )}
+  const filtered = workspaces.filter(ws => ws.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())).sort((a, b) => a.name.localeCompare(b.name));
+  return <View style={styles.screen}>
+    <View style={styles.header}>
+      <Text style={s.title}>Espacios de trabajo</Text>
+      <Text style={s.subtitle}>{access.canManageApplication ? 'Administra los espacios y el acceso de sus miembros.' : 'Un lugar para tus proyectos y tu equipo.'}</Text>
     </View>
-  );
+    <View style={[styles.body, width >= 900 && styles.wide]}>
+      <ScrollView style={[styles.picker, width >= 900 && styles.widePicker]} contentContainerStyle={styles.pickerContent} keyboardShouldPersistTaps="handled">
+        <View style={s.row}><ManagerAction label="Nuevo espacio" primary disabled={busy} onPress={() => { setCreating(true); setRenaming(false); setName(''); }} /><ManagerAction label="Actualizar" disabled={busy || loading} onPress={load} /></View>
+        <ManagerSearch value={query} onChangeText={setQuery} placeholder="Buscar espacios" />
+        {loading && <ManagerNotice message="Cargando espacios…" loading />}
+        {!loading && <Text style={s.label}>{filtered.length} espacios disponibles</Text>}
+        {filtered.map(ws => <ManagerAction key={ws.id} label={ws.name} primary={selectedId === ws.id} disabled={busy} onPress={() => { setSelectedId(ws.id); setRenaming(false); setCreating(false); setMessage(''); setError(null); }} />)}
+        {!loading && filtered.length === 0 && <ManagerNotice message={query ? 'No hay coincidencias.' : 'Crea un espacio para empezar a colaborar.'} />}
+      </ScrollView>
+      <View style={styles.detail}>
+        <ScrollView style={styles.detailsHeader} contentContainerStyle={styles.pickerContent} keyboardShouldPersistTaps="handled">
+          {error && <ManagerNotice message={error} error />}
+          {!!message && <ManagerNotice message={message} />}
+          {(creating || renaming) ? <View style={s.card}>
+            <Text style={s.name}>{creating ? 'Nuevo espacio' : 'Renombrar espacio'}</Text>
+            <Text style={s.label}>Nombre del espacio</Text>
+            <TextInput accessibilityLabel="Nombre del espacio" editable={!busy} style={s.input} value={name} onChangeText={setName} placeholder="Por ejemplo, Estudio Norte" />
+            <View style={s.row}><ManagerAction label={busy ? 'Guardando…' : 'Guardar espacio'} primary disabled={busy || !name.trim() || !backendUserId} onPress={handleSave} /><ManagerAction label="Cancelar" disabled={busy} onPress={() => { setCreating(false); setRenaming(false); }} /></View>
+          </View> : selected && <View style={s.row}>
+            <Thumbnail uri={selected.logoURL} size={56} icon="business" radius={14} />
+            <View style={styles.identity}><Text style={s.name}>{selected.name}</Text>{access.canManageApplication && <Text selectable style={s.subtitle}>{selected.id}</Text>}</View>
+            <ManagerAction label="Renombrar" disabled={busy} onPress={() => { setRenaming(true); setName(selected.name); }} />
+            <ManagerAction label={busy ? 'Actualizando…' : 'Cambiar logo'} disabled={busy} onPress={handleLogo} />
+          </View>}
+        </ScrollView>
+        {selected && !creating && <WorkspaceAdmin key={selected.id} workspaceId={selected.id} />}
+      </View>
+    </View>
+  </View>;
 }
-
 const styles = StyleSheet.create({
-  container: {
-    ...commonStyles.screen,
-  },
-  pickerSection: {
-    paddingHorizontal: 24,
-    paddingTop: 20,
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  center: {
-    ...commonStyles.center,
-  },
-  loadingText: {
-    marginTop: 12,
-    color: COLORS.textMuted,
-    fontSize: 14,
-  },
-  errorText: {
-    color: COLORS.error,
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  retryButton: {
-    marginTop: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: RADII.md,
-    backgroundColor: COLORS.secondary,
-  },
-  retryText: {
-    color: COLORS.textHeading,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  chipRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  inlineInput: {
-    marginTop: 12,
-    marginBottom: 10,
-  },
-  createButton: {
-    alignSelf: 'flex-start',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: RADII.md,
-    backgroundColor: COLORS.primary,
-    marginBottom: 8,
-  },
-  createButtonPressed: {
-    backgroundColor: COLORS.primaryPressed,
-  },
-  createButtonText: {
-    color: COLORS.white,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  emptyText: {
-    fontSize: 13,
-    color: COLORS.textMuted,
-    textAlign: 'center',
-    paddingVertical: 12,
-  },
-  logoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingTop: 14,
-    paddingBottom: 4,
-  },
-  logoInfo: {
-    flex: 1,
-    minWidth: 0,
-  },
-  logoName: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: COLORS.textHeading,
-    marginBottom: 6,
-  },
-  logoButton: {
-    alignSelf: 'flex-start',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: RADII.sm,
-    backgroundColor: COLORS.secondary,
-  },
-  logoButtonPressed: {
-    backgroundColor: COLORS.secondaryPressed,
-  },
-  logoButtonDisabled: {
-    opacity: 0.6,
-  },
-  logoButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.textHeading,
-  },
+  screen: { flex: 1, backgroundColor: COLORS.bgAlt }, header: { padding: 24, gap: 8 },
+  body: { flex: 1 }, wide: { flexDirection: 'row' },
+  picker: { maxHeight: 220, flexGrow: 0, borderBottomWidth: 1, borderColor: COLORS.border },
+  widePicker: { width: 280, maxHeight: '100%', borderRightWidth: 1, borderBottomWidth: 0 },
+  pickerContent: { padding: 20, gap: 12 }, detail: { flex: 1, minWidth: 0 },
+  detailsHeader: { flexGrow: 0, maxHeight: 280 }, identity: { flex: 1, minWidth: 120, gap: 4 },
 });

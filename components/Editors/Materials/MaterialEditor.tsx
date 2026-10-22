@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { parseBudgetNumber } from '../../../services/budget';
+import { defaultBoardSettings, validateBoardSettings } from '../../../services/materialParts';
 import {
   Alert,
   Modal,
@@ -18,6 +20,11 @@ import { useAuth } from '../../../services/AuthContext';
 import { MaterialCategory, MaterialType } from '../../../services/api';
 
 export type MaterialFormData = {
+  pricePerSquareMeter: number | null;
+  boardWidthMm: number;
+  boardHeightMm: number;
+  cutSpacingMm: number;
+  costMultiplier: number;
   name: string;
   creatorId: string;
   categoryId: string | null;
@@ -57,6 +64,11 @@ export default function MaterialEditor({
   const { backendUserId } = useAuth();
 
   const [name, setName] = useState(initial?.name ?? '');
+  const [costMultiplier, setCostMultiplier] = useState(String(initial?.costMultiplier ?? 1));
+  const [pricePerSquareMeter, setPricePerSquareMeter] = useState(initial?.pricePerSquareMeter == null ? '' : String(initial.pricePerSquareMeter));
+  const [boardWidthMm, setBoardWidthMm] = useState(String(initial?.boardWidthMm ?? defaultBoardSettings.boardWidthMm));
+  const [boardHeightMm, setBoardHeightMm] = useState(String(initial?.boardHeightMm ?? defaultBoardSettings.boardHeightMm));
+  const [cutSpacingMm, setCutSpacingMm] = useState(String(initial?.cutSpacingMm ?? defaultBoardSettings.cutSpacingMm));
   const [categoryId, setCategoryId] = useState(initial?.categoryId ?? '');
   const [typeId, setTypeId] = useState(initial?.typeId ?? '');
   const [fileURL, setFileURL] = useState(initial?.fileURL ?? '');
@@ -96,6 +108,13 @@ export default function MaterialEditor({
   };
 
   const handleSave = async () => {
+    const price = pricePerSquareMeter.trim() ? parseBudgetNumber(pricePerSquareMeter) : null;
+    const width = parseBudgetNumber(boardWidthMm, 100000, true);
+    const height = parseBudgetNumber(boardHeightMm, 100000, true);
+    const spacing = parseBudgetNumber(cutSpacingMm, 1000);
+    if (price === undefined || width === undefined || height === undefined || spacing === undefined || validateBoardSettings({ boardWidthMm: width, boardHeightMm: height, cutSpacingMm: spacing })) { Alert.alert('Material', 'Revisá el precio por m², las medidas de placa y la separación de cortes.'); return; }
+    const parsedMultiplier = parseBudgetNumber(costMultiplier, 1e6, true);
+    if (parsedMultiplier === undefined) { Alert.alert('Presupuesto', 'El multiplicador debe ser mayor que 0 y hasta 1.000.000.'); return; }
     if (!name.trim()) {
       Alert.alert('Validation', 'Name is required.');
       return;
@@ -126,13 +145,18 @@ export default function MaterialEditor({
           scaleU: scaleU || '1',
           scaleV: scaleV || '1',
           materialProperties: materialProperties.trim(),
+          costMultiplier: parsedMultiplier,
+          pricePerSquareMeter: price,
+          boardWidthMm: width,
+          boardHeightMm: height,
+          cutSpacingMm: spacing,
           isPublic,
         },
         isEdit
       );
       onClose();
-    } catch {
-      // error handled by caller
+    } catch (error) {
+      Alert.alert('Error', error instanceof Error ? error.message : 'No se pudieron guardar los cambios.');
     } finally {
       setSaving(false);
     }
@@ -343,6 +367,17 @@ export default function MaterialEditor({
         editable={!disabled}
       />
 
+      <Text style={styles.sectionTitle}>Precio y formato de placa</Text>
+      <Text style={styles.label}>Precio por m² (vacío = pendiente)</Text>
+      <TextInput style={styles.input} value={pricePerSquareMeter} onChangeText={setPricePerSquareMeter} editable={!disabled && !saving} keyboardType="decimal-pad" accessibilityLabel="Precio por metro cuadrado" placeholder="Precio por m²" />
+      <Text style={styles.label}>Ancho de placa (mm)</Text>
+      <TextInput style={styles.input} value={boardWidthMm} onChangeText={setBoardWidthMm} editable={!disabled && !saving} keyboardType="decimal-pad" accessibilityLabel="Ancho de placa en mm" />
+      <Text style={styles.label}>Alto de placa (mm)</Text>
+      <TextInput style={styles.input} value={boardHeightMm} onChangeText={setBoardHeightMm} editable={!disabled && !saving} keyboardType="decimal-pad" accessibilityLabel="Alto de placa en mm" />
+      <Text style={styles.label}>Separación entre cortes (mm)</Text>
+      <TextInput style={styles.input} value={cutSpacingMm} onChangeText={setCutSpacingMm} editable={!disabled && !saving} keyboardType="decimal-pad" accessibilityLabel="Separación entre cortes en mm" />
+      <Text style={styles.label}>Factor para conceptos manuales (sin despiece)</Text>
+      <TextInput style={styles.input} value={costMultiplier} onChangeText={setCostMultiplier} editable={!disabled && !saving} keyboardType="decimal-pad" accessibilityLabel="Multiplicador de costo" />
       <Text style={styles.label}>Material Properties</Text>
       <TextInput
         style={[styles.input, styles.multilineInput, disabled && styles.inputDisabled]}

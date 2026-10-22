@@ -24,7 +24,7 @@ interface View3dOverlayProps {
   room3dProps: Room3dProps;
   setRoom3d: React.Dispatch<React.SetStateAction<Room3dProps>>;
   onObjectAdded: (newObject: DesignObject) => void;
-  onObjectEdited: (id: string, updates: { name: string; position: [number, number, number]; rotation?: number; materialOverrides?: MaterialOverrides }) => void;
+  onObjectEdited: (id: string, updates: { name: string; position: [number, number, number]; rotation?: number; materialOverrides?: MaterialOverrides; dimensions?: [number, number, number] }) => void;
   onObjectDeleted: (id: string) => void;
   movingObject?: DesignObject;
   setMovingObject: (object?: DesignObject) => void;
@@ -198,10 +198,16 @@ export default function View3dOverlay({
 
   const handleObjectEditAndClose = (
     id: string,
-    updates: { name: string; position: [number, number, number]; rotation?: number; materialOverrides?: MaterialOverrides }
+    updates: { name: string; position: [number, number, number]; rotation?: number; materialOverrides?: MaterialOverrides; dimensions?: [number, number, number] }
   ) => {
     onObjectEdited(id, updates);
     closeEditMenu();
+  };
+
+  const handleDimensionPreview = (id: string, dimensions: [number, number, number]) => {
+    const target = designObjects.find(o => o.id === id);
+    if (!target) return;
+    onObjectEdited(id, { name: target.name, position: target.position, dimensions });
   };
 
   const handleObjectDeleteAndClose = (id: string) => {
@@ -401,8 +407,10 @@ export default function View3dOverlay({
     )) ||
     (isEditObjectMenuVisible && selectedObjectState && (
       <EditFurnitureInstanceMenu
+        key={selectedObjectState.id}
         object={selectedObjectState}
         onEditComplete={handleObjectEditAndClose}
+        onDimensionPreview={handleDimensionPreview}
         onDelete={handleObjectDeleteAndClose}
         onClose={closeEditMenu}
         materials={materials}
@@ -482,8 +490,10 @@ export default function View3dOverlay({
             )) ||
             (isEditObjectMenuVisible && selectedObjectState && (
               <EditFurnitureInstanceMenu
+                key={selectedObjectState.id}
                 object={selectedObjectState}
                 onEditComplete={handleObjectEditAndClose}
+                onDimensionPreview={handleDimensionPreview}
                 onDelete={handleObjectDeleteAndClose}
                 onClose={closeEditMenu}
                 materials={materials}

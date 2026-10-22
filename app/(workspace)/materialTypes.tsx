@@ -1,4 +1,5 @@
 import React from 'react';
+import { ManagerAction } from '../../components/Editors/ManagerControls';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import MaterialTypeAdmin from '@/components/Editors/MaterialTypes/MaterialTypeAdmin';
 import { useMaterialTypes } from '@/services/useMaterialTypes';
@@ -20,6 +21,7 @@ export default function MaterialTypesScreen() {
     return (
       <View style={styles.center}>
         <Text style={styles.errorText}>Error: {error.message}</Text>
+        <ManagerAction label="Reintentar" onPress={refresh} />
       </View>
     );
   }

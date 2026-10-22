@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useAuth } from './AuthContext';
 import { ObjectTemplate } from '../components/DesignScreen/3dView/DesignObjects';
 import {
   addObjectShortcut,
   cloneObject,
   fetchAllCategories,
-  fetchAllObjectModels,
+  fetchObjectCatalog,
   fetchObjectVersion,
   fetchPublicObjectModels,
   removeObjectShortcut,
@@ -57,6 +58,7 @@ function parseObjectProperties(raw: unknown): ObjectProperties | undefined {
 }
 
 export function useObjectTemplates(workspaceId?: string) {
+  const { backendUserId } = useAuth();
   const [objectTemplates, setObjectTemplates] = useState<ObjectTemplate[]>([]);
   const [categories, setCategories] = useState<ObjectCategory[]>([]);
   const [publicObjects, setPublicObjects] = useState<ObjectModel[]>([]);
@@ -65,11 +67,12 @@ export function useObjectTemplates(workspaceId?: string) {
   const [error, setError] = useState<Error | null>(null);
 
   const load = useCallback(async () => {
+    if (!backendUserId) return;
     try {
       setIsLoading(true);
       setError(null);
 
-      const objectModels: ObjectModel[] = await fetchAllObjectModels();
+      const objectModels: ObjectModel[] = await fetchObjectCatalog(workspaceId, backendUserId);
 
       let categoriesData: ObjectCategory[] = [];
       try {
@@ -109,7 +112,7 @@ export function useObjectTemplates(workspaceId?: string) {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [workspaceId, backendUserId]);
 
   const loadPublic = useCallback(async () => {
     if (!workspaceId) return;

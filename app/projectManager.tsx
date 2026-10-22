@@ -11,6 +11,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import { useAccess } from "../services/AccessContext";
 import { useAuth } from "../services/AuthContext";
 import { COLORS, RADII } from "../constants/theme";
 import {
@@ -24,6 +25,7 @@ import {
   Workspace,
 } from "../services/api";
 import Thumbnail from "../components/Thumbnail";
+import { ManagerAction, ManagerNotice, ManagerSearch } from "../components/Editors/ManagerControls";
 
 const MONTH_NAMES = [
   "enero",
@@ -53,11 +55,14 @@ const hasUsableDate = (iso?: string) => {
 };
 
 export default function ProjectManagerScreen() {
+  const { canManageApplication } = useAccess();
   const router = useRouter();
   const { selectedWorkspaceId } = useAuth();
   const { width: screenWidth } = useWindowDimensions();
   const isWide = screenWidth >= 700;
 
+  const [query, setQuery] = useState("");
+  const [loadError, setLoadError] = useState("");
   const [projects, setProjects] = useState<Project[]>([]);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [users, setUsers] = useState<BackendUser[]>([]);
@@ -90,21 +95,22 @@ export default function ProjectManagerScreen() {
   }, [cardSize]);
 
   const loadData = useCallback(async () => {
+    setLoading(true); setLoadError("");
     try {
       const [ws, pr, us] = await Promise.all([
         fetchAllWorkspaces(),
         fetchAllProjects(),
-        fetchAllUsers().catch(() => []),
+        canManageApplication ? fetchAllUsers().catch(() => []) : Promise.resolve([]),
       ]);
       setWorkspaces(ws);
       setProjects(pr);
       setUsers(us);
     } catch {
-      // ignore
+      setLoadError('No se pudieron cargar los proyectos. Inténtalo de nuevo.');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [canManageApplication]);
 
   useFocusEffect(
     useCallback(() => {
@@ -162,10 +168,10 @@ export default function ProjectManagerScreen() {
     const filtered = selectedWorkspaceId === null
       ? projects.filter((p) => p.workspaceId == null)
       : projects.filter((p) => p.workspaceId === selectedWorkspaceId);
-    return [...filtered].sort(
+    return filtered.filter(project => project.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())).sort(
       (a, b) => new Date(b.lastUpdate).getTime() - new Date(a.lastUpdate).getTime()
     );
-  }, [projects, selectedWorkspaceId]);
+  }, [projects, selectedWorkspaceId, query]);
 
   const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
   const thumbnailAttemptedRef = useRef<Set<string>>(new Set());
@@ -490,6 +496,11 @@ export default function ProjectManagerScreen() {
         </View>
       </View>
 
+      <View style={styles.searchSection}>
+        <ManagerSearch value={query} onChangeText={setQuery} placeholder="Buscar proyectos por nombre" />
+        {!!loadError && <ManagerNotice message={loadError} error />}
+        {!!loadError && <ManagerAction label="Reintentar" onPress={loadData} disabled={loading} />}
+      </View>
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.primary} />
@@ -498,7 +509,7 @@ export default function ProjectManagerScreen() {
       ) : visibleProjects.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>
-            No hay proyectos en este espacio.
+            {query ? "No hay proyectos que coincidan con la búsqueda." : "Tu próximo diseño empieza aquí. Crea tu primer proyecto."}
           </Text>
         </View>
       ) : (
@@ -539,7 +550,7 @@ export default function ProjectManagerScreen() {
                                 <Thumbnail
                                   uri={thumbnails[project.id]}
                                   width="100%"
-                                  height={104}
+                                  height={150}
                                   icon="folder-outline"
                                   radius={RADII.sm}
                                 />
@@ -626,6 +637,7 @@ export default function ProjectManagerScreen() {
 }
 
 const styles = StyleSheet.create({
+  searchSection: { paddingHorizontal: 20, paddingVertical: 12, gap: 10 },
   container: {
     flex: 1,
     width: "100%",
@@ -677,6 +689,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   statusRow: {
+    flexWrap: "wrap",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -693,6 +706,7 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
   },
   statusActions: {
+    flexWrap: "wrap",
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
@@ -777,10 +791,10 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   card: {
-    flexBasis: 170,
+    flexBasis: 230,
     flexGrow: 1,
     flexShrink: 1,
-    maxWidth: 220,
+    maxWidth: 320,
     backgroundColor: COLORS.bg,
     borderWidth: 1,
     borderColor: COLORS.border,

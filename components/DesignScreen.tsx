@@ -2,7 +2,7 @@ import ProjectPicker from "@/components/DesignScreen/3dViewOverlay/ProjectPicker
 import Design3dView from "@/components/DesignScreen/Design3dViewer";
 import View3dOverlay from "@/components/DesignScreen/View3dOverlay";
 import { COLORS } from "@/constants/theme";
-import { fetchAllMaterialTypes, fetchMaterialVersion, fetchModelMaterialTypes, fetchProject, fetchProjectVersion, MaterialType, ObjectMaterialType } from "@/services/api";
+import { fetchAllMaterialTypes, fetchMaterialVersion, fetchModelMaterialTypes, fetchObjectVersion, fetchProject, fetchProjectVersion, MaterialType, ObjectMaterialType } from "@/services/api";
 import { useAuth } from "@/services/AuthContext";
 import { deserializeProjectState, loadProject, loadProjectFromCloud, ProjectStateDTO, saveProject, serializeProjectState } from "@/services/projectStorage";
 import { exportSceneAsGLB } from "@/services/sceneExport";
@@ -19,6 +19,8 @@ import { useObjectTemplates } from "../services/useFurnitureModels";
 import { useMaterials } from "../services/useMaterials";
 import { AppliedMaterial, createDesignObject, DesignObject, getInitialPosition, GlobalMaterials, MaterialOverrides, resolveGlobalMaterials } from "./DesignScreen/3dView/DesignObjects";
 import { Room3dProps } from "./DesignScreen/3dView/Room3d";
+import { emptyBudgetSettings, ModelBudgetEntry } from '../services/budget';
+import { MaterialPart } from '../services/materialParts';
 
 
 const initialRoom3d: Room3dProps = {
@@ -31,13 +33,16 @@ const initialRoom3d: Room3dProps = {
 
 export default function DesignScreen({ projectId }: { projectId?: string }) {
   const { backendUserId, selectedWorkspaceId } = useAuth();
-  const { setProject } = useCurrentProject();
+  const { setProject, setDesignSnapshot, budgetSettings, setBudgetSettings, registerBudgetEditor, registerPartsEditor } = useCurrentProject();
   const { objectTemplates, categories: objectCategories, isLoading: modelsLoading, error: modelsError } = useObjectTemplates(selectedWorkspaceId ?? undefined);
   const { materials, categories: materialCategories, isLoading: materialsLoading } = useMaterials(selectedWorkspaceId ?? undefined);
   const [room3d, setRoom3d] = useState<Room3dProps>(initialRoom3d);
   const [designObjects, setDesignObjects] = useState<DesignObject[]>([]);
   const [movingObject, setMovingObject] = useState<DesignObject | undefined>(undefined);
   const [globalMaterials, setGlobalMaterials] = useState<GlobalMaterials>({});
+  useEffect(() => {
+    setDesignSnapshot({ room: room3d, objects: designObjects, globalMaterials });
+  }, [room3d, designObjects, globalMaterials, setDesignSnapshot]);
   const [materialDataById, setMaterialDataById] = useState<Record<string, AppliedMaterial>>({});
   const [magnetEnabled, _setMagnetEnabled] = useState<boolean>(true);
   const [isDraggingObject, setIsDraggingObject] = useState(false);
@@ -49,6 +54,29 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
   const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([]);
   const projectLoadedRef = useRef(false);
   const loadedProjectIdRef = useRef<string | null>(null);
+  const defaultSceneInitializedRef = useRef(false);
+  const projectLoadGenerationRef = useRef(0);
+  useEffect(() => {
+    registerBudgetEditor(isProjectLoading ? null : (id: string, entries: ModelBudgetEntry[] | undefined) => {
+      setDesignObjects((objects) => objects.map((object) => object.id === id ? { ...object, budgetEntries: entries } : object));
+    });
+    registerPartsEditor(isProjectLoading ? null : (id: string, parts: MaterialPart[] | undefined) => {
+      setDesignObjects((objects) => objects.map((object) => object.id === id ? { ...object, materialParts: parts } : object));
+    });
+    return () => { registerBudgetEditor(null); registerPartsEditor(null); };
+  }, [registerBudgetEditor, registerPartsEditor, isProjectLoading]);
+  useEffect(() => {
+    if (projectId) return;
+    setBudgetSettings(emptyBudgetSettings());
+    setGlobalMaterials({});
+    setDesignObjects([]);
+    setProject(null);
+    loadedProjectIdRef.current = null;
+    projectLoadGenerationRef.current += 1;
+    setIsProjectLoading(false);
+    projectLoadedRef.current = false;
+    defaultSceneInitializedRef.current = false;
+  }, [projectId, setBudgetSettings, setProject]);
 
   const captureApi = useMemo<ThumbnailCaptureApi>(
     () => createThumbnailCaptureApi(),
@@ -67,24 +95,28 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
   };
 
   const handleSaveProject = async () => {
-    const serializedState = serializeProjectState(room3d, designObjects, globalMaterials);
+    const serializedState = serializeProjectState(room3d, designObjects, globalMaterials, budgetSettings);
     await saveProject(serializedState, 'my_designer_project.json');
   };
 
-  const applyProjectData = useCallback(async (projectData: ProjectStateDTO) => {
+  const applyProjectData = useCallback(async (projectData: ProjectStateDTO, generation = ++projectLoadGenerationRef.current) => {
     const getModelUrl = async (modelId: string, version: number) => {
       const template = objectTemplates.find(t => t.id === modelId && t.version === version);
       if (template) return template.modelUrl;
-      return undefined;
+      const storedVersion = await fetchObjectVersion(modelId, version);
+      return storedVersion.fileURL;
     };
 
-    const { room, objects, globalMaterials: loadedGlobalMaterials } = await deserializeProjectState(projectData, getModelUrl);
+    const { room, objects, globalMaterials: loadedGlobalMaterials, budgetSettings: loadedBudget } = await deserializeProjectState(projectData, getModelUrl);
+    if (generation !== projectLoadGenerationRef.current) return;
+    setIsProjectLoading(false);
     projectLoadedRef.current = true;
     setRoom3d(room);
     setDesignObjects(objects);
     setGlobalMaterials(loadedGlobalMaterials ?? {});
+    setBudgetSettings(loadedBudget);
     setMovingObject(undefined);
-  }, [objectTemplates]);
+  }, [objectTemplates, setBudgetSettings]);
 
   const confirmReplaceScene = (action: () => void) => {
     if (designObjects.length === 0) {
@@ -106,7 +138,7 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
     const projectData = await loadProject();
     if (projectData) {
       confirmReplaceScene(() => {
-        applyProjectData(projectData);
+        applyProjectData(projectData).catch(() => Alert.alert('Error', 'No se pudo cargar el proyecto o su presupuesto.'));
       });
     }
   };
@@ -238,6 +270,8 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
   useEffect(() => {
     if (projectId) return;
     if (objectTemplates.length === 0) return;
+    if (defaultSceneInitializedRef.current || projectLoadedRef.current) return;
+    defaultSceneInitializedRef.current = true;
 
     const defaults: DesignObject[] = [];
 
@@ -267,18 +301,27 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
   }, [objectTemplates, projectId]);
 
   const loadProjectById = useCallback(async (id: string) => {
+    const generation = ++projectLoadGenerationRef.current;
     setIsProjectLoading(true);
     setDesignObjects([]);
+    setBudgetSettings(emptyBudgetSettings());
+    setGlobalMaterials({});
+    setProject(null);
     try {
       const project = await fetchProject(id);
+      if (generation !== projectLoadGenerationRef.current) return;
       if (!project.lastVersion) {
+        loadedProjectIdRef.current = id;
+        setProject(project);
         Alert.alert('Info', 'This project has no saved versions.');
         return;
       }
       const version = await fetchProjectVersion(project.id, project.lastVersion);
       const projectState = await loadProjectFromCloud(version.fileURL);
+      if (generation !== projectLoadGenerationRef.current) return;
       if (projectState) {
-        await applyProjectData(projectState);
+        await applyProjectData(projectState, generation);
+        if (generation !== projectLoadGenerationRef.current) return;
         loadedProjectIdRef.current = id;
         setProject(project);
       }
@@ -286,9 +329,9 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
       console.error('Cloud load failed:', err);
       Alert.alert('Error', 'Failed to load project from cloud.');
     } finally {
-      setIsProjectLoading(false);
+      if (generation === projectLoadGenerationRef.current) setIsProjectLoading(false);
     }
-  }, [applyProjectData, setProject]);
+  }, [applyProjectData, setProject, setBudgetSettings]);
 
   useEffect(() => {
     if (!projectId) return;
@@ -312,7 +355,7 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
     setMovingObject(newObject);
   };
 
-  const handleObjectEdited = (id: string, updates: { name: string, position: [number, number, number], rotation?: number, materialOverrides?: MaterialOverrides, hidden?: boolean }) => {
+  const handleObjectEdited = (id: string, updates: { name: string, position: [number, number, number], rotation?: number, materialOverrides?: MaterialOverrides, hidden?: boolean, dimensions?: [number, number, number] }) => {
     setDesignObjects(prev => prev.map(obj =>
       obj.id === id ? {
         ...obj,
@@ -321,6 +364,7 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
         ...(updates.rotation !== undefined && { rotation: updates.rotation }),
         ...(updates.materialOverrides !== undefined && { materialOverrides: updates.materialOverrides }),
         ...(updates.hidden !== undefined && { hidden: updates.hidden }),
+        ...(updates.dimensions !== undefined && { dimensions: updates.dimensions }),
       } : obj
     ));
   };
@@ -422,7 +466,7 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
       {isProjectPickerVisible && (
         <View style={styles.pickerOverlay}>
           <ProjectPicker
-            projectState={serializeProjectState(room3d, designObjects, globalMaterials)}
+            projectState={serializeProjectState(room3d, designObjects, globalMaterials, budgetSettings)}
             creatorId={backendUserId}
             onSaved={(project) => setProject(project)}
             onClose={() => setIsProjectPickerVisible(false)}

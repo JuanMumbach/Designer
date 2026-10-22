@@ -1,495 +1,94 @@
-import { useCallback, useEffect, useState } from 'react';
-import {
-  Alert,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
-import Button from '../../Button';
-import {
-  addWorkspaceMember,
-  createWorkspaceRole,
-  deleteWorkspaceRole,
-  fetchAllWorkspaceRoles,
-  fetchWorkspaceMembers,
-  removeWorkspaceMember,
-  updateWorkspaceMember,
-  updateWorkspaceRole,
-  WorkspaceMember,
-  WorkspaceRole,
-} from '../../../services/api';
-import { COLORS, commonStyles, RADII } from '../../../constants/theme';
+import React, { useCallback, useEffect, useState } from 'react';
+import { ScrollView, Text, TextInput, View } from 'react-native';
+import { useAccess } from '../../../services/AccessContext';
+import { useAuth } from '../../../services/AuthContext';
+import { addWorkspaceMember, fetchAllWorkspaceRoles, fetchWorkspaceMembers, removeWorkspaceMember, updateWorkspaceMember, WorkspaceMember, WorkspaceRole, WorkspaceAccessLevel } from '../../../services/api';
+import { ManagerAction, ManagerDialog, ManagerNotice, ManagerSearch, managerStyles as s } from '../ManagerControls';
 
-interface WorkspaceAdminProps {
-  workspaceId: string;
-}
-
-export default function WorkspaceAdmin({ workspaceId }: WorkspaceAdminProps) {
+export default function WorkspaceAdmin({ workspaceId }: { workspaceId: string }) {
+  const { refresh: refreshAccess, canManageApplication } = useAccess();
+  const { backendUserId } = useAuth();
   const [roles, setRoles] = useState<WorkspaceRole[]>([]);
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const [newRoleName, setNewRoleName] = useState('');
-  const [newRoleDescription, setNewRoleDescription] = useState('');
-  const [editingRoleId, setEditingRoleId] = useState<string | null>(null);
-  const [editingRoleName, setEditingRoleName] = useState('');
-  const [editingRoleDescription, setEditingRoleDescription] = useState('');
-
+  const [message, setMessage] = useState('');
+  const [query, setQuery] = useState('');
+  const [adding, setAdding] = useState(false);
   const [newMemberUserId, setNewMemberUserId] = useState('');
   const [newMemberRoleId, setNewMemberRoleId] = useState('');
-
+  const [pending, setPending] = useState<{ member: WorkspaceMember; roleId?: string }>();
   const reload = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+    setLoading(true); setError(null);
     try {
-      const [r, m] = await Promise.all([
-        fetchAllWorkspaceRoles(),
-        fetchWorkspaceMembers(workspaceId),
-      ]);
-      setRoles(r);
-      setMembers(m);
-    } catch (e) {
-      setError((e as Error).message || 'Failed to load workspace data.');
-    } finally {
-      setLoading(false);
-    }
+      const [r, m] = await Promise.all([fetchAllWorkspaceRoles(), fetchWorkspaceMembers(workspaceId)]);
+      setRoles(r); setMembers(m);
+      setNewMemberRoleId(prev => prev || r.find(role => role.accessLevel === WorkspaceAccessLevel.Designer)?.id || '');
+    } catch (e) { setError((e as Error).message); }
+    finally { setLoading(false); }
   }, [workspaceId]);
-
-  useEffect(() => {
-    reload();
-  }, [reload]);
-
-  const confirm = (message: string, onConfirm: () => void) => {
-    if (Platform.OS === 'web') {
-      if (window.confirm(message)) onConfirm();
-    } else {
-      Alert.alert('Confirm', message, [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'OK', onPress: onConfirm },
-      ]);
-    }
-  };
-
-  const handleCreateRole = async () => {
-    if (!newRoleName.trim()) return;
-    try {
-      await createWorkspaceRole({
-        name: newRoleName.trim(),
-        description: newRoleDescription.trim() || undefined,
-      });
-      setNewRoleName('');
-      setNewRoleDescription('');
-      await reload();
-    } catch {
-      Alert.alert('Error', 'Failed to create workspace role.');
-    }
-  };
-
-  const handleUpdateRole = async (id: string) => {
-    if (!editingRoleName.trim()) return;
-    try {
-      await updateWorkspaceRole(id, {
-        name: editingRoleName.trim(),
-        description: editingRoleDescription.trim() || null,
-      });
-      setEditingRoleId(null);
-      await reload();
-    } catch {
-      Alert.alert('Error', 'Failed to update workspace role.');
-    }
-  };
-
-  const handleDeleteRole = (role: WorkspaceRole) => {
-    confirm(`Delete role "${role.name}"?`, async () => {
-      try {
-        await deleteWorkspaceRole(role.id);
-        await reload();
-      } catch {
-        Alert.alert(
-          'Cannot delete',
-          'This role may be assigned to members or is otherwise in use.'
-        );
-      }
-    });
-  };
-
+  useEffect(() => { void reload(); }, [reload]);
   const handleAddMember = async () => {
+    if (busy) return;
     const userId = newMemberUserId.trim();
-    if (!userId) {
-      Alert.alert('Validation', 'Enter the user GUID to add.');
-      return;
-    }
-    if (!newMemberRoleId) {
-      Alert.alert('Validation', 'Select a role for the new member.');
-      return;
-    }
-    if (members.some((m) => m.userId === userId)) {
-      Alert.alert('Validation', 'That user is already a member of this workspace.');
-      return;
-    }
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) { setError('Ingresa un ID de usuario válido.'); return; }
+    if (!newMemberRoleId) { setError('Selecciona un rol.'); return; }
+    if (members.some(m => m.userId.toLowerCase() === userId.toLowerCase())) { setError('Este usuario ya pertenece al espacio.'); return; }
+    setBusy(true); setError(null); setMessage('');
     try {
       await addWorkspaceMember({ userId, workspaceId, roleId: newMemberRoleId });
-      setNewMemberUserId('');
-      setNewMemberRoleId('');
-      await reload();
-    } catch {
-      Alert.alert('Error', 'Failed to add member to workspace.');
-    }
+      setNewMemberUserId(''); setAdding(false); setMessage('Miembro agregado.'); await reload(); refreshAccess();
+    } catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
   };
-
-  const handleChangeMemberRole = async (member: WorkspaceMember, roleId: string) => {
+  const handleConfirm = async () => {
+    if (!pending || busy) return;
+    setBusy(true); setError(null); setMessage('');
     try {
-      await updateWorkspaceMember(member.userId, workspaceId, { roleId });
-      await reload();
-    } catch {
-      Alert.alert('Error', 'Failed to update member role.');
-    }
+      if (pending.roleId) await updateWorkspaceMember(pending.member.userId, workspaceId, { roleId: pending.roleId });
+      else await removeWorkspaceMember(pending.member.userId, workspaceId);
+      setPending(undefined); setMessage('Miembros actualizados.'); await reload(); refreshAccess();
+    } catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
   };
-
-  const handleRemoveMember = (member: WorkspaceMember) => {
-    confirm(`Remove member "${member.username ?? member.userId}" from this workspace?`, async () => {
-      try {
-        await removeWorkspaceMember(member.userId, workspaceId);
-        await reload();
-      } catch {
-        Alert.alert('Error', 'Failed to remove member from workspace.');
-      }
-    });
-  };
-
-  if (loading) {
-    return (
-      <View style={styles.center}>
-        <Text style={styles.loadingText}>Loading workspace…</Text>
-      </View>
-    );
-  }
-
-  if (error) {
-    return (
-      <View style={styles.center}>
-        <Text style={styles.errorText}>{error}</Text>
-        <Pressable style={styles.retryButton} onPress={reload}>
-          <Text style={styles.retryText}>Retry</Text>
-        </Pressable>
-      </View>
-    );
-  }
-
-  return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.headerSubtitle}>
-        Manage the workspace roles and their assigned members.
-      </Text>
-
-      {/* ── Roles ── */}
-      <Text style={styles.sectionTitle}>Workspace Roles</Text>
-      <TextInput
-        style={styles.input}
-        value={newRoleName}
-        onChangeText={setNewRoleName}
-        placeholder="Role name (e.g. Admin)"
-        placeholderTextColor={COLORS.textFaint}
-      />
-      <TextInput
-        style={[styles.input, styles.multilineInput]}
-        value={newRoleDescription}
-        onChangeText={setNewRoleDescription}
-        placeholder="Description (optional)"
-        placeholderTextColor={COLORS.textFaint}
-        multiline
-      />
-      <Button label="Create Role" onPress={handleCreateRole} />
-
-      {roles.length > 0 && (
-        <>
-          <Text style={[styles.sectionTitle, { marginTop: 28 }]}>Existing Roles</Text>
-          {roles.map((role) => {
-            const isEditing = editingRoleId === role.id;
-            return (
-              <View key={role.id} style={styles.row}>
-                {isEditing ? (
-                  <View style={styles.editRow}>
-                    <TextInput
-                      style={[styles.input, { flex: 1 }]}
-                      value={editingRoleName}
-                      onChangeText={setEditingRoleName}
-                    />
-                    <TextInput
-                      style={[styles.input, { flex: 1 }]}
-                      value={editingRoleDescription}
-                      onChangeText={setEditingRoleDescription}
-                      placeholder="Description"
-                      placeholderTextColor={COLORS.textFaint}
-                    />
-                    <View style={styles.editActions}>
-                      <Pressable
-                        style={styles.smallButton}
-                        onPress={() => handleUpdateRole(role.id)}
-                      >
-                        <Text style={styles.smallButtonText}>Save</Text>
-                      </Pressable>
-                      <Pressable
-                        style={styles.smallButton}
-                        onPress={() => setEditingRoleId(null)}
-                      >
-                        <Text style={styles.smallButtonText}>Cancel</Text>
-                      </Pressable>
-                    </View>
-                  </View>
-                ) : (
-                  <>
-                    <View style={styles.info}>
-                      <Text style={styles.name}>{role.name}</Text>
-                      {role.description ? (
-                        <Text style={styles.description} numberOfLines={2}>
-                          {role.description}
-                        </Text>
-                      ) : null}
-                    </View>
-                    <Pressable
-                      style={styles.smallButton}
-                      onPress={() => {
-                        setEditingRoleId(role.id);
-                        setEditingRoleName(role.name);
-                        setEditingRoleDescription(role.description ?? '');
-                      }}
-                    >
-                      <Text style={styles.smallButtonText}>Rename</Text>
-                    </Pressable>
-                    <Pressable
-                      style={[styles.smallButton, styles.deleteSmallButton]}
-                      onPress={() => handleDeleteRole(role)}
-                    >
-                      <Text style={styles.smallButtonText}>Del</Text>
-                    </Pressable>
-                  </>
-                )}
-              </View>
-            );
-          })}
-        </>
-      )}
-
-      {roles.length === 0 && (
-        <Text style={styles.emptyText}>
-          No workspace roles yet. Create Admin, Editor, Viewer, … so members have a role to assign.
-        </Text>
-      )}
-
-      {/* ── Members ── */}
-      <Text style={[styles.sectionTitle, { marginTop: 28 }]}>Members</Text>
-      <TextInput
-        style={styles.input}
-        value={newMemberUserId}
-        onChangeText={setNewMemberUserId}
-        placeholder="User GUID to add"
-        placeholderTextColor={COLORS.textFaint}
-        autoCapitalize="none"
-      />
-      <Text style={styles.label}>Role</Text>
-      <View style={styles.chipRow}>
-        {roles.map((role) => (
-          <Pressable
-            key={role.id}
-            style={[styles.chip, newMemberRoleId === role.id && styles.chipActive]}
-            onPress={() => setNewMemberRoleId(role.id)}
-          >
-            <Text
-              style={[styles.chipText, newMemberRoleId === role.id && styles.chipTextActive]}
-            >
-              {role.name}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-      <Button label="Add Member" onPress={handleAddMember} />
-
-      {members.length > 0 ? (
-        <View style={styles.memberList}>
-          {members.map((member) => (
-            <View key={member.userId} style={styles.memberRow}>
-              <View style={styles.info}>
-                <Text style={styles.name}>
-                  {member.username ?? member.userId}
-                </Text>
-                <Text style={styles.description} numberOfLines={1}>
-                  Current role: {member.roleName ?? '—'}
-                </Text>
-                <Text style={styles.usage}>User ID: {member.userId}</Text>
-              </View>
-              <View style={styles.roleSelector}>
-                <Text style={styles.label}>Role</Text>
-                <View style={styles.chipRow}>
-                  {roles.map((role) => (
-                    <Pressable
-                      key={role.id}
-                      style={[
-                        styles.chip,
-                        member.roleId === role.id && styles.chipActive,
-                      ]}
-                      onPress={() => handleChangeMemberRole(member, role.id)}
-                    >
-                      <Text
-                        style={[
-                          styles.chipText,
-                          member.roleId === role.id && styles.chipTextActive,
-                        ]}
-                      >
-                        {role.name}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </View>
-              <Pressable
-                style={[styles.smallButton, styles.deleteSmallButton]}
-                onPress={() => handleRemoveMember(member)}
-              >
-                <Text style={styles.smallButtonText}>Remove</Text>
-              </Pressable>
-            </View>
-          ))}
+  const filtered = members.filter(member => `${member.username ?? ''} ${member.userId} ${member.roleName ?? ''}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())).sort((a, b) => (a.username ?? a.userId).localeCompare(b.username ?? b.userId));
+  return <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.content}>
+    <View style={s.row}>
+      <Text style={s.name}>Miembros · {members.length}</Text>
+      <ManagerAction label="Agregar miembro" primary disabled={busy || loading} onPress={() => setAdding(true)} />
+      <ManagerAction label="Actualizar" disabled={busy || loading} onPress={reload} />
+    </View>
+    <Text style={s.subtitle}>Comparte este espacio y elige qué puede hacer cada persona.</Text>
+    {error && <ManagerNotice error message={error} />}
+    {!!message && <ManagerNotice message={message} />}
+    {adding && <View style={s.card}>
+      <Text style={s.name}>Agregar una persona</Text>
+      <Text style={s.subtitle}>Pídele su ID de usuario para agregar su cuenta existente.</Text>
+      <Text style={s.label}>ID de usuario</Text>
+      <TextInput accessibilityLabel="ID del nuevo miembro" editable={!busy} style={s.input} value={newMemberUserId} onChangeText={setNewMemberUserId} autoCapitalize="none" autoCorrect={false} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+      <Text style={s.label}>Permisos en este espacio</Text>
+      <View style={s.row}>{roles.map(role => <ManagerAction key={role.id} label={role.name} primary={newMemberRoleId === role.id} disabled={busy} onPress={() => setNewMemberRoleId(role.id)} />)}</View>
+      <Text style={s.subtitle}>{roles.find(role => role.id === newMemberRoleId)?.description}</Text>
+      <View style={s.row}><ManagerAction label={busy ? 'Agregando…' : 'Agregar miembro'} primary disabled={busy || !newMemberUserId.trim() || !newMemberRoleId} onPress={handleAddMember} /><ManagerAction label="Cancelar" disabled={busy} onPress={() => setAdding(false)} /></View>
+    </View>}
+    {pending && <ManagerDialog onClose={() => { if (!busy) setPending(undefined); }}>
+      {error && <ManagerNotice error message={error} />}
+      <Text style={s.name}>{pending.roleId ? 'Cambiar permisos' : 'Quitar acceso'}</Text>
+      <Text style={s.subtitle}>{pending.roleId ? `${pending.member.username ?? pending.member.userId} tendrá el rol ${roles.find(role => role.id === pending.roleId)?.name}.` : `${pending.member.username ?? pending.member.userId} dejará de acceder a este espacio.`}</Text>
+      <View style={s.row}><ManagerAction label={busy ? 'Guardando…' : 'Confirmar'} primary={!!pending.roleId} danger={!pending.roleId} disabled={busy} onPress={handleConfirm} /><ManagerAction label="Cancelar" disabled={busy} onPress={() => setPending(undefined)} /></View>
+    </ManagerDialog>}
+    <ManagerSearch value={query} onChangeText={setQuery} placeholder="Buscar miembros o roles" />
+    {loading ? <ManagerNotice message="Cargando miembros…" loading /> : filtered.length === 0 ? <ManagerNotice message={query ? 'No hay coincidencias. Prueba otro nombre o rol.' : 'Este espacio todavía no tiene miembros.'} /> : filtered.map(member => {
+      const self = member.userId === backendUserId;
+      return <View key={member.userId} style={s.card}>
+        <View style={s.row}><Text style={s.name}>{member.username ?? 'Usuario'}</Text>{self && <Text style={s.badge}>Tú</Text>}<Text style={s.badge}>{member.roleName ?? roles.find(role => role.id === member.roleId)?.name ?? 'Sin rol'}</Text></View>
+        {canManageApplication && <Text selectable style={s.subtitle}>ID: {member.userId}</Text>}
+        <View style={s.row}>{roles.map(role => <ManagerAction key={role.id} label={role.name} primary={member.roleId === role.id} disabled={busy || self || member.roleId === role.id} onPress={() => setPending({ member, roleId: role.id })} />)}
+          <ManagerAction label="Quitar del espacio" danger disabled={busy || self} onPress={() => setPending({ member })} />
         </View>
-      ) : (
-        <Text style={styles.emptyText}>No members in this workspace yet.</Text>
-      )}
-    </ScrollView>
-  );
+        {self && <Text style={s.subtitle}>Otro administrador puede modificar tu acceso.</Text>}
+      </View>;
+    })}
+  </ScrollView>;
 }
-
-const styles = StyleSheet.create({
-  container: {
-    ...commonStyles.screen,
-  },
-  content: {
-    padding: 24,
-    backgroundColor: COLORS.bg,
-  },
-  center: {
-    ...commonStyles.center,
-  },
-  loadingText: {
-    color: COLORS.textMuted,
-    fontSize: 14,
-  },
-  errorText: {
-    color: COLORS.error,
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  retryButton: {
-    marginTop: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: RADII.md,
-    backgroundColor: COLORS.secondary,
-  },
-  retryText: {
-    color: COLORS.textHeading,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  headerSubtitle: {
-    fontSize: 13,
-    color: COLORS.textMuted,
-    marginBottom: 24,
-    lineHeight: 19,
-  },
-  sectionTitle: {
-    ...commonStyles.sectionTitle,
-  },
-  label: {
-    ...commonStyles.label,
-  },
-  input: {
-    ...commonStyles.input,
-  },
-  multilineInput: {
-    ...commonStyles.multilineInput,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.bgAlt,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: RADII.md,
-    marginBottom: 6,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  info: {
-    flex: 1,
-  },
-  name: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.textBody,
-  },
-  description: {
-    fontSize: 12,
-    color: COLORS.textMuted,
-    marginTop: 2,
-  },
-  usage: {
-    fontSize: 11,
-    color: COLORS.textFaint,
-    marginTop: 2,
-  },
-  editRow: {
-    flex: 1,
-  },
-  editActions: {
-    flexDirection: 'row',
-    gap: 6,
-    marginTop: 4,
-  },
-  smallButton: {
-    ...commonStyles.smallButton,
-  },
-  deleteSmallButton: {
-    ...commonStyles.deleteSmallButton,
-  },
-  smallButtonText: {
-    ...commonStyles.smallButtonText,
-  },
-  emptyText: {
-    ...commonStyles.emptyText,
-  },
-  chipRow: {
-    ...commonStyles.chipRow,
-    marginBottom: 12,
-  },
-  chip: {
-    ...commonStyles.chip,
-  },
-  chipActive: {
-    ...commonStyles.chipActive,
-  },
-  chipText: {
-    ...commonStyles.chipText,
-  },
-  chipTextActive: {
-    ...commonStyles.chipTextActive,
-  },
-  memberList: {
-    gap: 8,
-  },
-  memberRow: {
-    backgroundColor: COLORS.bgAlt,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: RADII.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  roleSelector: {
-    marginTop: 8,
-  },
-});

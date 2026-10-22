@@ -57,6 +57,8 @@ export function resolveGlobalMaterials(globalMaterials: GlobalMaterials): Global
 }
 
 export interface DesignObject {
+    materialParts?: import('../../../services/materialParts').MaterialPart[];
+    budgetEntries?: import('../../../services/budget').ModelBudgetEntry[];
     id: string;
     modelId: string;
     version: number;

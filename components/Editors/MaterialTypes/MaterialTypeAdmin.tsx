@@ -1,23 +1,8 @@
-import { useState } from 'react';
-import {
-  Alert,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
-import Button from '../../Button';
-import {
-  createMaterialType,
-  deleteMaterialType,
-  MaterialType,
-  updateMaterialType,
-} from '../../../services/api';
+import React, { useState } from 'react';
+import { ScrollView, Text, TextInput, View } from 'react-native';
+import { createMaterialType, deleteMaterialType, MaterialType, updateMaterialType } from '../../../services/api';
 import { MaterialTypeUsage } from '../../../services/useMaterialTypes';
-import { COLORS, commonStyles, RADII } from '../../../constants/theme';
+import { ManagerAction, ManagerDialog, ManagerNotice, ManagerSearch, managerStyles as s } from '../ManagerControls';
 
 interface MaterialTypeAdminProps {
   materialTypes: MaterialType[];
@@ -25,269 +10,74 @@ interface MaterialTypeAdminProps {
   onRefresh: () => void;
 }
 
-export default function MaterialTypeAdmin({
-  materialTypes,
-  usageByType,
-  onRefresh,
-}: MaterialTypeAdminProps) {
-  const [newName, setNewName] = useState('');
-  const [newDescription, setNewDescription] = useState('');
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingName, setEditingName] = useState('');
-  const [editingDescription, setEditingDescription] = useState('');
-
-  const handleCreate = async () => {
-    if (!newName.trim()) return;
+export default function MaterialTypeAdmin({ materialTypes, usageByType, onRefresh }: MaterialTypeAdminProps) {
+  const [query, setQuery] = useState('');
+  const [unusedOnly, setUnusedOnly] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [id, setId] = useState<string>();
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
+  const [deleting, setDeleting] = useState<MaterialType>();
+  const duplicate = materialTypes.some(type => type.id !== id && type.name.toLocaleLowerCase() === name.trim().toLocaleLowerCase());
+  const handleSave = async () => {
+    if (busy || !name.trim() || duplicate) return;
+    setBusy(true); setError(''); setMessage('');
     try {
-      await createMaterialType({
-        name: newName.trim(),
-        description: newDescription.trim() || undefined,
-      });
-      setNewName('');
-      setNewDescription('');
-      onRefresh();
-    } catch {
-      Alert.alert('Error', 'Failed to create material type.');
-    }
+      if (id) await updateMaterialType(id, { name: name.trim(), description: description.trim() || null });
+      else await createMaterialType({ name: name.trim(), description: description.trim() || undefined });
+      setEditing(false); setMessage('Tipo guardado.'); onRefresh();
+    } catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
   };
-
-  const handleRename = async (id: string) => {
-    if (!editingName.trim()) return;
+  const handleDelete = async () => {
+    if (!deleting || busy) return;
+    if (usageByType(deleting.id).slotCount > 0) { setError('Este tipo está en uso. Reasigna sus slots antes de eliminarlo.'); return; }
+    setBusy(true); setError(''); setMessage('');
     try {
-      await updateMaterialType(id, {
-        name: editingName.trim(),
-        description: editingDescription.trim() || null,
-      });
-      setEditingId(null);
-      setEditingName('');
-      setEditingDescription('');
-      onRefresh();
-    } catch {
-      Alert.alert('Error', 'Failed to update material type.');
-    }
+      await deleteMaterialType(deleting.id); setDeleting(undefined); setMessage('Tipo eliminado.'); onRefresh();
+    } catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
   };
-
-  const handleDelete = (type: MaterialType) => {
-    const usage = usageByType(type.id);
-    const confirm = () => {
-      if (usage.slotCount > 0) {
-        Alert.alert(
-          'Cannot delete',
-          `This type is used by ${usage.slotCount} slot(s). Remove the slots first.`
-        );
-        return;
-      }
-      deleteMaterialType(type.id)
-        .then(() => onRefresh())
-        .catch((err: Error & { status?: number }) => {
-          if (err.status === 500) {
-            Alert.alert(
-              'Cannot delete',
-              'This type is used by one or more slots and cannot be deleted.'
-            );
-          } else {
-            Alert.alert('Error', 'Failed to delete material type.');
-          }
-        });
-    };
-    if (Platform.OS === 'web') {
-      if (window.confirm('Delete this material type?')) confirm();
-    } else {
-      Alert.alert('Delete Material Type', 'Are you sure?', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: confirm },
-      ]);
-    }
-  };
-
-  return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.headerTitle}>Material Types</Text>
-      <Text style={styles.headerSubtitle}>
-        Manage the coarse material classifications (MDF, Granite, Glass, …) used by model slots.
-      </Text>
-
-      <Text style={styles.sectionTitle}>Create Type</Text>
-      <TextInput
-        style={styles.input}
-        value={newName}
-        onChangeText={setNewName}
-        placeholder="Type name (e.g. MDF)"
-        placeholderTextColor={COLORS.textFaint}
-      />
-      <TextInput
-        style={[styles.input, styles.multilineInput]}
-        value={newDescription}
-        onChangeText={setNewDescription}
-        placeholder="Description (optional)"
-        placeholderTextColor={COLORS.textFaint}
-        multiline
-      />
-      <Button label="Create" onPress={handleCreate} />
-
-      {materialTypes.length > 0 && (
-        <>
-          <Text style={[styles.sectionTitle, { marginTop: 28 }]}>
-            Existing Types
-          </Text>
-          {materialTypes.map((type) => {
-            const usage = usageByType(type.id);
-            const isEditing = editingId === type.id;
-            return (
-              <View key={type.id} style={styles.typeRow}>
-                {isEditing ? (
-                  <View style={styles.editRow}>
-                    <TextInput
-                      style={[styles.input, { flex: 1 }]}
-                      value={editingName}
-                      onChangeText={setEditingName}
-                    />
-                    <TextInput
-                      style={[styles.input, { flex: 1 }]}
-                      value={editingDescription}
-                      onChangeText={setEditingDescription}
-                      placeholder="Description"
-                      placeholderTextColor={COLORS.textFaint}
-                    />
-                    <View style={styles.editActions}>
-                      <Pressable
-                        style={styles.smallButton}
-                        onPress={() => handleRename(type.id)}
-                      >
-                        <Text style={styles.smallButtonText}>Save</Text>
-                      </Pressable>
-                      <Pressable
-                        style={styles.smallButton}
-                        onPress={() => setEditingId(null)}
-                      >
-                        <Text style={styles.smallButtonText}>Cancel</Text>
-                      </Pressable>
-                    </View>
-                  </View>
-                ) : (
-                  <>
-                    <View style={styles.typeInfo}>
-                      <Text style={styles.typeName}>{type.name}</Text>
-                      {type.description ? (
-                        <Text style={styles.typeDescription} numberOfLines={2}>
-                          {type.description}
-                        </Text>
-                      ) : null}
-                      <Text style={styles.typeUsage}>
-                        {usage.slotCount > 0
-                          ? `Used by ${usage.slotCount} slot(s)`
-                          : 'Not used by any slot'}
-                      </Text>
-                    </View>
-                    <Pressable
-                      style={styles.smallButton}
-                      onPress={() => {
-                        setEditingId(type.id);
-                        setEditingName(type.name);
-                        setEditingDescription(type.description ?? '');
-                      }}
-                    >
-                      <Text style={styles.smallButtonText}>Rename</Text>
-                    </Pressable>
-                    <Pressable
-                      style={[styles.smallButton, styles.deleteSmallButton]}
-                      onPress={() => handleDelete(type)}
-                    >
-                      <Text style={styles.smallButtonText}>Del</Text>
-                    </Pressable>
-                  </>
-                )}
-              </View>
-            );
-          })}
-        </>
-      )}
-
-      {materialTypes.length === 0 && (
-        <Text style={styles.emptyText}>
-          No material types yet. Create MDF, Granite, Glass, … so model slots have an allowed type to pick from.
-        </Text>
-      )}
-    </ScrollView>
-  );
+  const filtered = materialTypes.filter(type => (!unusedOnly || usageByType(type.id).slotCount === 0) && `${type.name} ${type.description ?? ''}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())).sort((a, b) => a.name.localeCompare(b.name));
+  return <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.content}>
+    <Text style={s.title}>Tipos de material</Text>
+    <Text style={s.subtitle}>Clasificaciones que determinan qué materiales pueden usar los slots de un módulo.</Text>
+    <View style={s.row}>
+      <ManagerAction label="Nuevo tipo" primary disabled={busy} onPress={() => { setId(undefined); setName(''); setDescription(''); setEditing(true); }} />
+      <ManagerAction label={unusedOnly ? 'Mostrar todos' : 'Solo sin uso'} primary={unusedOnly} onPress={() => setUnusedOnly(value => !value)} />
+      <ManagerAction label="Actualizar" disabled={busy} onPress={onRefresh} />
+    </View>
+    <ManagerSearch value={query} onChangeText={setQuery} placeholder="Buscar tipos de material" />
+    {!!error && <ManagerNotice error message={error} />}
+    {!!message && <ManagerNotice message={message} />}
+    {editing && <ManagerDialog onClose={() => { if (!busy) setEditing(false); }}>
+      {error && <ManagerNotice error message={error} />}
+      <Text style={s.name}>{id ? 'Editar tipo' : 'Crear tipo'}</Text>
+      <Text style={s.label}>Nombre</Text>
+      <TextInput accessibilityLabel="Nombre del tipo" editable={!busy} style={s.input} value={name} onChangeText={setName} placeholder="Por ejemplo, MDF" />
+      {duplicate && <ManagerNotice error message="Ya existe un tipo con este nombre." />}
+      <Text style={s.label}>Descripción</Text>
+      <TextInput accessibilityLabel="Descripción del tipo" editable={!busy} style={s.input} value={description} onChangeText={setDescription} multiline />
+      <View style={s.row}><ManagerAction label={busy ? 'Guardando…' : 'Guardar tipo'} primary disabled={busy || !name.trim() || duplicate} onPress={handleSave} /><ManagerAction label="Cancelar" disabled={busy} onPress={() => setEditing(false)} /></View>
+    </ManagerDialog>}
+    {deleting && <ManagerDialog onClose={() => { if (!busy) setDeleting(undefined); }}>
+      {error && <ManagerNotice error message={error} />}
+      <ManagerNotice error message={`¿Eliminar “${deleting.name}”? Esta acción no se puede deshacer.`} />
+      <View style={s.row}><ManagerAction label={busy ? 'Eliminando…' : 'Eliminar tipo'} danger disabled={busy} onPress={handleDelete} /><ManagerAction label="Cancelar" disabled={busy} onPress={() => setDeleting(undefined)} /></View>
+    </ManagerDialog>}
+    <Text style={s.label}>{filtered.length} de {materialTypes.length} tipos</Text>
+    {filtered.length === 0 && <ManagerNotice message="No hay tipos que mostrar. Crea uno o cambia los filtros." />}
+    {filtered.map(type => {
+      const count = usageByType(type.id).slotCount;
+      return <View key={type.id} style={s.card}>
+        <View style={s.row}><Text style={s.name}>{type.name}</Text><Text style={s.badge}>{count ? `${count} slots` : 'Sin uso'}</Text></View>
+        {!!type.description && <Text style={s.subtitle}>{type.description}</Text>}
+        <View style={s.row}><ManagerAction label="Editar" disabled={busy} onPress={() => { setId(type.id); setName(type.name); setDescription(type.description ?? ''); setEditing(true); }} /><ManagerAction label="Eliminar" danger disabled={busy || count > 0} onPress={() => setDeleting(type)} /></View>
+        {count > 0 && <Text style={s.subtitle}>Reasigna los slots antes de eliminar este tipo.</Text>}
+      </View>;
+    })}
+  </ScrollView>;
 }
-
-const styles = StyleSheet.create({
-  container: {
-    ...commonStyles.screen,
-  },
-  content: {
-    padding: 24,
-    backgroundColor: COLORS.bg,
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: COLORS.text,
-    marginBottom: 6,
-  },
-  headerSubtitle: {
-    fontSize: 13,
-    color: COLORS.textMuted,
-    marginBottom: 24,
-    lineHeight: 19,
-  },
-  sectionTitle: {
-    ...commonStyles.sectionTitle,
-  },
-  input: {
-    ...commonStyles.input,
-  },
-  multilineInput: {
-    ...commonStyles.multilineInput,
-  },
-  typeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.bgAlt,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: RADII.md,
-    marginBottom: 6,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  typeInfo: {
-    flex: 1,
-  },
-  typeName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.textBody,
-  },
-  typeDescription: {
-    fontSize: 12,
-    color: COLORS.textMuted,
-    marginTop: 2,
-  },
-  typeUsage: {
-    fontSize: 11,
-    color: COLORS.textFaint,
-    marginTop: 2,
-  },
-  editRow: {
-    flex: 1,
-  },
-  editActions: {
-    flexDirection: 'row',
-    gap: 6,
-    marginTop: 4,
-  },
-  smallButton: {
-    ...commonStyles.smallButton,
-  },
-  deleteSmallButton: {
-    ...commonStyles.deleteSmallButton,
-  },
-  smallButtonText: {
-    ...commonStyles.smallButtonText,
-  },
-  emptyText: {
-    ...commonStyles.emptyText,
-  },
-});

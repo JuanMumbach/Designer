@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS, RADII } from "../../constants/theme";
 import { useAuth } from "../../services/AuthContext";
 import { fetchUser } from "../../services/api";
+import { useAccess } from "../../services/AccessContext";
 import Thumbnail from "../Thumbnail";
 import WorkspaceSwitcher from "./WorkspaceSwitcher";
 
@@ -24,7 +25,7 @@ const navItems: {
   label: string;
   icon: React.ComponentProps<typeof Ionicons>["name"];
   iconActive: React.ComponentProps<typeof Ionicons>["name"];
-  href: "/projectManager" | "/materials" | "/roles" | "/profile";
+  href: "/projectManager" | "/materials" | "/roles" | "/workspaces" | "/profile";
   prefixes: string[];
 }[] = [
   {
@@ -45,11 +46,15 @@ const navItems: {
   },
   {
     key: "environment",
-    label: "Ajustes de Entorno",
+    label: "Administración de App",
     icon: "settings-outline",
     iconActive: "settings",
     href: "/roles",
-    prefixes: ["/roles", "/rules", "/materialTypes", "/workspaces"],
+    prefixes: ["/roles", "/rules", "/materialTypes", "/users"],
+  },
+  {
+    key: "workspace", label: "Administrar Espacios", icon: "business-outline", iconActive: "business",
+    href: "/workspaces", prefixes: ["/workspaces"],
   },
   {
     key: "profile",
@@ -62,6 +67,7 @@ const navItems: {
 ];
 
 export default function AppSidebar() {
+  const access = useAccess();
   const router = useRouter();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
@@ -136,7 +142,11 @@ export default function AppSidebar() {
       <WorkspaceSwitcher collapsed={collapsed} />
 
       <View style={styles.nav}>
-        {navItems.map((item) => {
+        {navItems.filter((item) =>
+          (item.key !== "assets" || access.canManageResources) &&
+          (item.key !== "environment" || access.canManageApplication) &&
+          (item.key !== "workspace" || access.canManageApplication || access.manageableWorkspaceIds.length > 0)
+        ).map((item) => {
           const active = isActive(item.prefixes);
           return (
             <Pressable

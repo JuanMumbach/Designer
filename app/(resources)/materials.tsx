@@ -6,7 +6,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { COLORS, commonStyles } from '@/constants/theme';
 
 export default function MaterialsScreen() {
-  const { selectedWorkspaceId } = useAuth();
+  const { selectedWorkspaceId, backendUserId } = useAuth();
   const { materials, categories, isLoading, error, refresh } = useMaterials(selectedWorkspaceId ?? undefined);
 
   if (isLoading) {
@@ -29,7 +29,7 @@ export default function MaterialsScreen() {
   return (
     <View style={styles.screen}>
       <MaterialBrowser
-        materials={materials}
+        materials={materials.filter((material) => selectedWorkspaceId ? material.workspaceId === selectedWorkspaceId : material.workspaceId == null && material.creatorId === backendUserId)}
         categories={categories}
         onRefresh={refresh}
       />

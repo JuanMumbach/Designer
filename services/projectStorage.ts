@@ -6,6 +6,8 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { Alert, Platform } from 'react-native';
+import { BudgetSettings, emptyBudgetSettings, ModelBudgetEntry, validateBudgetEntries, validateBudgetSettings } from './budget';
+import { MaterialPart, validateMaterialParts } from './materialParts';
 
 export interface ProjectMetadata {
   version: string;
@@ -28,6 +30,8 @@ export interface ProjectTextureOverride {
 }
 
 export interface ProjectInstance {
+  materialParts?: MaterialPart[];
+  budgetEntries?: ModelBudgetEntry[];
   id: string;
   name: string;
   modelId: string;
@@ -43,14 +47,16 @@ export interface ProjectInstance {
 }
 
 export interface ProjectStateDTO {
+  budgetSettings?: BudgetSettings;
   metadata: ProjectMetadata;
   room: ProjectRoom;
   instances: ProjectInstance[];
   globalMaterials?: GlobalMaterials;
 }
 
-export function serializeProjectState(room3d: Room3dProps, designObjects: DesignObject[], globalMaterials?: GlobalMaterials): ProjectStateDTO {
+export function serializeProjectState(room3d: Room3dProps, designObjects: DesignObject[], globalMaterials?: GlobalMaterials, budgetSettings?: BudgetSettings): ProjectStateDTO {
   return {
+    ...(budgetSettings ? { budgetSettings } : {}),
     metadata: {
       version: '2.1.0',
       savedAt: new Date().toISOString(),
@@ -64,6 +70,8 @@ export function serializeProjectState(room3d: Room3dProps, designObjects: Design
     },
     ...(globalMaterials ? { globalMaterials } : {}),
     instances: designObjects.map((obj) => ({
+      ...(obj.materialParts !== undefined ? { materialParts: obj.materialParts } : {}),
+      ...(obj.budgetEntries !== undefined ? { budgetEntries: obj.budgetEntries } : {}),
       id: obj.id,
       name: obj.name,
       modelId: obj.modelId,
@@ -82,8 +90,11 @@ export function serializeProjectState(room3d: Room3dProps, designObjects: Design
 export async function deserializeProjectState(
   dto: ProjectStateDTO,
   getModelUrl: (modelId: string, version: number) => Promise<string | undefined>
-): Promise<{ room: Room3dProps; objects: DesignObject[]; globalMaterials?: GlobalMaterials }> {
+): Promise<{ room: Room3dProps; objects: DesignObject[]; globalMaterials?: GlobalMaterials; budgetSettings: BudgetSettings }> {
+  if (dto.budgetSettings && validateBudgetSettings(dto.budgetSettings)) throw new Error('Invalid project budget settings.');
   const objects = await Promise.all(dto.instances.map(async (inst) => {
+    if (inst.materialParts !== undefined && validateMaterialParts(inst.materialParts)) throw new Error('Invalid module material parts.');
+    if (inst.budgetEntries !== undefined && (!Array.isArray(inst.budgetEntries) || validateBudgetEntries(inst.budgetEntries))) throw new Error('Invalid module budget entries.');
     const modelUrl = await getModelUrl(inst.modelId, inst.version);
 
     const legacyOverrides: MaterialOverrides = {};
@@ -99,6 +110,8 @@ export async function deserializeProjectState(
       ?? (hasLegacyOverrides ? legacyOverrides : undefined);
 
     return {
+      ...(inst.materialParts !== undefined ? { materialParts: inst.materialParts } : {}),
+      ...(inst.budgetEntries !== undefined ? { budgetEntries: inst.budgetEntries } : {}),
       id: inst.id,
       modelId: inst.modelId,
       version: inst.version,
@@ -115,6 +128,7 @@ export async function deserializeProjectState(
   }));
 
   return {
+    budgetSettings: dto.budgetSettings ?? emptyBudgetSettings(),
     room: {
       width: dto.room.width,
       height: dto.room.height,

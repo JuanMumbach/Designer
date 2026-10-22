@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useAuth } from './AuthContext';
 import {
   addMaterialShortcut,
   cloneMaterial,
   fetchAllMaterialCategories,
-  fetchAllMaterials,
+  fetchMaterialCatalog,
   fetchPublicMaterials,
   removeMaterialShortcut,
   MaterialCategory,
@@ -11,6 +12,7 @@ import {
 } from './api';
 
 export function useMaterials(workspaceId?: string) {
+  const { backendUserId } = useAuth();
   const [materials, setMaterials] = useState<MaterialMeta[]>([]);
   const [categories, setCategories] = useState<MaterialCategory[]>([]);
   const [publicMaterials, setPublicMaterials] = useState<MaterialMeta[]>([]);
@@ -24,7 +26,7 @@ export function useMaterials(workspaceId?: string) {
       setError(null);
 
       const [materialsData, categoriesData] = await Promise.all([
-        fetchAllMaterials(),
+        fetchMaterialCatalog(workspaceId, backendUserId ?? ''),
         fetchAllMaterialCategories(),
       ]);
 
@@ -40,7 +42,7 @@ export function useMaterials(workspaceId?: string) {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [workspaceId, backendUserId]);
 
   const loadPublic = useCallback(async () => {
     if (!workspaceId) return;

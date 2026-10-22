@@ -1,5 +1,5 @@
 import Button from "@/components/Button";
-import { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Text, TextInput, View, ViewStyle } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { DesignObject, GlobalMaterials, MaterialOverrides, resolveGlobalMaterials } from "../3dView/DesignObjects";
@@ -10,9 +10,26 @@ import MaterialPicker from "./MaterialPicker";
 import { COLORS, GLASS, RADII } from "@/constants/theme";
 import GlassSurface from "./GlassSurface";
 
+const SIZE_STEP = 0.05;
+const MIN_SIZE = 0.05;
+
+function parseSize(value: string): number {
+  return Number(String(value).trim().replace(",", "."));
+}
+
+function formatSize(value: number): string {
+  if (!Number.isFinite(value)) return "0";
+  for (let decimals = 2; decimals <= 6; decimals += 1) {
+    const text = value.toFixed(decimals);
+    if (parseSize(text) === value) return text;
+  }
+  return String(value);
+}
+
 export default function EditFurnitureInstanceMenu({
   object,
   onEditComplete,
+  onDimensionPreview,
   onDelete,
   onClose,
   materials,
@@ -24,7 +41,8 @@ export default function EditFurnitureInstanceMenu({
   containerStyle,
 }: {
   object: DesignObject;
-  onEditComplete: (id: string, updates: { name: string; position: [number, number, number]; materialOverrides?: MaterialOverrides }) => void;
+  onEditComplete: (id: string, updates: { name: string; position: [number, number, number]; materialOverrides?: MaterialOverrides; dimensions?: [number, number, number] }) => void;
+  onDimensionPreview?: (id: string, dimensions: [number, number, number]) => void;
   onDelete?: (id: string) => void;
   onClose?: () => void;
   materials: MaterialMeta[];
@@ -42,6 +60,73 @@ export default function EditFurnitureInstanceMenu({
   const [dirtyOverrides, setDirtyOverrides] = useState<Record<number, string>>(object.materialOverrides || {});
   const [editingSlot, setEditingSlot] = useState<number | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [sizeWidth, setSizeWidth] = useState(formatSize(object.dimensions[0]));
+  const [sizeHeight, setSizeHeight] = useState(formatSize(object.dimensions[1]));
+  const [sizeDepth, setSizeDepth] = useState(formatSize(object.dimensions[2]));
+  const originalDimensionsRef = useRef<[number, number, number]>([...object.dimensions]);
+  const previewedDimensionsRef = useRef(false);
+  const trackedObjectIdRef = useRef(object.id);
+  const onDimensionPreviewRef = useRef(onDimensionPreview);
+  onDimensionPreviewRef.current = onDimensionPreview;
+
+  const revertDimensionPreview = useCallback(() => {
+    if (!previewedDimensionsRef.current) return;
+    const preview = onDimensionPreviewRef.current;
+    previewedDimensionsRef.current = false;
+    if (!preview) return;
+    preview(trackedObjectIdRef.current, [...originalDimensionsRef.current]);
+  }, []);
+
+  useEffect(() => () => {
+    revertDimensionPreview();
+  }, [revertDimensionPreview]);
+
+  useEffect(() => {
+    if (trackedObjectIdRef.current === object.id) return;
+    revertDimensionPreview();
+    trackedObjectIdRef.current = object.id;
+    originalDimensionsRef.current = [...object.dimensions];
+    setSizeWidth(formatSize(object.dimensions[0]));
+    setSizeHeight(formatSize(object.dimensions[1]));
+    setSizeDepth(formatSize(object.dimensions[2]));
+  }, [object.id, object.dimensions, revertDimensionPreview]);
+
+  const sizeWidthValue = parseSize(sizeWidth);
+  const sizeHeightValue = parseSize(sizeHeight);
+  const sizeDepthValue = parseSize(sizeDepth);
+  const sizeValues: [number, number, number] = [sizeWidthValue, sizeHeightValue, sizeDepthValue];
+  const isSizeValid = sizeValues.every(value => Number.isFinite(value) && value > 0);
+
+  const sizeFields: {
+    key: string;
+    label: string;
+    value: string;
+    setValue: React.Dispatch<React.SetStateAction<string>>;
+  }[] = [
+    { key: "width", label: "W", value: sizeWidth, setValue: setSizeWidth },
+    { key: "height", label: "H", value: sizeHeight, setValue: setSizeHeight },
+    { key: "depth", label: "D", value: sizeDepth, setValue: setSizeDepth },
+  ];
+
+  useEffect(() => {
+    const preview = onDimensionPreviewRef.current;
+    if (!preview || !isSizeValid) return;
+    if (
+      sizeWidthValue === object.dimensions[0] &&
+      sizeHeightValue === object.dimensions[1] &&
+      sizeDepthValue === object.dimensions[2]
+    ) return;
+    previewedDimensionsRef.current = true;
+    preview(object.id, [sizeWidthValue, sizeHeightValue, sizeDepthValue]);
+  }, [
+    isSizeValid,
+    object.id,
+    object.dimensions,
+    sizeWidthValue,
+    sizeHeightValue,
+    sizeDepthValue,
+  ]);
+
 
   const slotTypeRows: ObjectMaterialType[] = slotTypesByModel[`${object.modelId}:${object.version}`] ?? [];
 
@@ -62,7 +147,16 @@ export default function EditFurnitureInstanceMenu({
     });
   };
 
+  const stepSize = (setter: React.Dispatch<React.SetStateAction<string>>, delta: number) => {
+    setter(prev => {
+      const val = parseSize(prev) || 0;
+      return formatSize(Math.max(MIN_SIZE, Math.round((val + delta) * 100) / 100));
+    });
+  };
+
   const handleSave = () => {
+    if (!isSizeValid) return;
+    previewedDimensionsRef.current = false;
     onEditComplete(object.id, {
       name: name,
       position: [
@@ -71,7 +165,13 @@ export default function EditFurnitureInstanceMenu({
         parseFloat(positionZ) || 0,
       ],
       materialOverrides: dirtyOverrides,
+      dimensions: [sizeWidthValue, sizeHeightValue, sizeDepthValue],
     });
+  };
+
+  const handleClose = () => {
+    revertDimensionPreview();
+    if (onClose) onClose();
   };
 
   const handleDelete = () => {
@@ -216,7 +316,7 @@ export default function EditFurnitureInstanceMenu({
           <Text style={styles.menuSubtitle} numberOfLines={1}>{object.name}</Text>
         </View>
         {onClose && (
-          <Pressable style={styles.closeBtn} onPress={onClose}>
+          <Pressable style={styles.closeBtn} onPress={handleClose}>
             <Ionicons name="close" size={18} color={GLASS.textMuted} />
           </Pressable>
         )}
@@ -327,6 +427,47 @@ export default function EditFurnitureInstanceMenu({
             />
           </View>
         </View>
+
+        <Text style={styles.sectionTitle}>Size (m)</Text>
+        <View style={styles.coordsRow}>
+          {sizeFields.map(field => (
+            <View key={field.key} style={styles.coordCol}>
+              <View style={styles.coordHeader}>
+                <View style={[styles.axisBadge, styles.sizeBadge]}>
+                  <Text style={styles.axisBadgeText}>{field.label}</Text>
+                </View>
+                <View style={styles.stepperWrap}>
+                  <Pressable
+                    style={({ pressed }) => [styles.stepperBtn, pressed && styles.stepperBtnPressed]}
+                    onPress={() => stepSize(field.setValue, -SIZE_STEP)}
+                    accessibilityLabel={`Decrease module ${field.key}`}
+                    hitSlop={4}
+                  >
+                    <Text style={styles.stepperText}>−</Text>
+                  </Pressable>
+                  <Pressable
+                    style={({ pressed }) => [styles.stepperBtn, pressed && styles.stepperBtnPressed]}
+                    onPress={() => stepSize(field.setValue, SIZE_STEP)}
+                    accessibilityLabel={`Increase module ${field.key}`}
+                    hitSlop={4}
+                  >
+                    <Text style={styles.stepperText}>+</Text>
+                  </Pressable>
+                </View>
+              </View>
+              <TextInput
+                style={styles.coordInput}
+                onChangeText={field.setValue}
+                value={field.value}
+                accessibilityLabel={`Module ${field.key} in meters`}
+                keyboardType="numeric"
+              />
+            </View>
+          ))}
+        </View>
+        {!isSizeValid && (
+          <Text style={styles.sizeError}>Enter a width, height and depth greater than zero.</Text>
+        )}
 
         {slotList.length > 0 && (
           <>
@@ -503,6 +644,17 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "700",
     color: GLASS.text,
+  },
+  sizeBadge: {
+    backgroundColor: GLASS.bgPressed,
+    borderWidth: 1,
+    borderColor: GLASS.borderStrong,
+  },
+  sizeError: {
+    marginTop: -6,
+    marginBottom: 12,
+    fontSize: 12,
+    color: COLORS.dangerStrong,
   },
   stepperWrap: {
     flexDirection: "row",

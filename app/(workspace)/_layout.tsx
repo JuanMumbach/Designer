@@ -1,9 +1,11 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Tabs } from "expo-router";
 import React from "react";
+import { useAccess } from "../../services/AccessContext";
 import { COLORS } from "@/constants/theme";
 
 export default function WorkspaceLayout() {
+  const access = useAccess();
   return (
     <Tabs
       screenOptions={{
@@ -20,6 +22,7 @@ export default function WorkspaceLayout() {
         },
       }}
     >
+      <Tabs.Protected guard={access.canManageApplication}>
       <Tabs.Screen
         name="roles"
         options={{
@@ -59,6 +62,9 @@ export default function WorkspaceLayout() {
           ),
         }}
       />
+      <Tabs.Screen name="users" options={{ title: "Usuarios de App" }} />
+      </Tabs.Protected>
+      <Tabs.Protected guard={access.canManageApplication || access.manageableWorkspaceIds.length > 0}>
       <Tabs.Screen
         name="workspaces"
         options={{
@@ -72,6 +78,7 @@ export default function WorkspaceLayout() {
           ),
         }}
       />
+      </Tabs.Protected>
     </Tabs>
   );
 }

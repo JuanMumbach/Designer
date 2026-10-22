@@ -1,29 +1,24 @@
-import { Stack, useRouter, useSegments } from 'expo-router';
+import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import React from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { AuthProvider, useAuth } from '../services/AuthContext';
 import { COLORS } from '../constants/theme';
+import { AccessProvider, useAccess } from '../services/AccessContext';
 import AppSidebar from '../components/Sidebar/AppSidebar';
 
 function RootNavigator() {
-  const { user, isLoading, isWorkspaceReady } = useAuth();
-  const router = useRouter();
-  const segments = useSegments();
+  const { user, isLoading, isWorkspaceReady, error, retry, signOut } = useAuth();
+  const access = useAccess();
+  if (user && (error || access.error)) {
+    return <View style={styles.loadingContainer}>
+      <Text>{error ?? access.error}</Text>
+      <Pressable onPress={error ? retry : access.refresh}><Text>Reintentar</Text></Pressable>
+      <Pressable onPress={() => { void signOut(); }}><Text>Cerrar sesión</Text></Pressable>
+    </View>;
+  }
 
-  useEffect(() => {
-    if (isLoading) return;
-
-    const inLoginScreen = segments[0] === 'login';
-
-    if (!user && !inLoginScreen) {
-      router.replace('/login');
-    } else if (user && inLoginScreen) {
-      router.replace('/projectManager');
-    }
-  }, [user, isLoading, segments, router]);
-
-  if (isLoading || (user && !isWorkspaceReady)) {
+  if (isLoading || (user && (!isWorkspaceReady || access.isLoading))) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={COLORS.primary} />
@@ -43,13 +38,21 @@ function RootNavigator() {
               headerShown: false,
             }}
           >
-            <Stack.Screen name="index" />
-            <Stack.Screen name="login" />
-            <Stack.Screen name="projectManager" />
-            <Stack.Screen name="profile" />
-            <Stack.Screen name="(design)" />
-            <Stack.Screen name="(resources)" />
-            <Stack.Screen name="(workspace)" />
+            <Stack.Protected guard={!user}>
+              <Stack.Screen name="login" />
+            </Stack.Protected>
+            <Stack.Protected guard={!!user}>
+              <Stack.Screen name="index" />
+              <Stack.Screen name="projectManager" />
+              <Stack.Screen name="profile" />
+              <Stack.Screen name="(design)" />
+              <Stack.Protected guard={access.canManageResources}>
+                <Stack.Screen name="(resources)" />
+              </Stack.Protected>
+              <Stack.Protected guard={access.canManageApplication || access.manageableWorkspaceIds.length > 0}>
+                <Stack.Screen name="(workspace)" />
+              </Stack.Protected>
+            </Stack.Protected>
           </Stack>
         </View>
       </View>
@@ -61,7 +64,7 @@ function RootNavigator() {
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <RootNavigator />
+      <AccessProvider><RootNavigator /></AccessProvider>
     </AuthProvider>
   );
 }

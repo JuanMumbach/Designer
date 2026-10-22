@@ -15,10 +15,86 @@ async function apiFetch(path: string, options: RequestInit = {}): Promise<Respon
   return fetch(`${API_BASE_URL}${path}`, { ...options, headers });
 }
 
+export interface AccessPermissions {
+  user: BackendUser;
+  canDesign: boolean;
+  canManageResources: boolean;
+  canManageWorkspace: boolean;
+  canManageApplication: boolean;
+  manageableWorkspaceIds: string[];
+}
+
+export async function fetchAccess(workspaceId: string | null): Promise<AccessPermissions> {
+  const response = await apiFetch(`/api/access${workspaceId ? `?workspaceId=${encodeURIComponent(workspaceId)}` : ''}`);
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new Error('La API no tiene disponible el servicio de permisos. Reinicia la API con la versión actualizada.');
+    }
+    if (response.status === 401) {
+      throw new Error('La sesión no pudo validarse. Vuelve a iniciar sesión.');
+    }
+    throw new Error(`No se pudieron cargar los permisos (HTTP ${response.status}).`);
+  }
+  return response.json();
+}
+
+export interface AppRole {
+  id: string;
+  name: string;
+  description: string | null;
+  canManageApplication: boolean;
+}
+
+export async function fetchObjectCatalog(workspaceId: string | undefined, creatorId: string): Promise<ObjectModel[]> {
+  const response = await apiFetch(workspaceId
+    ? `/api/Objects/catalog?workspaceId=${encodeURIComponent(workspaceId)}`
+    : `/api/Objects/personal?creatorId=${encodeURIComponent(creatorId)}`);
+  if (!response.ok) throw new Error('No se pudo cargar el catálogo de módulos.');
+  return response.json();
+}
+
+export async function fetchMaterialCatalog(workspaceId: string | undefined, creatorId: string): Promise<MaterialMeta[]> {
+  const response = await apiFetch(workspaceId
+    ? `/api/Materials/catalog?workspaceId=${encodeURIComponent(workspaceId)}`
+    : `/api/Materials/personal?creatorId=${encodeURIComponent(creatorId)}`);
+  if (!response.ok) throw new Error('No se pudo cargar el catálogo de materiales.');
+  return response.json();
+}
+
+export async function fetchAppRoles(): Promise<AppRole[]> {
+  const response = await apiFetch('/api/AppRole');
+  if (!response.ok) throw new Error('No se pudieron cargar los roles.');
+  return response.json();
+}
+
+export async function saveRole(
+  scope: 'AppRole' | 'WorkspaceRole',
+  role: { id?: string; name: string; description?: string | null; canManageApplication?: boolean; accessLevel?: WorkspaceAccessLevel }
+): Promise<void> {
+  const response = await apiFetch(`/api/${scope}${role.id ? `/${role.id}` : ''}`, {
+    method: role.id ? 'PUT' : 'POST',
+    body: JSON.stringify(role),
+  });
+  if (!response.ok) throw new Error('No se pudo guardar el rol.');
+}
+
+export async function removeRole(scope: 'AppRole' | 'WorkspaceRole', id: string): Promise<void> {
+  const response = await apiFetch(`/api/${scope}/${id}`, { method: 'DELETE' });
+  if (!response.ok) throw new Error('No se pudo eliminar el rol. Puede estar en uso.');
+}
+
+export async function changeUserAppRole(id: string, appRoleId: string): Promise<void> {
+  const response = await apiFetch(`/api/User/${id}/app-role`, {
+    method: 'PUT', body: JSON.stringify({ appRoleId }),
+  });
+  if (!response.ok) throw new Error('No se pudo asignar el rol.');
+}
+
 export interface BackendUser {
   id: string;
   username: string;
   firebaseUid: string;
+  appRoleId: string;
   emailAddress: string;
   name?: string | null;
   lastname?: string | null;
@@ -56,70 +132,45 @@ export async function updateUser(
 
 export async function syncUserWithBackend(user: User): Promise<string | null> {
   const token = await user.getIdToken();
-  const existing = await findBackendUserByIdentity(user, token);
-  if (existing) {
-    return existing.id;
-  }
-
   const firstName = user.displayName?.split(' ')[0];
   const lastName = user.displayName?.split(' ').slice(1).join(' ');
   const body: Record<string, string> = {
-    username: user.displayName ?? user.email?.split('@')[0] ?? 'user',
+    username: (user.displayName ?? user.email?.split('@')[0] ?? 'user').slice(0, 16),
     emailAddress: user.email ?? '',
     firebaseUid: user.uid,
   };
 
   if (firstName) body.name = firstName;
   if (lastName) body.lastname = lastName;
-  const response = await fetch(`${API_BASE_URL}/api/User`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(body),
-  });
-  if (!response.ok) {
-    throw new Error(`User sync failed: ${response.status}`);
-  }
+  let response: Response;
   try {
-    const data = await response.json();
-    return data?.id ?? null;
+    response = await fetch(`${API_BASE_URL}/api/User`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    });
   } catch {
-    return null;
+    throw new Error(`No se pudo conectar con la API en ${API_BASE_URL}. Comprueba que esté ejecutándose y que la conexión sea válida.`);
   }
-}
-
-async function findBackendUserByIdentity(
-  user: User,
-  token: string
-): Promise<BackendUser | null> {
-  const response = await fetch(`${API_BASE_URL}/api/User`, {
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-  });
   if (!response.ok) {
-    return null;
+    if (response.status === 401) {
+      throw new Error('La API no pudo validar tu sesión (HTTP 401). Comprueba la configuración de Firebase y vuelve a iniciar sesión.');
+    }
+    if (response.status === 403) {
+      throw new Error('La identidad de la cuenta no coincide con la sesión de Firebase (HTTP 403).');
+    }
+    throw new Error(`No se pudo sincronizar la cuenta con la API (HTTP ${response.status}).`);
   }
-  const users: BackendUser[] = await response.json();
-  const byUid = users.find((u) => u.firebaseUid && u.firebaseUid === user.uid);
-  if (byUid) {
-    return byUid;
-  }
-  if (!user.email) {
-    return null;
-  }
-  const normalizedEmail = user.email.toLowerCase();
-  return (
-    users.find(
-      (u) => u.emailAddress && u.emailAddress.toLowerCase() === normalizedEmail
-    ) ?? null
-  );
+  const data: { id?: string } = await response.json();
+  if (!data.id) throw new Error('La API no devolvió un identificador de usuario válido.');
+  return data.id;
 }
 
 export interface ObjectModel {
+  workspaceId?: string | null;
   id: string;
   name: string;
   createdAt: string;
@@ -144,6 +195,8 @@ export interface ObjectProperties {
 }
 
 export interface ObjectVersion {
+  materialParts?: import('./materialParts').MaterialPart[];
+  budgetEntries?: import('./budget').ModelBudgetEntry[];
   objectId: string;
   object: unknown | null;
   version: number;
@@ -213,8 +266,8 @@ export async function removeObjectShortcut(body: {
   }
 }
 
-export async function fetchObjectVersion(objectId: string): Promise<ObjectVersion> {
-  const response = await apiFetch(`/api/Objects/${objectId}`);
+export async function fetchObjectVersion(objectId: string, version?: number): Promise<ObjectVersion> {
+  const response = await apiFetch(version === undefined ? `/api/Objects/${objectId}` : `/api/ObjectVersion/${objectId}-${version}`);
   if (!response.ok) {
     throw new Error(`Failed to fetch object version for ${objectId}: ${response.status}`);
   }
@@ -264,6 +317,8 @@ export async function deleteObjectCategory(id: string): Promise<void> {
 }
 
 export async function createObject(body: {
+  workspaceId?: string | null;
+  isPublic?: boolean;
   name: string;
   creatorId: string;
   categoryId?: string;
@@ -330,6 +385,8 @@ export async function createObjectVersion(
     sizeZ: number;
     objectProperties?: string;
     creatorId: string;
+    budgetEntries?: import('./budget').ModelBudgetEntry[];
+    materialParts?: import('./materialParts').MaterialPart[];
     thumbnailURL?: string;
   }
 ): Promise<ObjectVersion> {
@@ -353,6 +410,8 @@ export async function updateObjectVersion(
     sizeY?: number;
     sizeZ?: number;
     objectProperties?: string;
+    budgetEntries?: import('./budget').ModelBudgetEntry[];
+    materialParts?: import('./materialParts').MaterialPart[];
   }
 ): Promise<void> {
   const response = await apiFetch(`/api/ObjectVersion/${objectId}-${version}`, {
@@ -376,6 +435,12 @@ export interface MaterialCategory {
 }
 
 export interface MaterialMeta {
+  pricePerSquareMeter?: number | null;
+  boardWidthMm?: number;
+  boardHeightMm?: number;
+  cutSpacingMm?: number;
+  costMultiplier?: number;
+  workspaceId?: string | null;
   id: string;
   name: string;
   createdAt: string;
@@ -506,6 +571,13 @@ export async function removeMaterialShortcut(body: {
 }
 
 export async function createMaterial(body: {
+  pricePerSquareMeter?: number | null;
+  boardWidthMm?: number;
+  boardHeightMm?: number;
+  cutSpacingMm?: number;
+  costMultiplier?: number;
+  workspaceId?: string | null;
+  isPublic?: boolean;
   name: string;
   creatorId: string;
   categoryId?: string;
@@ -518,6 +590,14 @@ export async function createMaterial(body: {
     throw new Error(`Failed to create material: ${response.status}`);
   }
   return response.json();
+}
+
+export async function updateMaterialPricing(id: string, pricing: number | { costMultiplier?: number; pricePerSquareMeter?: number | null; boardWidthMm?: number; boardHeightMm?: number; cutSpacingMm?: number }): Promise<void> {
+  const response = await apiFetch(`/api/Materials/${id}/pricing`, {
+    method: 'PUT',
+    body: JSON.stringify(typeof pricing === 'number' ? { costMultiplier: pricing } : pricing),
+  });
+  if (!response.ok) throw new Error(`Failed to update material pricing: ${response.status}`);
 }
 
 export async function updateMaterial(
@@ -877,7 +957,14 @@ export async function removeWorkspaceMember(
 
 // ── Workspace Roles API ──
 
+export enum WorkspaceAccessLevel {
+  Designer,
+  ResourceManager,
+  Administrator,
+}
+
 export interface WorkspaceRole {
+  accessLevel: WorkspaceAccessLevel;
   id: string;
   name: string;
   description: string;
@@ -892,6 +979,7 @@ export async function fetchAllWorkspaceRoles(): Promise<WorkspaceRole[]> {
 }
 
 export async function createWorkspaceRole(body: {
+  accessLevel?: WorkspaceAccessLevel;
   name: string;
   description?: string;
 }): Promise<WorkspaceRole> {

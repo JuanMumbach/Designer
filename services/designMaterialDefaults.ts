@@ -1,4 +1,5 @@
 import defaultDesignMaterials from '../config/defaultDesignMaterials.json';
+import { resolveBudgetAlias } from './budget';
 import {
   AppliedMaterial,
   GlobalMaterials,
@@ -37,14 +38,7 @@ export function resolveMaterialValue(
   value: string,
   globalMaterials: GlobalMaterials
 ): string | undefined {
-  if (!value) return undefined;
-  if (isMaterialRef(value)) {
-    const designKey = value.substring(4);
-    const target = globalMaterials[designKey];
-    if (!target || target.startsWith('ref:')) return undefined;
-    return target;
-  }
-  return value;
+  return resolveBudgetAlias(value, globalMaterials);
 }
 
 export function collectDefaultGlobalMaterials(

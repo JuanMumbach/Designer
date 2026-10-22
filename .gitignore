@@ -48,3 +48,4 @@ app-example
 .opencode/*.local.*
 .opencode/runs/
 .agents/context-memory/
+/usage/

@@ -7,6 +7,7 @@ import {
   resolveMeshSlot,
 } from '@/services/materialSlots';
 import { extractGlbParts, sanitizeNodeName } from '@/services/glbParts';
+import { fitScaleFromSize, measureModelSizeInParent } from '@/services/modelFit';
 import { normalizeTypeName, resolveMaterialValue } from '@/services/designMaterialDefaults';
 import { ObjectMaterialType } from '@/services/api';
 import * as FileSystem from 'expo-file-system';
@@ -200,11 +201,19 @@ async function addFurnitureToScene(
 
       modelGroup.rotation.set(0, -Math.PI / 2, 0);
       modelGroup.scale.set(0.01, 0.01, 0.01);
+      container.add(modelGroup);
+
+      const fitScale = fitScaleFromSize(measureModelSizeInParent(modelGroup), obj.dimensions);
+      if (fitScale) {
+        const fitGroup = new THREE.Group();
+        fitGroup.scale.set(fitScale[0], fitScale[1], fitScale[2]);
+        fitGroup.add(modelGroup);
+        container.add(fitGroup);
+      }
 
       const slotTypes = slotTypesByModel[`${obj.modelId}:${obj.version}`] ?? null;
       await applyMaterialOverrides(modelGroup, obj.materialOverrides, materialDataById, maps, globalMaterials, slotTypes, typeToDesignSlot, obj.dimensions);
 
-      container.add(modelGroup);
       container.name = obj.name;
       scene.add(container);
     } catch (err) {

@@ -1,56 +1,19 @@
-import React from "react";
-import { StyleSheet, Text, View } from "react-native";
-import Ionicons from "@expo/vector-icons/Ionicons";
-import { COLORS } from "@/constants/theme";
+import React from 'react';
+import { ScrollView, StyleSheet, Text } from 'react-native';
+import RoleManager from '../../components/Editors/RoleManager';
+import { COLORS } from '../../constants/theme';
 
 export default function RolesScreen() {
-  return (
-    <View style={styles.container}>
-      <View style={styles.content}>
-        <View style={styles.iconContainer}>
-          <Ionicons name="people" size={48} color={COLORS.primary} />
-        </View>
-        <Text style={styles.title}>Perfiles y Roles</Text>
-        <Text style={styles.subtitle}>
-          Aquí podrás gestionar permisos, roles de usuario, diseñadores y administradores del taller o fábrica.
-        </Text>
-      </View>
-    </View>
-  );
+  return <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
+    <Text style={styles.title}>Roles y permisos</Text>
+    <Text style={styles.text}>Los roles de aplicación controlan la administración global. Los roles de espacio controlan diseños, recursos y miembros dentro de cada espacio.</Text>
+    <RoleManager scope="AppRole" />
+    <RoleManager scope="WorkspaceRole" />
+  </ScrollView>;
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.bg,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 32,
-  },
-  content: {
-    alignItems: "center",
-    maxWidth: 320,
-  },
-  iconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: COLORS.primarySoft,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: COLORS.textHeading,
-    marginBottom: 12,
-    textAlign: "center",
-  },
-  subtitle: {
-    fontSize: 14,
-    color: COLORS.textMuted,
-    textAlign: "center",
-    lineHeight: 20,
-  },
+  content: { padding: 24, gap: 32, backgroundColor: COLORS.bgAlt, flexGrow: 1 },
+  title: { fontSize: 26, fontWeight: '700', color: COLORS.text },
+  text: { color: COLORS.textMuted, lineHeight: 20 },
 });

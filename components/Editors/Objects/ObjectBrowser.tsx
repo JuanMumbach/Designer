@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -11,6 +11,8 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import { useAccess } from '../../../services/AccessContext';
+import { useAuth } from '../../../services/AuthContext';
 import Button from '../../Button';
 import {
   createObject,
@@ -43,8 +45,12 @@ import {
 import { resolveDefaultSlotTextures } from '../../../services/designMaterialDefaults';
 import { AppliedMaterial } from '@/components/DesignScreen/3dView/DesignObjects';
 import { COLORS } from '@/constants/theme';
+import { ModelBudgetEntry } from '../../../services/budget';
+import { MaterialPart, materialPartsArea } from '../../../services/materialParts';
 
 interface PendingVersionData {
+  budgetEntries: ModelBudgetEntry[];
+  materialParts: MaterialPart[];
   fileURL: string;
   sizeX: number;
   sizeY: number;
@@ -90,9 +96,15 @@ export default function ObjectBrowser({
   materialTypes,
   materials,
 }: ObjectBrowserProps) {
+  const { canManageApplication } = useAccess();
+  const { selectedWorkspaceId, backendUserId } = useAuth();
   const { width: screenWidth } = useWindowDimensions();
-  const isWide = screenWidth >= 700;
+  const isWide = screenWidth >= 900;
 
+  const [search, setSearch] = useState('');
+  const [sort, setSort] = useState<'name' | 'recent'>('name');
+  const [catalogRevision, setCatalogRevision] = useState(0);
+  const [moduleDetails, setModuleDetails] = useState<Record<string, { count: number; area: number; failed?: boolean }>>({});
   const [currentCategoryId, setCurrentCategoryId] = useState<string | null>(
     null
   );
@@ -118,6 +130,15 @@ export default function ObjectBrowser({
     Record<number, AppliedMaterial> | null
   >(null);
   const assignmentVersionCreatedRef = useRef(false);
+
+  const rootCategories = categories.filter(
+    (c) => c.parentCategoryId === null
+  );
+  const currentSubcategories = categories.filter(
+    (c) => c.parentCategoryId === currentCategoryId
+  );
+
+  const visibleObjects = useMemo(() => objects.filter((object) => (search.trim() || (currentCategoryId === null ? !object.categoryId : object.categoryId === currentCategoryId)) && object.name.toLowerCase().includes(search.trim().toLowerCase())).sort((a, b) => sort === 'name' ? a.name.localeCompare(b.name) : b.lastUpdate.localeCompare(a.lastUpdate)), [objects, search, currentCategoryId, sort]);
 
   const captureApi = useMemo<ThumbnailCaptureApi>(
     () => createThumbnailCaptureApi(),
@@ -164,71 +185,35 @@ export default function ObjectBrowser({
   const thumbnailAttemptedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    const target =
-      currentCategoryId === null ? uncategorizedObjects : objectsInCategory;
-    const missing = target
-      .filter((o) => !(o.id in thumbnails))
-      .map((o) => o.id)
-      .filter((id) => !thumbnailAttemptedRef.current.has(id));
-    if (missing.length === 0) return;
-    let cancelled = false;
-    Promise.all(
-      missing.map((id) =>
-        fetchObjectVersion(id)
-          .then((v) => (v.thumbnailURL ? ([id, v.thumbnailURL] as const) : null))
-          .catch(() => null)
-      )
-    ).then((results) => {
-      if (cancelled) return;
-      setThumbnails((prev) => {
-        const next = { ...prev };
-        for (const r of results) {
-          if (r) next[r[0]] = r[1];
-        }
-        return next;
-      });
+    const attempted = thumbnailAttemptedRef.current;
+    const missing = visibleObjects.filter((object) => !attempted.has(object.id + ':' + object.lastVersion));
+    if (!missing.length) return;
+    let active = true;
+    let finished = false;
+    missing.forEach((object) => attempted.add(object.id + ':' + object.lastVersion));
+    Promise.all(missing.map((object) => fetchObjectVersion(object.id).then((version) => ({ id: object.id, version })).catch(() => ({ id: object.id, version: null })))).then((results) => {
+      if (!active) return;
+      finished = true;
+      setThumbnails((previous) => { const next = { ...previous }; for (const row of results) if (row?.version?.thumbnailURL) next[row.id] = row.version.thumbnailURL; return next; });
+      setModuleDetails((previous) => { const next = { ...previous }; for (const row of results) if (row) { if (!row.version) { next[row.id] = { count: 0, area: 0, failed: true }; continue; } const parts = row.version.materialParts ?? []; next[row.id] = { count: parts.reduce((sum, part) => sum + part.quantity, 0), area: materialPartsArea(parts) }; } return next; });
     });
-    for (const id of missing) thumbnailAttemptedRef.current.add(id);
-    return () => {
-      cancelled = true;
-    };
-  }, [currentCategoryId, objects, thumbnails]);
+    return () => { active = false; if (!finished) missing.forEach((object) => attempted.delete(object.id + ':' + object.lastVersion)); };
+  }, [visibleObjects, catalogRevision]);
 
-  // Fetch object version data when editing an object
   useEffect(() => {
+    let active = true;
+    setEditingObjectVersion(null);
+    setEditingDataFailed(false);
+    setHighlightSlot(null);
     if (editingObject) {
-      setHighlightSlot(null);
-      setEditingDataFailed(false);
-      fetchObjectVersion(editingObject.id)
-        .then(data => {
-          setEditingObjectVersion(data);
-          setEditingDataFailed(false);
-          if (data.fileURL) {
-            setPreviewUri(data.fileURL);
-          }
-        })
-        .catch(err => {
-          console.warn('Failed to fetch object version data:', err);
-          setEditingDataFailed(true);
-        });
-    } else {
-      setEditingObjectVersion(null);
-      setEditingDataFailed(false);
-      setPreviewUri(null);
-      setHighlightSlot(null);
-    }
+      fetchObjectVersion(editingObject.id).then((data) => {
+        if (!active) return;
+        setEditingObjectVersion(data);
+        setPreviewUri(data.fileURL || null);
+      }).catch(() => { if (active) setEditingDataFailed(true); });
+    } else setPreviewUri(null);
+    return () => { active = false; };
   }, [editingObject]);
-
-  const rootCategories = categories.filter(
-    (c) => c.parentCategoryId === null
-  );
-  const currentSubcategories = categories.filter(
-    (c) => c.parentCategoryId === currentCategoryId
-  );
-  const objectsInCategory = objects.filter(
-    (o) => o.categoryId === currentCategoryId
-  );
-  const uncategorizedObjects = objects.filter((o) => !o.categoryId);
 
   const handleCategoryPress = (cat: ObjectCategory) => {
     setCategoryStack((prev) => [...prev, cat.id]);
@@ -256,6 +241,7 @@ export default function ObjectBrowser({
   }> => {
     let request: SlotAssignmentRequest | null = null;
 
+
     if (isEdit && editingObject) {
       if (data.name !== editingObject.name) {
         await renameObject({ id: editingObject.id, name: data.name });
@@ -275,6 +261,11 @@ export default function ObjectBrowser({
         parseFloat(data.sizeZ) !== (current?.sizeZ ?? 1) ||
         data.objectProperties !== (current?.objectProperties ?? '');
 
+      if (!changed && current && (JSON.stringify(data.budgetEntries) !== JSON.stringify(current.budgetEntries ?? []) || JSON.stringify(data.materialParts) !== JSON.stringify(current.materialParts ?? []))) {
+        await updateObjectVersion(editingObject.id, current.version, { budgetEntries: data.budgetEntries,
+              materialParts: data.materialParts });
+      }
+
       if (changed) {
         if (data.fileURL) {
           request = {
@@ -286,7 +277,9 @@ export default function ObjectBrowser({
               sizeY: parseFloat(data.sizeY) || 1,
               sizeZ: parseFloat(data.sizeZ) || 1,
               objectProperties: data.objectProperties || undefined,
-              creatorId: data.creatorId || editingObject.creatorId,
+              budgetEntries: data.budgetEntries,
+              materialParts: data.materialParts,
+              creatorId: backendUserId ?? '',
             },
           };
         } else {
@@ -296,14 +289,18 @@ export default function ObjectBrowser({
             sizeY: parseFloat(data.sizeY) || 1,
             sizeZ: parseFloat(data.sizeZ) || 1,
             objectProperties: data.objectProperties || undefined,
-            creatorId: data.creatorId || editingObject.creatorId,
+              budgetEntries: data.budgetEntries,
+              materialParts: data.materialParts,
+            creatorId: backendUserId ?? '',
           });
         }
       }
     } else {
       const meta = await createObject({
+        workspaceId: selectedWorkspaceId,
+        isPublic: data.isPublic,
         name: data.name,
-        creatorId: data.creatorId,
+        creatorId: backendUserId ?? '',
         categoryId: data.categoryId || undefined,
       });
       if (data.fileURL) {
@@ -316,7 +313,9 @@ export default function ObjectBrowser({
             sizeY: parseFloat(data.sizeY) || 1,
             sizeZ: parseFloat(data.sizeZ) || 1,
             objectProperties: data.objectProperties || undefined,
-            creatorId: data.creatorId,
+              budgetEntries: data.budgetEntries,
+              materialParts: data.materialParts,
+            creatorId: backendUserId ?? '',
           },
         };
       } else {
@@ -326,7 +325,9 @@ export default function ObjectBrowser({
           sizeY: parseFloat(data.sizeY) || 1,
           sizeZ: parseFloat(data.sizeZ) || 1,
           objectProperties: data.objectProperties || undefined,
-          creatorId: data.creatorId,
+              budgetEntries: data.budgetEntries,
+              materialParts: data.materialParts,
+          creatorId: backendUserId ?? '',
         });
       }
     }
@@ -338,6 +339,7 @@ export default function ObjectBrowser({
       return { slotAssignment: request };
     }
 
+    if (editingObject) setModuleDetails((previous) => ({ ...previous, [editingObject.id]: { count: data.materialParts.reduce((sum, part) => sum + part.quantity, 0), area: materialPartsArea(data.materialParts) } }));
     setEditingObject(null);
     setShowCreator(false);
     onRefresh();
@@ -504,10 +506,11 @@ export default function ObjectBrowser({
     if (editingObject && isLoadingData) {
       return renderLoading();
     }
+    if (editingObject && editingDataFailed) return <View style={styles.loadingContainer}><Text style={styles.loadingText}>No se pudo cargar el módulo. No se guardaron cambios.</Text><Pressable accessibilityRole="button" style={styles.actionButton} onPress={() => setEditingObject({ ...editingObject })}><Text style={styles.actionButtonText}>Reintentar</Text></Pressable><Pressable accessibilityRole="button" style={styles.backButton} onPress={() => setEditingObject(null)}><Text style={styles.backButtonText}>Volver al catálogo</Text></Pressable></View>;
     return (
       <ObjectEditor
         key={editingObject?.id ?? 'new'}
-        disabled={!isActive}
+        disabled={!isActive || editingDataFailed}
         isEdit={!!editingObject}
         initial={
           editingObject
@@ -525,6 +528,8 @@ export default function ObjectBrowser({
                     : JSON.stringify(editingObjectVersion.objectProperties)
                   : ''),
                 isPublic: editingObject.isPublic,
+                budgetEntries: editingObjectVersion?.budgetEntries ?? [],
+                materialParts: editingObjectVersion?.materialParts ?? [],
               }
             : undefined
         }
@@ -550,120 +555,34 @@ categories={categories}
   };
 
   const renderBrowserList = () => {
-    const hasContent =
-      currentCategoryId === null
-        ? rootCategories.length > 0 || uncategorizedObjects.length > 0
-        : currentSubcategories.length > 0 || objectsInCategory.length > 0;
-
-    return (
-      <>
-        <View style={styles.header}>
-          <Pressable style={styles.backButton} onPress={handleBack}>
-            <Text style={styles.backButtonText}>← Back</Text>
-          </Pressable>
-          <Text style={styles.breadcrumb} numberOfLines={1}>
-            {getBreadcrumbPath(currentCategoryId, categories)}
-          </Text>
-        </View>
-
-        <View style={styles.actionBar}>
-          <Pressable style={styles.actionButton} onPress={() => setShowCreator(true)}>
-            <Text style={styles.actionButtonText}>+ New Object</Text>
-          </Pressable>
-          <Pressable
-            style={styles.actionButton}
-            onPress={() => setShowCategoryManager(true)}
-          >
-            <Text style={styles.actionButtonText}>Categories</Text>
-          </Pressable>
-        </View>
-
-        <ScrollView style={styles.scrollView}>
-          {!hasContent ? (
-            <Text style={styles.emptyText}>No items in this category.</Text>
-          ) : (
-            <>
-              {currentCategoryId === null &&
-                rootCategories
-                  .sort((a, b) => a.categoryName.localeCompare(b.categoryName))
-                  .map((cat) => (
-                    <Pressable
-                      key={cat.id}
-                      style={styles.folderItem}
-                      onPress={() => handleCategoryPress(cat)}
-                    >
-                      <Text style={styles.folderIcon}>📁</Text>
-                      <Text style={styles.folderText}>{cat.categoryName}</Text>
-                    </Pressable>
-                  ))}
-              {currentCategoryId !== null &&
-                currentSubcategories
-                  .sort((a, b) => a.categoryName.localeCompare(b.categoryName))
-                  .map((cat) => (
-                    <Pressable
-                      key={cat.id}
-                      style={styles.folderItem}
-                      onPress={() => handleCategoryPress(cat)}
-                    >
-                      <Text style={styles.folderIcon}>📁</Text>
-                      <Text style={styles.folderText}>{cat.categoryName}</Text>
-                    </Pressable>
-                  ))}
-              {currentCategoryId === null &&
-                uncategorizedObjects
-                  .sort((a, b) => a.name.localeCompare(b.name))
-                  .map((obj) => (
-                    <Pressable
-                      key={obj.id}
-                      style={styles.objectItem}
-                      onPress={() => setEditingObject(obj)}
-                    >
-                      <View style={styles.objectThumb}>
-                        <Thumbnail
-                          uri={thumbnails[obj.id]}
-                          size={36}
-                          icon="cube-outline"
-                        />
-                      </View>
-                      <View style={styles.objectInfo}>
-                        <Text style={styles.objectName}>{obj.name}</Text>
-                        <Text style={styles.objectMeta}>
-                          v{obj.lastVersion} · {obj.creatorId.slice(0, 8)}…
-                        </Text>
-                      </View>
-                      <Text style={styles.editIcon}>✎</Text>
-                    </Pressable>
-                  ))}
-              {currentCategoryId !== null &&
-                objectsInCategory
-                  .sort((a, b) => a.name.localeCompare(b.name))
-                  .map((obj) => (
-                    <Pressable
-                      key={obj.id}
-                      style={styles.objectItem}
-                      onPress={() => setEditingObject(obj)}
-                    >
-                      <View style={styles.objectThumb}>
-                        <Thumbnail
-                          uri={thumbnails[obj.id]}
-                          size={36}
-                          icon="cube-outline"
-                        />
-                      </View>
-                      <View style={styles.objectInfo}>
-                        <Text style={styles.objectName}>{obj.name}</Text>
-                        <Text style={styles.objectMeta}>
-                          v{obj.lastVersion} · {obj.creatorId.slice(0, 8)}…
-                        </Text>
-                      </View>
-                      <Text style={styles.editIcon}>✎</Text>
-                    </Pressable>
-                  ))}
-            </>
-          )}
-        </ScrollView>
-      </>
-    );
+    const folders = search.trim() ? [] : currentCategoryId === null ? rootCategories : currentSubcategories;
+    return <>
+      <View style={styles.managerIntro}><Text style={styles.managerTitle}>Módulos</Text><Text style={styles.managerDescription}>Catálogo, despiece y costos por material. {objects.length} módulos disponibles.</Text></View>
+      <View style={styles.header}>
+        <Pressable accessibilityRole="button" style={styles.backButton} onPress={handleBack}><Text style={styles.backButtonText}>← Volver</Text></Pressable>
+        <Text style={styles.breadcrumb} numberOfLines={1}>{getBreadcrumbPath(currentCategoryId, categories)}</Text>
+      </View>
+      <View style={styles.actionBar}>
+        <Pressable accessibilityRole="button" style={styles.actionButton} onPress={() => setShowCreator(true)}><Text style={styles.actionButtonText}>+ Nuevo módulo</Text></Pressable>
+        {canManageApplication && <Pressable accessibilityRole="button" style={styles.actionButton} onPress={() => setShowCategoryManager(true)}><Text style={styles.actionButtonText}>Categorías</Text></Pressable>}
+        <Pressable accessibilityRole="button" style={styles.backButton} onPress={() => { thumbnailAttemptedRef.current.clear(); setCatalogRevision((value) => value + 1); onRefresh(); }}><Text style={styles.backButtonText}>Actualizar</Text></Pressable>
+      </View>
+      <View style={styles.searchBar}>
+        <TextInput accessibilityLabel="Buscar módulos" style={styles.searchInput} value={search} onChangeText={setSearch} placeholder="Buscar módulos en todo el catálogo…" />
+        <Pressable accessibilityRole="button" style={styles.backButton} onPress={() => setSort(sort === 'name' ? 'recent' : 'name')}><Text style={styles.backButtonText}>{sort === 'name' ? 'A–Z' : 'Recientes'}</Text></Pressable>
+      </View>
+      <ScrollView style={styles.scrollView}>
+        {folders.sort((a, b) => a.categoryName.localeCompare(b.categoryName)).map((category) => <Pressable accessibilityRole="button" key={category.id} style={styles.folderItem} onPress={() => handleCategoryPress(category)}><Text style={styles.folderIcon}>▦</Text><Text style={styles.folderText}>{category.categoryName}</Text><Text style={styles.editIcon}>→</Text></Pressable>)}
+        {!visibleObjects.length && !folders.length && <Text style={styles.emptyText}>{search ? 'No hay módulos que coincidan con la búsqueda.' : 'Esta categoría no tiene módulos. Creá el primero para comenzar.'}</Text>}
+        <View style={styles.moduleGrid}>{visibleObjects.map((object) => <Pressable accessibilityRole="button" accessibilityLabel={'Editar módulo ' + object.name} key={object.id} style={styles.moduleCard} onPress={() => setEditingObject(object)}>
+          <View style={styles.cardPreview}><Thumbnail uri={thumbnails[object.id]} size={80} icon="cube-outline" /></View>
+          <Text style={styles.objectName} numberOfLines={2}>{object.name}</Text>
+          <Text style={styles.objectMeta}>Versión {object.lastVersion} · {object.isPublic ? 'Comunidad' : 'Privado'}</Text>
+          <Text style={styles.areaBadge}>{moduleDetails[object.id]?.failed ? 'Despiece no disponible' : moduleDetails[object.id]?.count ? moduleDetails[object.id].count + ' piezas · ' + moduleDetails[object.id].area.toLocaleString('es-AR', { maximumFractionDigits: 4 }) + ' m²' : moduleDetails[object.id] ? 'Despiece pendiente' : 'Cargando despiece…'}</Text>
+          <Text style={styles.cardEdit}>Editar módulo →</Text>
+        </Pressable>)}</View>
+      </ScrollView>
+    </>;
   };
 
   const renderCategoryManager = () => {
@@ -806,14 +725,14 @@ categories={categories}
   );
 
   const renderWorkspace = () => {
-    if (showCategoryManager) return <>{renderCategoryManager()}</>;
+    if (showCategoryManager && canManageApplication) return <>{renderCategoryManager()}</>;
     if (isLoadingData) return renderLoading();
     if (isActive) return renderPreview();
     return <>{renderBrowserList()}</>;
   };
 
   const renderNarrow = () => {
-    if (showCategoryManager) return renderCategoryManager();
+    if (showCategoryManager && canManageApplication) return renderCategoryManager();
     if (isActive || isLoadingData) {
       return (
         <ScrollView>
@@ -839,7 +758,7 @@ categories={categories}
 
   return (
     <View style={styles.container}>
-      {isWide ? (
+      {isWide && (isActive || isLoadingData) ? (
         <View style={styles.rowContainer}>
           <View style={styles.workspaceColumn}>{renderWorkspace()}</View>
           <View style={styles.formColumn}>{renderEditor()}</View>
@@ -852,6 +771,16 @@ categories={categories}
 }
 
 const styles = StyleSheet.create({
+  managerIntro: { padding: 16, gap: 6, backgroundColor: COLORS.bgAlt },
+  managerTitle: { fontSize: 26, fontWeight: '700', color: COLORS.text },
+  managerDescription: { fontSize: 13, color: COLORS.textMuted },
+  searchBar: { flexDirection: 'row', padding: 12, gap: 8, alignItems: 'center' },
+  searchInput: { flex: 1, minHeight: 44, borderWidth: 1, borderColor: COLORS.borderStrong, padding: 10, borderRadius: 8, color: COLORS.text },
+  moduleGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, paddingBottom: 24 },
+  moduleCard: { flexBasis: 250, flexGrow: 1, maxWidth: 400, minWidth: 220, padding: 16, gap: 9, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, backgroundColor: COLORS.surface },
+  cardPreview: { height: 110, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.bgAlt, borderRadius: 8 },
+  areaBadge: { padding: 8, backgroundColor: COLORS.primarySoft, color: COLORS.primary, borderRadius: 6, fontSize: 12, fontWeight: '600' },
+  cardEdit: { color: COLORS.primary, fontWeight: '600', fontSize: 13 },
   container: {
     flex: 1,
     width: '100%',
@@ -862,8 +791,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   formColumn: {
-    width: 340,
-    maxWidth: '35%',
+    width: '52%',
+    minWidth: 400,
+    maxWidth: '60%',
   },
   workspaceColumn: {
     flex: 1,

@@ -56,15 +56,16 @@
         "edit": "deny",
         "task": "deny"
       },
-      "model": "opencode/mimo-v2.6-flash-free",
+      "model": "opencode/big-pickle",
       "mode": "all",
       "prompt": "Execute only your assigned task directly. Read the project instructions first. Preserve existing user changes. Do not spawn other agents, commit, push, publish, or perform unrelated cleanup. Respect parent permissions. Return concise file references or changed files, validation commands and outcomes, and blockers, preferably within 400 words. Do not modify files or memory.",
-      "description": "Read-only repository and dependency analysis",
+      "description": "Read-only planning, architecture and repository analysis",
       "tools": {
         "context7*": true,
         "memory*": true,
         "chrome-devtools*": false
-      }
+      },
+      "steps": 12
     },
     "worker": {
       "permission": {
@@ -76,12 +77,13 @@
       "model": "opencode/big-pickle",
       "mode": "all",
       "prompt": "Execute only your assigned task directly. Read the project instructions first. Preserve existing user changes. Do not spawn other agents, commit, push, publish, or perform unrelated cleanup. Respect parent permissions. Return concise file references or changed files, validation commands and outcomes, and blockers, preferably within 400 words.",
-      "description": "Bounded implementation and validation",
+      "description": "Bounded implementation, debugging and validation",
       "tools": {
         "context7*": true,
         "memory*": true,
         "chrome-devtools*": false
-      }
+      },
+      "steps": 40
     }
   }
 }

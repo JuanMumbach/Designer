@@ -1,4 +1,8 @@
-import { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import BudgetEntriesEditor, { budgetEntryDrafts, readBudgetEntryDrafts } from '../../DesignScreen/Budget/BudgetEntriesEditor';
+import { ModelBudgetEntry } from '../../../services/budget';
+import { MaterialPart } from '../../../services/materialParts';
+import MaterialPartsEditor, { materialPartDrafts, readMaterialPartDrafts } from './MaterialPartsEditor';
 import {
   Alert,
   Modal,
@@ -15,10 +19,12 @@ import Button from '../../Button';
 import Toggle from '../../Toggle';
 import { uploadFileToFirebase } from '../../../services/firebaseSetup';
 import { useAuth } from '../../../services/AuthContext';
-import { MaterialType, ObjectCategory } from '../../../services/api';
+import { fetchModelMaterialTypes, fetchObjectVersion, MaterialType, ObjectCategory } from '../../../services/api';
 import ModelSlotsSection from './ModelSlotsSection';
 
 export type ObjectFormData = {
+  materialParts: MaterialPart[];
+  budgetEntries: ModelBudgetEntry[];
   name: string;
   creatorId: string;
   categoryId: string | null;
@@ -100,6 +106,17 @@ export default function ObjectEditor({
   const { backendUserId } = useAuth();
 
   const [name, setName] = useState(initial?.name ?? '');
+  const [budgetDrafts, setBudgetDrafts] = useState(() => budgetEntryDrafts(initial?.budgetEntries ?? []));
+  const [partDrafts, setPartDrafts] = useState(() => materialPartDrafts(initial?.materialParts ?? []));
+  const [tab, setTab] = useState<'general' | 'parts' | 'costs' | 'materials'>('general');
+  const [budgetSlots, setBudgetSlots] = useState<{ slot: number; displayName: string }[]>([]);
+  useEffect(() => {
+    let active = true;
+    setBudgetSlots([]);
+    if (objectId) fetchObjectVersion(objectId).then((version) => fetchModelMaterialTypes(objectId, version.version))
+      .then((slots) => { if (active) setBudgetSlots(slots); }).catch(() => {});
+    return () => { active = false; };
+  }, [objectId]);
   const [categoryId, setCategoryId] = useState(initial?.categoryId ?? '');
   const [fileURL, setFileURL] = useState(initial?.fileURL ?? '');
   const [sizeX, setSizeX] = useState(initial?.sizeX ?? '1');
@@ -135,6 +152,10 @@ export default function ObjectEditor({
   };
 
   const handleSave = async () => {
+    const materialBreakdown = readMaterialPartDrafts(partDrafts);
+    if (materialBreakdown.error) { Alert.alert('Despiece', materialBreakdown.error); return; }
+    const budget = readBudgetEntryDrafts(budgetDrafts);
+    if (budget.error) { Alert.alert('Presupuesto', budget.error); return; }
     if (!name.trim()) {
       Alert.alert('Validation', 'Name is required.');
       return;
@@ -174,6 +195,8 @@ export default function ObjectEditor({
           sizeY: sizeY || '1',
           sizeZ: sizeZ || '1',
           objectProperties: parts.join(';'),
+          budgetEntries: budget.entries,
+          materialParts: materialBreakdown.parts,
           isPublic,
         },
         isEdit
@@ -184,8 +207,8 @@ export default function ObjectEditor({
       } else {
         onClose();
       }
-    } catch {
-      // error handled by caller
+    } catch (error) {
+      Alert.alert('Error', error instanceof Error ? error.message : 'No se pudieron guardar los cambios.');
     } finally {
       setSaving(false);
     }
@@ -242,8 +265,11 @@ export default function ObjectEditor({
   const formContent = (
     <>
       <Text style={styles.headerTitle}>
-        {disabled ? 'Object Form' : isEdit ? 'Edit Object' : 'New Object'}
+        {disabled ? 'Módulo' : isEdit ? 'Editar módulo' : 'Nuevo módulo'}
       </Text>
+
+      <View style={styles.categoryRow}>{([['general', 'General'], ['parts', 'Despiece'], ['costs', 'Extras'], ['materials', 'Materiales']] as const).map(([key, label]) => <Pressable accessibilityRole="tab" accessibilityState={{ selected: tab === key }} key={key} style={[styles.categoryChip, tab === key && styles.categoryChipActive]} onPress={() => setTab(key)}><Text style={[styles.categoryChipText, tab === key && styles.categoryChipTextActive]}>{label}</Text></Pressable>)}</View>
+      {tab === 'general' && <>
 
       <Text style={styles.label}>Name *</Text>
       <TextInput
@@ -429,6 +455,14 @@ export default function ObjectEditor({
         editable={!disabled}
       />
 
+      </>}
+      {tab === 'parts' && <MaterialPartsEditor drafts={partDrafts} onChange={setPartDrafts} slots={budgetSlots} disabled={disabled || saving} />}
+      {tab === 'costs' && <>
+      <Text style={styles.label}>Costos adicionales del módulo</Text>
+      <Text style={styles.budgetHint}>Los materiales definidos en Despiece se calculan por m². Los conceptos vinculados a esos mismos slots se reemplazan para evitar duplicarlos. Los costos fijos siempre se suman.</Text>
+      <BudgetEntriesEditor drafts={budgetDrafts} onChange={setBudgetDrafts} slots={budgetSlots} disabled={disabled || saving} />
+      </>}
+      {tab === 'materials' && (isEdit && objectId ? <ModelSlotsSection objectId={objectId} materialTypes={materialTypes ?? []} disabled={disabled} onHighlightSlot={onHighlightSlot} /> : <Text style={styles.budgetHint}>Guardá el modelo 3D para descubrir y asignar los materiales de sus slots.</Text>)}
       {!disabled && (
         <Toggle
           label="Compartir en la comunidad (público)"
@@ -465,15 +499,6 @@ export default function ObjectEditor({
             {regenerating ? 'Regenerating thumbnail…' : 'Regenerate Thumbnail'}
           </Text>
         </Pressable>
-      )}
-
-      {isEdit && objectId && (
-        <ModelSlotsSection
-          objectId={objectId}
-          materialTypes={materialTypes ?? []}
-          disabled={disabled}
-          onHighlightSlot={onHighlightSlot}
-        />
       )}
     </>
   );
@@ -522,6 +547,7 @@ export default function ObjectEditor({
 }
 
 const styles = StyleSheet.create({
+  budgetHint: { color: '#6b7280', fontSize: 12, lineHeight: 18, marginVertical: 12 },
   container: {
     flex: 1,
     width: '100%',

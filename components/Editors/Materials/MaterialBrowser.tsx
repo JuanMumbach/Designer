@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -11,9 +11,12 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import { useAccess } from '../../../services/AccessContext';
+import { useAuth } from '../../../services/AuthContext';
 import Button from '../../Button';
 import {
   createMaterial,
+  updateMaterialPricing,
   createMaterialCategory,
   deleteMaterial,
   deleteMaterialCategory,
@@ -71,6 +74,8 @@ export default function MaterialBrowser({
   categories,
   onRefresh,
 }: MaterialBrowserProps) {
+  const { canManageApplication } = useAccess();
+  const { selectedWorkspaceId, backendUserId } = useAuth();
   const { width: screenWidth } = useWindowDimensions();
   const isWide = screenWidth >= 700;
 
@@ -213,6 +218,7 @@ export default function MaterialBrowser({
 
   const handleSaveMaterial = async (data: MaterialFormData, isEdit: boolean) => {
     if (isEdit && editingMaterial) {
+      await updateMaterialPricing(editingMaterial.id, { costMultiplier: data.costMultiplier, pricePerSquareMeter: data.pricePerSquareMeter, boardWidthMm: data.boardWidthMm, boardHeightMm: data.boardHeightMm, cutSpacingMm: data.cutSpacingMm });
       if (data.name !== editingMaterial.name) {
         await renameMaterial({ id: editingMaterial.id, name: data.name });
       }
@@ -233,14 +239,21 @@ export default function MaterialBrowser({
           scaleU: parseFloat(data.scaleU) || 1,
           scaleV: parseFloat(data.scaleV) || 1,
           materialProperties: data.materialProperties || undefined,
-          creatorId: data.creatorId || editingMaterial.creatorId,
+          creatorId: backendUserId ?? '',
           thumbnailURL: thumbnailURL || undefined,
         });
       }
     } else {
       const meta = await createMaterial({
+        costMultiplier: data.costMultiplier,
+        pricePerSquareMeter: data.pricePerSquareMeter,
+        boardWidthMm: data.boardWidthMm,
+        boardHeightMm: data.boardHeightMm,
+        cutSpacingMm: data.cutSpacingMm,
+        workspaceId: selectedWorkspaceId,
+        isPublic: data.isPublic,
         name: data.name,
-        creatorId: data.creatorId,
+        creatorId: backendUserId ?? '',
         categoryId: data.categoryId || undefined,
       });
       if (data.typeId) {
@@ -252,7 +265,7 @@ export default function MaterialBrowser({
         scaleU: parseFloat(data.scaleU) || 1,
         scaleV: parseFloat(data.scaleV) || 1,
         materialProperties: data.materialProperties || undefined,
-        creatorId: data.creatorId,
+        creatorId: backendUserId ?? '',
         thumbnailURL: thumbnailURL || undefined,
       });
     }
@@ -382,7 +395,7 @@ export default function MaterialBrowser({
     return (
       <MaterialEditor
         key={editingMaterial?.id ?? 'new'}
-        disabled={!isActive}
+        disabled={!isActive || editingDataFailed}
         isEdit={!!editingMaterial}
         initial={
           editingMaterial
@@ -396,6 +409,8 @@ export default function MaterialBrowser({
                 scaleV: editingMaterialData?.scaleV?.toString() ?? '1',
                 materialProperties: editingMaterialData?.materialProperties ?? '',
                 isPublic: editingMaterial.isPublic,
+                costMultiplier: editingMaterial.costMultiplier ?? 1,
+                pricePerSquareMeter: editingMaterial.pricePerSquareMeter ?? null, boardWidthMm: editingMaterial.boardWidthMm ?? 2600, boardHeightMm: editingMaterial.boardHeightMm ?? 1600, cutSpacingMm: editingMaterial.cutSpacingMm ?? 3,
               }
             : undefined
         }
@@ -440,12 +455,12 @@ export default function MaterialBrowser({
           <Pressable style={styles.actionButton} onPress={() => setShowCreator(true)}>
             <Text style={styles.actionButtonText}>+ New Material</Text>
           </Pressable>
-          <Pressable
+          {canManageApplication && (<Pressable
             style={styles.actionButton}
             onPress={() => setShowCategoryManager(true)}
           >
             <Text style={styles.actionButtonText}>Categories</Text>
-          </Pressable>
+          </Pressable>)}
         </View>
 
         <ScrollView style={styles.scrollView}>
@@ -760,7 +775,7 @@ export default function MaterialBrowser({
   );
 
   const renderWorkspace = () => {
-    if (showCategoryManager) return <>{renderCategoryManager()}</>;
+    if (showCategoryManager && canManageApplication) return <>{renderCategoryManager()}</>;
     if (isLoadingData) return renderLoading();
     if (isActive) return renderPreview();
     return <>{renderBrowserList()}</>;

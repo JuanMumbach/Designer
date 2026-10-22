@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { ObjectMaterialType } from '../../../services/api';
 import { normalizeTypeName } from '../../../services/designMaterialDefaults';
 import { extractGlbParts, readGlbBytes, sanitizeNodeName } from '../../../services/glbParts';
+import { fitScaleFromSize, measureModelSizeInParent } from '../../../services/modelFit';
 import {
     buildSlotIndexMaps,
     collectSlots,
@@ -132,6 +133,8 @@ export function DesignObject3D({
     const slotsDiscoveredRef = useRef(false);
     const [groupReady, setGroupReady] = useState(false);
     const [slotMapsReady, setSlotMapsReady] = useState(false);
+    const [gltfVersion, setGltfVersion] = useState(0);
+    const [modelFitSize, setModelFitSize] = useState<THREE.Vector3 | null>(null);
     const onSlotsDiscoveredRef = useRef(onSlotsDiscovered);
     onSlotsDiscoveredRef.current = onSlotsDiscovered;
 
@@ -139,6 +142,7 @@ export function DesignObject3D({
       gltfRef.current = group;
       if (!group) {
         setGroupReady(false);
+        setModelFitSize(null);
         return;
       }
 
@@ -149,7 +153,17 @@ export function DesignObject3D({
       });
 
       setGroupReady(true);
+      setGltfVersion(version => version + 1);
     }, []);
+
+    useEffect(() => {
+      const group = gltfRef.current;
+      if (!group || !groupReady) {
+        setModelFitSize(null);
+        return;
+      }
+      setModelFitSize(measureModelSizeInParent(group));
+    }, [gltfVersion, groupReady]);
 
     useEffect(() => {
       const group = gltfRef.current;
@@ -542,19 +556,23 @@ export function DesignObject3D({
          handlePointerLeave(e);
        }
      };
+
+     const fitScale: [number, number, number] = fitScaleFromSize(modelFitSize, dimensions) ?? [1, 1, 1];
  
      return (
          <group>
              <group position={modelPosition} rotation={[0, rotation || 0, 0]}>
-<Suspense fallback={null}>
-                      <Gltf
-                          ref={handleGltfReady}
-                          src={localUri}
-                          rotation={[0, -Math.PI / 2, 0]}
-                          scale={modelScale || 1}
-                          {...gltfHandlers}
-                      />
-                  </Suspense>
+                 <group scale={fitScale}>
+                     <Suspense fallback={null}>
+                         <Gltf
+                             ref={handleGltfReady}
+                             src={localUri}
+                             rotation={[0, -Math.PI / 2, 0]}
+                             scale={modelScale || 1}
+                             {...gltfHandlers}
+                         />
+                     </Suspense>
+                 </group>
 
                  {(isSelected &&
                      <group>

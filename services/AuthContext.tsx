@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import {
   onAuthStateChanged,
   signOut as firebaseSignOut,
@@ -33,6 +33,8 @@ interface AuthContextValue {
   backendUserId: string | null;
   isLoading: boolean;
   isWorkspaceReady: boolean;
+  error: string | null;
+  retry: () => void;
   getToken: () => Promise<string | null>;
   signOut: () => Promise<void>;
   selectedWorkspaceId: string | null;
@@ -44,6 +46,8 @@ const AuthContext = createContext<AuthContextValue>({
   backendUserId: null,
   isLoading: true,
   isWorkspaceReady: false,
+  error: null,
+  retry: () => {},
   getToken: async () => null,
   signOut: async () => {},
   selectedWorkspaceId: null,
@@ -54,53 +58,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [backendUserId, setBackendUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const syncedUidsRef = useRef<Set<string>>(new Set());
-  const restoredUidsRef = useRef<Set<string>>(new Set());
+  const authRevision = useRef(0);
+  const [error, setError] = useState<string | null>(null);
+  const [revision, setRevision] = useState(0);
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
     null
   );
   const [isWorkspaceReady, setIsWorkspaceReady] = useState(false);
 
   useEffect(() => {
+    let active = true;
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      const requestRevision = ++authRevision.current;
       setUser(firebaseUser);
-      setIsLoading(false);
-
+      setBackendUserId(null);
+      setIsWorkspaceReady(false);
+      setError(null);
+      setIsLoading(!!firebaseUser);
       if (!firebaseUser) {
-        setBackendUserId(null);
         setSelectedWorkspaceId(null);
-        setIsWorkspaceReady(false);
         return;
       }
-
-      if (!syncedUidsRef.current.has(firebaseUser.uid)) {
-        syncedUidsRef.current.add(firebaseUser.uid);
-        try {
-          const id = await syncUserWithBackend(firebaseUser);
-          if (id) {
-            setBackendUserId(id);
-          }
-        } catch {
-        }
-      }
-
-      if (!restoredUidsRef.current.has(firebaseUser.uid)) {
-        restoredUidsRef.current.add(firebaseUser.uid);
+      try {
+        const id = await syncUserWithBackend(firebaseUser);
         const persisted = await readPersistedWorkspace(firebaseUser.uid);
-        if (persisted !== undefined) {
-          setSelectedWorkspaceId(persisted);
-        } else {
-          setSelectedWorkspaceId(null);
-          persistWorkspace(firebaseUser.uid, null);
+        if (!active || requestRevision !== authRevision.current) return;
+        if (!id) throw new Error('No se pudo sincronizar la cuenta.');
+        setBackendUserId(id);
+        setSelectedWorkspaceId(persisted ?? null);
+        setIsWorkspaceReady(true);
+      } catch (error) {
+        if (active && requestRevision === authRevision.current) {
+          setError(error instanceof Error ? error.message : 'No se pudo sincronizar la cuenta con el servidor.');
         }
-        setIsWorkspaceReady(true);
-      } else {
-        setIsWorkspaceReady(true);
+      } finally {
+        if (active && requestRevision === authRevision.current) setIsLoading(false);
       }
     });
 
-    return unsubscribe;
-  }, []);
+    return () => { active = false; unsubscribe(); };
+  }, [revision]);
 
   const getToken = async (): Promise<string | null> => {
     if (!auth.currentUser) return null;
@@ -108,21 +105,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    const uid = auth.currentUser?.uid;
     await firebaseSignOut(auth);
-    if (uid) {
-      restoredUidsRef.current.delete(uid);
-      syncedUidsRef.current.delete(uid);
-    }
   };
 
-  const selectWorkspace = (id: string | null) => {
+  const selectWorkspace = useCallback((id: string | null) => {
     setSelectedWorkspaceId(id);
     const uid = auth.currentUser?.uid;
     if (uid) {
       persistWorkspace(uid, id);
     }
-  };
+  }, []);
 
   return (
     <AuthContext.Provider
@@ -131,6 +123,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         backendUserId,
         isLoading,
         isWorkspaceReady,
+        error,
+        retry: () => setRevision((value) => value + 1),
         getToken,
         signOut,
         selectedWorkspaceId,
