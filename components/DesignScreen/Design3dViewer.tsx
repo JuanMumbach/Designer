@@ -117,6 +117,7 @@ function SceneContent({
           objects={designObjects}
           origin={roomOrigin}
           onObjectInteraction={onObjectInteraction}
+          onDeselect={() => setMovingObject?.(undefined)}
           onObjectEdited={onObjectEdited}
           onObjectDeleted={onObjectDeleted}
           onEditObject={onEditObject}

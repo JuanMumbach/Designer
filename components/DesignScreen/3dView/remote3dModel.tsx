@@ -122,7 +122,7 @@ export function useDownload3dModel(remoteUrl: string, assetName: string = 'asset
 }
 
 export function DesignObject3D({
-    obj, position, origin, dimensions, modelScale, rotation, onObjectInteraction, isSelected, onObjectEdited, onObjectDeleted, onEditObject, onObjectDuplicate, room3d, magnetEnabled, allObjects, onDragStateChange, onSlotsDiscovered, interactionDisabled, instanceOverrides, globalMaterials, globalMaterialsRaw, materialDataById, slotTypesByModel, typeToDesignSlot, forcedHidden, activeMeasurementSide, onSelectMeasurement
+    obj, position, origin, dimensions, modelScale, rotation, onObjectInteraction, onDeselect, isSelected, onObjectEdited, onObjectDeleted, onEditObject, onObjectDuplicate, room3d, magnetEnabled, allObjects, onDragStateChange, onSlotsDiscovered, interactionDisabled, instanceOverrides, globalMaterials, globalMaterialsRaw, materialDataById, slotTypesByModel, typeToDesignSlot, forcedHidden, activeMeasurementSide, onSelectMeasurement
 }: {
     obj: DesignObject,
     position: [number, number, number],
@@ -131,6 +131,7 @@ export function DesignObject3D({
     modelScale?: number,
     rotation?: number,
     onObjectInteraction: (object: DesignObject) => void,
+    onDeselect?: () => void,
     isSelected?: boolean,
     onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number], rotation?: number, hidden?: boolean }) => void,
     onObjectDeleted?: (id: string) => void,
@@ -504,6 +505,7 @@ export function DesignObject3D({
     }, [isDragging]);
 
     const longPressTimer = useRef<any>(null);
+    const longPressTriggered = useRef(false);
     const pointerDownPosition = useRef<{ x: number, y: number } | null>(null);
 
     const handleInteraction = React.useCallback((e?: any) => {
@@ -540,9 +542,11 @@ export function DesignObject3D({
     const handlePointerDown = (e: any) => {
         e.stopPropagation();
         if (isDesktop) return;
+        longPressTriggered.current = false;
         pointerDownPosition.current = { x: e.clientX, y: e.clientY };
         longPressTimer.current = setTimeout(() => {
             e.stopPropagation();
+            longPressTriggered.current = true;
             handleInteraction(e);
             longPressTimer.current = null;
             pointerDownPosition.current = null;
@@ -670,10 +674,50 @@ export function DesignObject3D({
 
     const hideObject = !!obj.hidden || !!forcedHidden;
 
+    const gltfHandlers = {
+      onContextMenu: handleContextMenu,
+      onClick: (e: any) => {
+        if (globalIsDragging) return;
+        e.stopPropagation();
+        if (longPressTriggered.current) {
+          longPressTriggered.current = false;
+          return;
+        }
+        if (isSelected) {
+          if (optionsOpen) {
+            setOptionsOpen(false);
+          }
+        } else {
+          onDeselect?.();
+        }
+      },
+      onDoubleClick: (e: any) => {
+        if (globalIsDragging) return;
+        e.stopPropagation();
+        if (isDesktop) handleInteraction(e);
+      },
+      onPointerDown: (e: any) => {
+        if (globalIsDragging) return;
+        handlePointerDown(e);
+      },
+      onPointerUp: (e: any) => {
+        if (globalIsDragging) return;
+        handlePointerUp(e);
+      },
+      onPointerMove: (e: any) => {
+        if (globalIsDragging) return;
+        handlePointerMove(e);
+      },
+      onPointerLeave: (e: any) => {
+        if (globalIsDragging) return;
+        handlePointerLeave(e);
+      }
+    };
+
     if (isLoading) {
         return (
             <group>
-                <Box key={obj.id} position={boxPosition} args={dimensions} visible={!hideObject} onContextMenu={handleContextMenu}>
+                <Box key={obj.id} position={boxPosition} args={dimensions} visible={!hideObject} {...gltfHandlers}>
                     <meshStandardMaterial attach="material" color="#ffffff" />
                 </Box>
                 {!hideObject && <LoadingSpinner3D position={boxPosition} />}
@@ -683,7 +727,7 @@ export function DesignObject3D({
 
     if (error || !localUri) {
         return (
-            <Box key={obj.id} position={boxPosition} args={dimensions} onContextMenu={handleContextMenu}>
+            <Box key={obj.id} position={boxPosition} args={dimensions} {...gltfHandlers}>
                 <meshStandardMaterial attach="material" color="red" />
             </Box>
         );
@@ -712,40 +756,7 @@ export function DesignObject3D({
                origin[2] + initialPosition.current[2] + planeOffsetZ
            ];
  
-     // Conditional event handlers: disable interaction when another object is selected
-     const gltfHandlers = {
-       onContextMenu: handleContextMenu,
-       ...(interactionDisabled ? {} : {
-         onClick: (e: any) => {
-           if (globalIsDragging) return;
-           e.stopPropagation();
-           if (optionsOpen) {
-             setOptionsOpen(false);
-           }
-         },
-         onDoubleClick: (e: any) => {
-           if (globalIsDragging) return;
-           e.stopPropagation();
-           if (isDesktop) handleInteraction(e);
-         },
-         onPointerDown: (e: any) => {
-           if (globalIsDragging) return;
-           handlePointerDown(e);
-         },
-         onPointerUp: (e: any) => {
-           if (globalIsDragging) return;
-           handlePointerUp(e);
-         },
-         onPointerMove: (e: any) => {
-           if (globalIsDragging) return;
-           handlePointerMove(e);
-         },
-         onPointerLeave: (e: any) => {
-           if (globalIsDragging) return;
-           handlePointerLeave(e);
-         }
-       })
-     };
+
 
      const fitScale: [number, number, number] = fitScaleFromSize(modelFitSize, dimensions) ?? [1, 1, 1];
      const isTextureLoading = !groupReady || !slotMapsReady || !texturesResolved;

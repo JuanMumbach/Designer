@@ -330,7 +330,8 @@ export default function DesignObjectsRenderer({
   typeToDesignSlot,
   wallCulling,
   activeMeasurementSide,
-  onSelectMeasurement
+  onSelectMeasurement,
+  onDeselect
 }: {
   objects: DesignObject[],
   origin: [number, number, number],
@@ -352,7 +353,8 @@ export default function DesignObjectsRenderer({
   typeToDesignSlot?: Record<string, string>,
   wallCulling?: WallCulling,
   activeMeasurementSide?: import('../3dViewOverlay/EditMeasurementModal').MeasurementSide,
-  onSelectMeasurement?: (object: DesignObject, side: import('../3dViewOverlay/EditMeasurementModal').MeasurementSide, currentValue: number) => void
+  onSelectMeasurement?: (object: DesignObject, side: import('../3dViewOverlay/EditMeasurementModal').MeasurementSide, currentValue: number) => void,
+  onDeselect?: () => void
 }) {
 
     return (
@@ -365,6 +367,7 @@ export default function DesignObjectsRenderer({
                              key={obj.id}
                              obj={obj}
                              onObjectInteraction={onObjectInteraction}
+                             onDeselect={onDeselect}
                              position={currentPosition}
                              origin={origin}
                              dimensions={obj.dimensions}
@@ -381,7 +384,6 @@ export default function DesignObjectsRenderer({
                              allObjects={allObjects}
                              onDragStateChange={onDragStateChange}
                              onSlotsDiscovered={onSlotsDiscovered}
-                             interactionDisabled={movingObjectId !== undefined && obj.id !== movingObjectId}
                              globalMaterials={globalMaterials}
                              globalMaterialsRaw={globalMaterialsRaw}
                              materialDataById={materialDataById}
@@ -449,7 +451,8 @@ function DesignObjectWithMaterials({
   typeToDesignSlot,
   forcedHidden,
   activeMeasurementSide,
-  onSelectMeasurement
+  onSelectMeasurement,
+  onDeselect
 }: {
   obj: DesignObject,
   position: [number, number, number],
@@ -477,7 +480,8 @@ function DesignObjectWithMaterials({
   typeToDesignSlot?: Record<string, string>,
   forcedHidden?: boolean,
   activeMeasurementSide?: import('../3dViewOverlay/EditMeasurementModal').MeasurementSide,
-  onSelectMeasurement?: (side: import('../3dViewOverlay/EditMeasurementModal').MeasurementSide, currentValue: number) => void
+  onSelectMeasurement?: (side: import('../3dViewOverlay/EditMeasurementModal').MeasurementSide, currentValue: number) => void,
+  onDeselect?: () => void
 }) {
   const instanceOverrides = useMemo<Record<number, AppliedMaterial>>(() => {
     const overrides = obj.materialOverrides ?? {};
@@ -488,6 +492,7 @@ function DesignObjectWithMaterials({
     <DesignObject3D
       obj={obj}
       onObjectInteraction={onObjectInteraction}
+      onDeselect={onDeselect}
       position={position}
       origin={origin}
       dimensions={dimensions}
