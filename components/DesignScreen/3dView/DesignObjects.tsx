@@ -24,6 +24,7 @@ export interface AppliedMaterial {
     fileURL: string;
     scaleU: number;
     scaleV: number;
+    version?: number;
 }
 
 export interface MaterialOverrides {
@@ -61,6 +62,7 @@ export interface CounterBacksplashConfig {
     bottom?: number;
     height?: number;
     materialId?: string;
+    tileScale?: number;
 }
 
 export interface DesignObject {

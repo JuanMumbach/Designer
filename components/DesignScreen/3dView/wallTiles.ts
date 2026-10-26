@@ -8,10 +8,19 @@ const EPSILON = 0.15;
 export function resolveWallTileZones(
   wallId: WallIdentifier,
   room: Room3dProps,
-  designObjects: DesignObject[]
+  designObjects: DesignObject[],
+  defaultGlobalTileMaterialId?: string
 ): WallTileZone[] {
   const wallConfig = room.walls?.[wallId];
-  const manualTiles = (wallConfig?.tiles ?? []).filter((t) => t.source === 'manual');
+  const wallDefaultTileId = wallConfig?.defaultTileMaterialId || defaultGlobalTileMaterialId;
+  const wallDefaultScale = wallConfig?.defaultTileScale;
+  const manualTiles = (wallConfig?.tiles ?? [])
+    .filter((t) => t.source === 'manual')
+    .map((t) => ({
+      ...t,
+      materialId: t.materialId || wallDefaultTileId,
+      tileScale: t.tileScale ?? wallDefaultScale,
+    }));
 
   const autoBacksplashEnabled = wallConfig?.autoBacksplash !== false;
   if (!autoBacksplashEnabled) {
@@ -29,7 +38,8 @@ export function resolveWallTileZones(
     const rot = obj.rotation || 0;
     const bottom = obj.backsplash?.bottom ?? DEFAULT_BOTTOM;
     const height = obj.backsplash?.height ?? DEFAULT_HEIGHT;
-    const materialId = obj.backsplash?.materialId || wallConfig?.defaultTileMaterialId;
+    const materialId = obj.backsplash?.materialId || wallDefaultTileId;
+    const tileScale = obj.backsplash?.tileScale ?? wallDefaultScale;
 
     if (wallId === 'back') {
       const isBackWallRot = Math.abs(rot) < EPSILON || Math.abs(rot - Math.PI * 2) < EPSILON;
@@ -46,6 +56,7 @@ export function resolveWallTileZones(
             bottom,
             height,
             materialId,
+            tileScale,
           });
         }
       }
@@ -64,6 +75,7 @@ export function resolveWallTileZones(
             bottom,
             height,
             materialId,
+            tileScale,
           });
         }
       }
@@ -82,6 +94,7 @@ export function resolveWallTileZones(
             bottom,
             height,
             materialId,
+            tileScale,
           });
         }
       }

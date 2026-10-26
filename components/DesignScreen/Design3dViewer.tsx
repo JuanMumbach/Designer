@@ -119,6 +119,8 @@ function SceneContent({
         culledLeft={wallCulling.left}
         culledRight={wallCulling.right}
         materialDataById={materialDataById}
+        globalMaterials={globalMaterials}
+        globalMaterialsRaw={globalMaterialsRaw}
         designObjects={designObjects}
         onWallContextMenu={onWallContextMenu}
       />

@@ -170,12 +170,14 @@ export default function ObjectPreview({
   captureApi,
   slotTextures,
   onReadyChange,
+  dimensions,
 }: {
   uri: string | null;
   highlightSlot?: number | null;
   captureApi?: ThumbnailCaptureApi;
   slotTextures?: Record<number, AppliedMaterial>;
   onReadyChange?: (ready: boolean) => void;
+  dimensions?: [number, number, number];
 }) {
   const [processedUri, setProcessedUri] = useState<string | null>(null);
   const objectUrlRef = useRef<string | null>(null);
@@ -370,14 +372,9 @@ export default function ObjectPreview({
           (texture) => {
             if (currentVersion !== overrideVersionRef.current) return;
             const newMat = baseMat.clone();
-            if (baseMat.map) {
-              texture.wrapS = baseMat.map.wrapS;
-              texture.wrapT = baseMat.map.wrapT;
-            } else {
-              texture.wrapS = THREE.RepeatWrapping;
-              texture.wrapT = THREE.RepeatWrapping;
-            }
-            const dim = modelDimensionsRef.current;
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            const dim = dimensions ?? modelDimensionsRef.current;
             if (
               override.scaleU > 0 &&
               override.scaleV > 0 &&
@@ -411,7 +408,7 @@ export default function ObjectPreview({
     });
 
     if (pendingCount === 0) setTexturesReady(true);
-  }, [gltfLoaded, mapsReady, maps, processedUri, slotTextures]);
+  }, [gltfLoaded, mapsReady, maps, processedUri, slotTextures, dimensions]);
 
   const captureReady = gltfLoaded && mapsReady && texturesReady;
   const canCapture = useCallback(() => captureReady, [captureReady]);

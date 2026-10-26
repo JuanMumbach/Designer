@@ -18,22 +18,80 @@ import { Alert, Platform } from 'react-native';
 const wallThickness = 0.2;
 const floorThickness = 0.2;
 
-function addRoomToScene(scene: THREE.Scene, room3d: Room3dProps, designObjects: DesignObject[] = []) {
-  const wallMat = new THREE.MeshStandardMaterial({ color: '#a9a58f' });
+const TILE_DEPTH = 0.01;
+
+async function addRoomToScene(
+  scene: THREE.Scene,
+  room3d: Room3dProps,
+  designObjects: DesignObject[] = [],
+  materialDataById?: Record<string, AppliedMaterial>,
+  globalMaterials?: GlobalMaterials
+) {
+  const resolvedGlobals = globalMaterials ? resolveGlobalMaterials(globalMaterials) : {};
+  const defaultGlobalTileId = resolvedGlobals['wall_tile'];
+  const defaultGlobalWallId = resolvedGlobals['wall_base'];
+
+  const createMat = async (materialId?: string, fallbackColor = '#a9a58f', width = 1, height = 1, tileScaleMultiplier?: number) => {
+    const mat = new THREE.MeshStandardMaterial({ color: fallbackColor });
+    const applied = materialId && materialDataById ? materialDataById[materialId] : undefined;
+    if (applied?.fileURL) {
+      try {
+        const tex = await loadTextureAsync(applied.fileURL);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.wrapS = THREE.RepeatWrapping;
+        tex.wrapT = THREE.RepeatWrapping;
+        const imgWidth = (tex.image as any)?.width || 1024;
+        const imgHeight = (tex.image as any)?.height || 1024;
+        const scaleU = applied.scaleU > 0 ? applied.scaleU : imgWidth;
+        const scaleV = applied.scaleV > 0 ? applied.scaleV : imgHeight;
+        const mult = tileScaleMultiplier !== undefined ? tileScaleMultiplier : 1;
+        tex.repeat.set(
+          Math.max(0.001, (scaleU * width * mult) / imgWidth),
+          Math.max(0.001, (scaleV * height * mult) / imgHeight)
+        );
+        tex.offset.set(0, 0);
+        mat.map = tex;
+        mat.color.set('#ffffff');
+        mat.needsUpdate = true;
+      } catch (err) {
+        console.warn('Failed to load wall export texture:', err);
+      }
+    }
+    return mat;
+  };
+
+  const backConfig = room3d.walls?.back;
+  const backMat = await createMat(backConfig?.materialId || defaultGlobalWallId, backConfig?.color || '#a9a58f', room3d.width, room3d.height);
   const floorMat = new THREE.MeshStandardMaterial({ color: '#e0e3e3' });
 
   const backWall = new THREE.Mesh(
     new THREE.BoxGeometry(room3d.width, room3d.height, wallThickness),
-    wallMat
+    backMat
   );
   backWall.position.set(0, room3d.height / 2, -0.1);
   backWall.name = 'back_wall';
   scene.add(backWall);
 
+  const backTiles = resolveWallTileZones('back', room3d, designObjects, backConfig?.defaultTileMaterialId || defaultGlobalTileId);
+  for (const tile of backTiles) {
+    const tileMat = await createMat(tile.materialId, tile.color || '#e5e7eb', tile.width, tile.height, tile.tileScale ?? backConfig?.defaultTileScale ?? 1);
+    const tileMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(tile.width, tile.height, TILE_DEPTH),
+      tileMat
+    );
+    const centerX = -room3d.width / 2 + tile.start + tile.width / 2;
+    const centerY = tile.bottom + tile.height / 2;
+    tileMesh.position.set(centerX, centerY, TILE_DEPTH / 2);
+    tileMesh.name = `tile_${tile.id}`;
+    scene.add(tileMesh);
+  }
+
   if (room3d.leftWall) {
+    const leftConfig = room3d.walls?.left;
+    const leftMat = await createMat(leftConfig?.materialId || defaultGlobalWallId, leftConfig?.color || '#a9a58f', room3d.depth, room3d.height);
     const leftWall = new THREE.Mesh(
       new THREE.BoxGeometry(wallThickness, room3d.height, room3d.depth + wallThickness),
-      wallMat
+      leftMat
     );
     leftWall.position.set(
       -room3d.width / 2 - wallThickness / 2,
@@ -42,12 +100,28 @@ function addRoomToScene(scene: THREE.Scene, room3d: Room3dProps, designObjects: 
     );
     leftWall.name = 'left_wall';
     scene.add(leftWall);
+
+    const leftTiles = resolveWallTileZones('left', room3d, designObjects, leftConfig?.defaultTileMaterialId || defaultGlobalTileId);
+    for (const tile of leftTiles) {
+      const tileMat = await createMat(tile.materialId, tile.color || '#e5e7eb', tile.width, tile.height, tile.tileScale ?? leftConfig?.defaultTileScale ?? 1);
+      const tileMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(TILE_DEPTH, tile.height, tile.width),
+        tileMat
+      );
+      const centerZ = tile.start + tile.width / 2;
+      const centerY = tile.bottom + tile.height / 2;
+      tileMesh.position.set(-room3d.width / 2 + TILE_DEPTH / 2, centerY, centerZ);
+      tileMesh.name = `tile_${tile.id}`;
+      scene.add(tileMesh);
+    }
   }
 
   if (room3d.rightWall) {
+    const rightConfig = room3d.walls?.right;
+    const rightMat = await createMat(rightConfig?.materialId || defaultGlobalWallId, rightConfig?.color || '#a9a58f', room3d.depth, room3d.height);
     const rightWall = new THREE.Mesh(
       new THREE.BoxGeometry(wallThickness, room3d.height, room3d.depth + wallThickness),
-      wallMat
+      rightMat
     );
     rightWall.position.set(
       room3d.width / 2 + wallThickness / 2,
@@ -56,6 +130,20 @@ function addRoomToScene(scene: THREE.Scene, room3d: Room3dProps, designObjects: 
     );
     rightWall.name = 'right_wall';
     scene.add(rightWall);
+
+    const rightTiles = resolveWallTileZones('right', room3d, designObjects, rightConfig?.defaultTileMaterialId || defaultGlobalTileId);
+    for (const tile of rightTiles) {
+      const tileMat = await createMat(tile.materialId, tile.color || '#e5e7eb', tile.width, tile.height, tile.tileScale ?? rightConfig?.defaultTileScale ?? 1);
+      const tileMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(TILE_DEPTH, tile.height, tile.width),
+        tileMat
+      );
+      const centerZ = tile.start + tile.width / 2;
+      const centerY = tile.bottom + tile.height / 2;
+      tileMesh.position.set(room3d.width / 2 - TILE_DEPTH / 2, centerY, centerZ);
+      tileMesh.name = `tile_${tile.id}`;
+      scene.add(tileMesh);
+    }
   }
 
   const floor = new THREE.Mesh(
@@ -288,7 +376,7 @@ async function buildExportScene(
   onProgress?: (current: number, total: number) => void
 ): Promise<THREE.Scene> {
   const scene = new THREE.Scene();
-  addRoomToScene(scene, room3d, designObjects);
+  await addRoomToScene(scene, room3d, designObjects, materialDataById, globalMaterials);
   await addFurnitureToScene(scene, designObjects, room3d, materialDataById, globalMaterials, slotTypesByModel, typeToDesignSlot, onProgress);
   return scene;
 }

@@ -1,7 +1,7 @@
 import { Box } from '@react-three/drei/native';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { AppliedMaterial, DesignObject } from './DesignObjects';
+import { AppliedMaterial, DesignObject, resolveGlobalMaterials } from './DesignObjects';
 import { resolveWallTileZones } from './wallTiles';
 
 export type WallIdentifier = 'back' | 'left' | 'right';
@@ -16,6 +16,7 @@ export interface WallTileZone {
     width: number;
     bottom: number;
     height: number;
+    tileScale?: number;
 }
 
 export interface WallConfig {
@@ -23,6 +24,7 @@ export interface WallConfig {
     color?: string;
     autoBacksplash?: boolean;
     defaultTileMaterialId?: string;
+    defaultTileScale?: number;
     tiles?: WallTileZone[];
 }
 
@@ -43,6 +45,8 @@ export interface Room3dComponentProps extends Room3dProps {
     culledLeft?: boolean;
     culledRight?: boolean;
     materialDataById?: Record<string, AppliedMaterial>;
+    globalMaterials?: Record<string, AppliedMaterial>;
+    globalMaterialsRaw?: Record<string, string>;
     designObjects?: DesignObject[];
     onWallContextMenu?: (wallId: WallIdentifier, event: any) => void;
 }
@@ -100,27 +104,50 @@ function WallMaterial({
         }
         let cancelled = false;
         const loader = new THREE.TextureLoader();
-        loader.load(applied.fileURL, (loaded) => {
-            if (cancelled) return;
-            loaded.wrapS = THREE.RepeatWrapping;
-            loaded.wrapT = THREE.RepeatWrapping;
-            const repeatX = Math.max(1, (applied.scaleU || 1) * width);
-            const repeatY = Math.max(1, (applied.scaleV || 1) * height);
-            loaded.repeat.set(repeatX, repeatY);
-            loaded.needsUpdate = true;
-            setTexture(loaded);
-        });
+        loader.load(
+            applied.fileURL,
+            (loaded) => {
+                if (cancelled) {
+                    loaded.dispose();
+                    return;
+                }
+                loaded.colorSpace = THREE.SRGBColorSpace;
+                loaded.wrapS = THREE.RepeatWrapping;
+                loaded.wrapT = THREE.RepeatWrapping;
+                const imgWidth = (loaded.image as any)?.width || 1024;
+                const imgHeight = (loaded.image as any)?.height || 1024;
+                const scaleU = applied.scaleU > 0 ? applied.scaleU : imgWidth;
+                const scaleV = applied.scaleV > 0 ? applied.scaleV : imgHeight;
+                const repeatX = Math.max(0.001, (scaleU * width) / imgWidth);
+                const repeatY = Math.max(0.001, (scaleV * height) / imgHeight);
+                loaded.repeat.set(repeatX, repeatY);
+                loaded.offset.set(0, 0);
+                loaded.needsUpdate = true;
+                setTexture(loaded);
+            },
+            undefined,
+            () => {
+                if (!cancelled) setTexture(null);
+            }
+        );
         return () => {
             cancelled = true;
         };
     }, [applied?.fileURL, applied?.scaleU, applied?.scaleV, width, height]);
 
+    useEffect(() => {
+        return () => {
+            texture?.dispose();
+        };
+    }, [texture]);
+
     return (
         <meshStandardMaterial
+            key={texture ? texture.uuid : 'wall-mat-flat'}
             ref={materialRef}
             attach="material"
             color={texture ? '#ffffff' : (color || '#a9a58f')}
-            map={texture || undefined}
+            map={texture || null}
             roughness={0.8}
             visible={visible}
         />
@@ -132,15 +159,21 @@ function TileZoneMesh({
     wallId,
     room3d,
     materialDataById,
+    defaultTileMaterialId,
+    defaultTileScale,
     visible = true
 }: {
     tile: WallTileZone;
     wallId: WallIdentifier;
     room3d: Room3dProps;
     materialDataById?: Record<string, AppliedMaterial>;
+    defaultTileMaterialId?: string;
+    defaultTileScale?: number;
     visible?: boolean;
 }) {
-    const applied = tile.materialId && materialDataById ? materialDataById[tile.materialId] : undefined;
+    const effectiveMaterialId = tile.materialId || defaultTileMaterialId;
+    const applied = effectiveMaterialId && materialDataById ? materialDataById[effectiveMaterialId] : undefined;
+    const effectiveTileScale = tile.tileScale ?? defaultTileScale ?? 1;
     const [texture, setTexture] = useState<THREE.Texture | null>(null);
 
     useEffect(() => {
@@ -150,20 +183,46 @@ function TileZoneMesh({
         }
         let cancelled = false;
         const loader = new THREE.TextureLoader();
-        loader.load(applied.fileURL, (loaded) => {
-            if (cancelled) return;
-            loaded.wrapS = THREE.RepeatWrapping;
-            loaded.wrapT = THREE.RepeatWrapping;
-            const repeatX = Math.max(1, (applied.scaleU || 1) * tile.width);
-            const repeatY = Math.max(1, (applied.scaleV || 1) * tile.height);
-            loaded.repeat.set(repeatX, repeatY);
-            loaded.needsUpdate = true;
-            setTexture(loaded);
-        });
+        loader.load(
+            applied.fileURL,
+            (loaded) => {
+                if (cancelled) {
+                    loaded.dispose();
+                    return;
+                }
+                loaded.colorSpace = THREE.SRGBColorSpace;
+                loaded.wrapS = THREE.RepeatWrapping;
+                loaded.wrapT = THREE.RepeatWrapping;
+
+                const imgWidth = (loaded.image as any)?.width || 1024;
+                const imgHeight = (loaded.image as any)?.height || 1024;
+                const scaleU = applied.scaleU > 0 ? applied.scaleU : imgWidth;
+                const scaleV = applied.scaleV > 0 ? applied.scaleV : imgHeight;
+                const multiplier = effectiveTileScale;
+
+                const repeatX = Math.max(0.001, (scaleU * tile.width * multiplier) / imgWidth);
+                const repeatY = Math.max(0.001, (scaleV * tile.height * multiplier) / imgHeight);
+                loaded.repeat.set(repeatX, repeatY);
+                loaded.offset.set(0, 0);
+
+                loaded.needsUpdate = true;
+                setTexture(loaded);
+            },
+            undefined,
+            () => {
+                if (!cancelled) setTexture(null);
+            }
+        );
         return () => {
             cancelled = true;
         };
-    }, [applied?.fileURL, applied?.scaleU, applied?.scaleV, tile.width, tile.height]);
+    }, [applied?.fileURL, applied?.scaleU, applied?.scaleV, tile.width, tile.height, effectiveTileScale]);
+
+    useEffect(() => {
+        return () => {
+            texture?.dispose();
+        };
+    }, [texture]);
 
     const centerY = tile.bottom + tile.height / 2;
     let position: [number, number, number];
@@ -186,9 +245,10 @@ function TileZoneMesh({
     return (
         <Box position={position} args={args} visible={visible}>
             <meshStandardMaterial
+                key={texture ? texture.uuid : 'tile-mat-flat'}
                 attach="material"
                 color={texture ? '#ffffff' : (tile.color || '#e5e7eb')}
-                map={texture || undefined}
+                map={texture || null}
                 roughness={0.4}
             />
         </Box>
@@ -200,6 +260,7 @@ function DesignRoom({
     culledLeft = false,
     culledRight = false,
     materialDataById,
+    globalMaterialsRaw,
     designObjects = [],
     onWallContextMenu
 }: {
@@ -207,6 +268,8 @@ function DesignRoom({
     culledLeft?: boolean;
     culledRight?: boolean;
     materialDataById?: Record<string, AppliedMaterial>;
+    globalMaterials?: Record<string, AppliedMaterial>;
+    globalMaterialsRaw?: Record<string, string>;
     designObjects?: DesignObject[];
     onWallContextMenu?: (wallId: WallIdentifier, event: any) => void;
 }) {
@@ -222,17 +285,36 @@ function DesignRoom({
         if (rightFloorStripMat.current) rightFloorStripMat.current.visible = !culledRight;
     }, [culledLeft, culledRight]);
 
+    const resolvedGlobals = useMemo(
+        () => (globalMaterialsRaw ? resolveGlobalMaterials(globalMaterialsRaw) : {}),
+        [globalMaterialsRaw]
+    );
+    const defaultGlobalTileId = resolvedGlobals['wall_tile'];
+    const defaultGlobalWallId = resolvedGlobals['wall_base'];
+
+    const backConfig = room3d.walls?.back;
+    const leftConfig = room3d.walls?.left;
+    const rightConfig = room3d.walls?.right;
+
+    const backDefaultTileId = backConfig?.defaultTileMaterialId || defaultGlobalTileId;
+    const leftDefaultTileId = leftConfig?.defaultTileMaterialId || defaultGlobalTileId;
+    const rightDefaultTileId = rightConfig?.defaultTileMaterialId || defaultGlobalTileId;
+
+    const backDefaultTileScale = backConfig?.defaultTileScale;
+    const leftDefaultTileScale = leftConfig?.defaultTileScale;
+    const rightDefaultTileScale = rightConfig?.defaultTileScale;
+
     const backTiles = useMemo(
-        () => resolveWallTileZones('back', room3d, designObjects),
-        [room3d, designObjects]
+        () => resolveWallTileZones('back', room3d, designObjects, backDefaultTileId),
+        [room3d, designObjects, backDefaultTileId]
     );
     const leftTiles = useMemo(
-        () => (room3d.leftWall ? resolveWallTileZones('left', room3d, designObjects) : []),
-        [room3d, designObjects]
+        () => (room3d.leftWall ? resolveWallTileZones('left', room3d, designObjects, leftDefaultTileId) : []),
+        [room3d, designObjects, leftDefaultTileId]
     );
     const rightTiles = useMemo(
-        () => (room3d.rightWall ? resolveWallTileZones('right', room3d, designObjects) : []),
-        [room3d, designObjects]
+        () => (room3d.rightWall ? resolveWallTileZones('right', room3d, designObjects, rightDefaultTileId) : []),
+        [room3d, designObjects, rightDefaultTileId]
     );
 
     const handleContextMenu = (wallId: WallIdentifier, e: any) => {
@@ -241,10 +323,6 @@ function DesignRoom({
         e.stopPropagation();
         onWallContextMenu?.(wallId, e);
     };
-
-    const backConfig = room3d.walls?.back;
-    const leftConfig = room3d.walls?.left;
-    const rightConfig = room3d.walls?.right;
 
     return (
         <>
@@ -257,7 +335,7 @@ function DesignRoom({
                     >
                         <WallMaterial
                             materialRef={leftWallMat}
-                            materialId={leftConfig?.materialId}
+                            materialId={leftConfig?.materialId || defaultGlobalWallId}
                             color={leftConfig?.color}
                             materialDataById={materialDataById}
                             width={room3d.depth}
@@ -272,6 +350,8 @@ function DesignRoom({
                             wallId="left"
                             room3d={room3d}
                             materialDataById={materialDataById}
+                            defaultTileMaterialId={leftDefaultTileId}
+                            defaultTileScale={leftDefaultTileScale}
                             visible={!culledLeft}
                         />
                     ))}
@@ -290,7 +370,7 @@ function DesignRoom({
                 onContextMenu={(e) => handleContextMenu('back', e)}
             >
                 <WallMaterial
-                    materialId={backConfig?.materialId}
+                    materialId={backConfig?.materialId || defaultGlobalWallId}
                     color={backConfig?.color}
                     materialDataById={materialDataById}
                     width={room3d.width}
@@ -304,6 +384,8 @@ function DesignRoom({
                     wallId="back"
                     room3d={room3d}
                     materialDataById={materialDataById}
+                    defaultTileMaterialId={backDefaultTileId}
+                    defaultTileScale={backDefaultTileScale}
                 />
             ))}
 
@@ -326,7 +408,7 @@ function DesignRoom({
                     >
                         <WallMaterial
                             materialRef={rightWallMat}
-                            materialId={rightConfig?.materialId}
+                            materialId={rightConfig?.materialId || defaultGlobalWallId}
                             color={rightConfig?.color}
                             materialDataById={materialDataById}
                             width={room3d.depth}
@@ -341,6 +423,8 @@ function DesignRoom({
                             wallId="right"
                             room3d={room3d}
                             materialDataById={materialDataById}
+                            defaultTileMaterialId={rightDefaultTileId}
+                            defaultTileScale={rightDefaultTileScale}
                             visible={!culledRight}
                         />
                     ))}
@@ -360,6 +444,8 @@ export default function Room3d(props: Room3dComponentProps) {
                 culledLeft={props.culledLeft}
                 culledRight={props.culledRight}
                 materialDataById={props.materialDataById}
+                globalMaterials={props.globalMaterials}
+                globalMaterialsRaw={props.globalMaterialsRaw}
                 designObjects={props.designObjects}
                 onWallContextMenu={props.onWallContextMenu}
             />

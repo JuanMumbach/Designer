@@ -436,13 +436,8 @@ export function DesignObject3D({
                 if (currentVersion !== overrideVersionRef.current) return;
 
                 const newMat = baseMat.clone();
-                if (baseMat.map) {
-                  texture.wrapS = baseMat.map.wrapS;
-                  texture.wrapT = baseMat.map.wrapT;
-                } else {
-                  texture.wrapS = THREE.RepeatWrapping;
-                  texture.wrapT = THREE.RepeatWrapping;
-                }
+                texture.wrapS = THREE.RepeatWrapping;
+                texture.wrapT = THREE.RepeatWrapping;
 
                 if (
                   override.scaleU > 0 &&

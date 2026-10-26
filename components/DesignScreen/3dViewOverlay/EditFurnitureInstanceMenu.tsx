@@ -179,6 +179,7 @@ export default function EditFurnitureInstanceMenu({
             bottom: Number(backsplashBottom.replace(',', '.')) || 0.90,
             height: Number(backsplashHeight.replace(',', '.')) || 0.60,
             materialId: object.backsplash?.materialId,
+            tileScale: object.backsplash?.tileScale,
           }
         : undefined,
     });

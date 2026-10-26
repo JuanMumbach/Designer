@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Room3dProps, WallConfig, WallIdentifier, WallTileZone } from '../3dView/Room3d';
-import { AppliedMaterial, DesignObject } from '../3dView/DesignObjects';
+import { AppliedMaterial, DesignObject, GlobalMaterials, resolveGlobalMaterials } from '../3dView/DesignObjects';
 import { resolveWallTileZones } from '../3dView/wallTiles';
 import { MaterialCategory, MaterialData, MaterialMeta } from '../../../services/api';
 import FormPanel, { formStyles } from '../../Editors/FormPanel';
@@ -29,7 +29,9 @@ interface EditWallModalProps {
   materials: MaterialMeta[];
   materialCategories: MaterialCategory[];
   materialDataById?: Record<string, AppliedMaterial>;
+  globalMaterials?: GlobalMaterials;
   designObjects: DesignObject[];
+  onMaterialDataResolved?: (id: string, data: AppliedMaterial) => void;
   onClose: () => void;
   containerStyle?: StyleProp<ViewStyle>;
 }
@@ -49,7 +51,9 @@ export default function EditWallModal({
   materials,
   materialCategories,
   materialDataById,
+  globalMaterials,
   designObjects,
+  onMaterialDataResolved,
   onClose,
   containerStyle,
 }: EditWallModalProps) {
@@ -61,10 +65,18 @@ export default function EditWallModal({
     color: existingConfig?.color || '#a9a58f',
     autoBacksplash: existingConfig?.autoBacksplash !== false,
     defaultTileMaterialId: existingConfig?.defaultTileMaterialId,
+    defaultTileScale: existingConfig?.defaultTileScale ?? 1,
     tiles: existingConfig?.tiles ? [...existingConfig.tiles] : [],
   });
 
   const [pickerTarget, setPickerTarget] = useState<'wall' | 'defaultTile' | { manualTileId: string } | null>(null);
+
+  const resolvedGlobals = useMemo(
+    () => (globalMaterials ? resolveGlobalMaterials(globalMaterials) : {}),
+    [globalMaterials]
+  );
+  const defaultGlobalTileId = resolvedGlobals['wall_tile'];
+  const defaultGlobalWallId = resolvedGlobals['wall_base'];
 
   const wallWidth = wallId === 'back' ? room3d.width : room3d.depth;
   const wallHeight = room3d.height;
@@ -81,8 +93,13 @@ export default function EditWallModal({
   }, [room3d, wallId, draftConfig]);
 
   const activeTileZones = useMemo(() => {
-    return resolveWallTileZones(wallId, draftRoom, designObjects);
-  }, [wallId, draftRoom, designObjects]);
+    return resolveWallTileZones(
+      wallId,
+      draftRoom,
+      designObjects,
+      draftConfig.defaultTileMaterialId || defaultGlobalTileId
+    );
+  }, [wallId, draftRoom, designObjects, draftConfig.defaultTileMaterialId, defaultGlobalTileId]);
 
   const totalTiledArea = useMemo(() => {
     const area = activeTileZones.reduce((acc, t) => acc + t.width * t.height, 0);
@@ -91,8 +108,11 @@ export default function EditWallModal({
 
   const netWallArea = Math.max(0, Number((totalArea - totalTiledArea).toFixed(2)));
 
-  const baseMaterialMeta = materials.find((m) => m.id === draftConfig.materialId);
-  const defaultTileMaterialMeta = materials.find((m) => m.id === draftConfig.defaultTileMaterialId);
+  const effectiveBaseMaterialId = draftConfig.materialId || defaultGlobalWallId;
+  const effectiveTileMaterialId = draftConfig.defaultTileMaterialId || defaultGlobalTileId;
+
+  const baseMaterialMeta = materials.find((m) => m.id === effectiveBaseMaterialId);
+  const defaultTileMaterialMeta = materials.find((m) => m.id === effectiveTileMaterialId);
 
   const wallMaterials = useMemo(() => {
     const filtered = materials.filter(
@@ -112,6 +132,13 @@ export default function EditWallModal({
   }, [materials]);
 
   const handleSelectMaterial = async (meta: MaterialMeta, _data: MaterialData) => {
+    if (_data?.fileURL) {
+      onMaterialDataResolved?.(meta.id, {
+        fileURL: _data.fileURL,
+        scaleU: typeof _data.scaleU === 'number' ? _data.scaleU : (parseFloat(String(_data.scaleU).replace(',', '.')) || 1),
+        scaleV: typeof _data.scaleV === 'number' ? _data.scaleV : (parseFloat(String(_data.scaleV).replace(',', '.')) || 1),
+      });
+    }
     if (pickerTarget === 'wall') {
       setDraftConfig((prev) => ({ ...prev, materialId: meta.id }));
     } else if (pickerTarget === 'defaultTile') {
@@ -135,7 +162,7 @@ export default function EditWallModal({
       width: Math.min(1.2, wallWidth),
       bottom: 0.90,
       height: 0.60,
-      materialId: draftConfig.defaultTileMaterialId,
+      materialId: draftConfig.defaultTileMaterialId || defaultGlobalTileId,
       color: '#e5e7eb',
     };
     setDraftConfig((prev) => ({
@@ -298,6 +325,46 @@ export default function EditWallModal({
                   </View>
                 )}
 
+                <View style={styles.scaleSection}>
+                  <Text style={formStyles.label}>Escala / Multiplicador de repetición</Text>
+                  <View style={styles.scalePresetsRow}>
+                    {[
+                      { label: '0.5x (Grande)', value: 0.5 },
+                      { label: '1x (Original)', value: 1 },
+                      { label: '1.5x', value: 1.5 },
+                      { label: '2x (Pequeño)', value: 2 },
+                      { label: '3x', value: 3 },
+                    ].map((preset) => {
+                      const active = (draftConfig.defaultTileScale ?? 1) === preset.value;
+                      return (
+                        <Pressable
+                          key={preset.value}
+                          style={[styles.scalePresetChip, active && styles.scalePresetChipActive]}
+                          onPress={() => setDraftConfig((prev) => ({ ...prev, defaultTileScale: preset.value }))}
+                        >
+                          <Text style={[styles.scalePresetText, active && styles.scalePresetTextActive]}>
+                            {preset.label}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                  <View style={[formStyles.row, { marginTop: 8 }]}>
+                    <Text style={[styles.controlLabel, { alignSelf: 'center', marginRight: 8 }]}>
+                      Multiplicador:
+                    </Text>
+                    <TextInput
+                      style={[styles.miniInput, { width: 80 }]}
+                      keyboardType="decimal-pad"
+                      value={String(draftConfig.defaultTileScale ?? 1)}
+                      onChangeText={(txt) => {
+                        const val = parseFloat(txt.replace(',', '.'));
+                        setDraftConfig((prev) => ({ ...prev, defaultTileScale: isNaN(val) ? undefined : val }));
+                      }}
+                    />
+                  </View>
+                </View>
+
                 <View style={styles.sectionHeader}>
                   <Text style={inspectorStyles.sectionTitle}>
                     Franjas de Azulejos ({activeTileZones.length})
@@ -382,6 +449,19 @@ export default function EditWallModal({
                                   onChangeText={(txt) =>
                                     handleUpdateManualTile(tile.id, {
                                       height: Number(txt.replace(',', '.')) || 0.1,
+                                    })
+                                  }
+                                />
+                              </View>
+                              <View style={formStyles.rowItem}>
+                                <Text style={styles.controlLabel}>Escala (x)</Text>
+                                <TextInput
+                                  style={styles.miniInput}
+                                  keyboardType="decimal-pad"
+                                  value={String(tile.tileScale ?? draftConfig.defaultTileScale ?? 1)}
+                                  onChangeText={(txt) =>
+                                    handleUpdateManualTile(tile.id, {
+                                      tileScale: Number(txt.replace(',', '.')) || 1,
                                     })
                                   }
                                 />
@@ -567,6 +647,37 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderBottomWidth: 1,
     borderColor: COLORS.border,
+  },
+  scaleSection: {
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderColor: COLORS.border,
+    gap: 8,
+  },
+  scalePresetsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  scalePresetChip: {
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: RADII.sm,
+    backgroundColor: COLORS.surfaceAlt,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  scalePresetChipActive: {
+    backgroundColor: COLORS.primarySoft,
+    borderColor: COLORS.primary,
+  },
+  scalePresetText: {
+    fontSize: 12,
+    color: COLORS.text,
+  },
+  scalePresetTextActive: {
+    color: COLORS.primary,
+    fontWeight: '600',
   },
   sectionHeader: {
     flexDirection: 'row',

@@ -25,6 +25,7 @@ export default function MaterialPreview({
   scaleU = 1,
   scaleV = 1,
   captureApi,
+  dimensions,
 }: {
   modelUrl: string | null;
   textureUri: string | null;
@@ -33,6 +34,7 @@ export default function MaterialPreview({
   scaleU?: number;
   scaleV?: number;
   captureApi?: ThumbnailCaptureApi;
+  dimensions?: [number, number, number];
 }) {
   const gltfRef = useRef<THREE.Group | null>(null);
   const originalMaterialsRef = useRef<Map<number, THREE.Material>>(new Map());
@@ -180,7 +182,7 @@ export default function MaterialPreview({
             const newMat = (child.material as THREE.MeshStandardMaterial).clone();
             texture.wrapS = THREE.RepeatWrapping;
             texture.wrapT = THREE.RepeatWrapping;
-            const dim = modelDimensionsRef.current;
+            const dim = dimensions ?? modelDimensionsRef.current;
             if (
               scaleU > 0 &&
               scaleV > 0 &&
@@ -204,7 +206,7 @@ export default function MaterialPreview({
         }
       }
     });
-  }, [gltfLoaded, modelUrl, processedTextureUri, selectedSlot, scaleU, scaleV, slotMapsReady]);
+  }, [gltfLoaded, modelUrl, processedTextureUri, selectedSlot, scaleU, scaleV, slotMapsReady, dimensions]);
 
   return (
     <View style={styles.container}>

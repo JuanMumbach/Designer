@@ -55,6 +55,7 @@ interface View3dOverlayProps {
   onClearWallContextMenu?: () => void;
   editingWall?: WallIdentifier | null;
   setEditingWall?: (wall: WallIdentifier | null) => void;
+  onMaterialDataResolved?: (id: string, data: AppliedMaterial) => void;
 }
 
 function useWindowDimensions() {
@@ -156,6 +157,7 @@ export default function View3dOverlay({
   onClearWallContextMenu,
   editingWall,
   setEditingWall,
+  onMaterialDataResolved,
 }: View3dOverlayProps) {
   const router = useRouter();
   const { width, height } = useWindowDimensions();
@@ -739,7 +741,9 @@ export default function View3dOverlay({
           materials={materials}
           materialCategories={materialCategories}
           materialDataById={materialDataById}
+          globalMaterials={globalMaterials}
           designObjects={designObjects}
+          onMaterialDataResolved={onMaterialDataResolved}
           onClose={() => setEditingWall?.(null)}
         />
       )}

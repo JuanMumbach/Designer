@@ -576,6 +576,11 @@ export default function ObjectBrowser({
         captureApi={captureApi}
         slotTextures={slotTextures ?? undefined}
         onReadyChange={handlePreviewReady}
+        dimensions={
+          editingObjectVersion && editingObjectVersion.sizeX > 0 && editingObjectVersion.sizeY > 0 && editingObjectVersion.sizeZ > 0
+            ? [editingObjectVersion.sizeX, editingObjectVersion.sizeY, editingObjectVersion.sizeZ]
+            : undefined
+        }
       />
     </View>
   );

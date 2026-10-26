@@ -45,6 +45,8 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
     setDesignSnapshot({ room: room3d, objects: designObjects, globalMaterials });
   }, [room3d, designObjects, globalMaterials, setDesignSnapshot]);
   const [materialDataById, setMaterialDataById] = useState<Record<string, AppliedMaterial>>({});
+  const materialDataByIdRef = useRef(materialDataById);
+  materialDataByIdRef.current = materialDataById;
   const [magnetEnabled, _setMagnetEnabled] = useState<boolean>(true);
   const [isDraggingObject, setIsDraggingObject] = useState(false);
   const [forceEditObject, setForceEditObject] = useState<DesignObject | undefined>(undefined);
@@ -172,12 +174,37 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
         const resolvedId = resolveMaterialValue(materialId, globalMaterials);
         if (resolvedId) ids.add(resolvedId);
       }
+      if (obj.backsplash?.materialId) {
+        const resolvedId = resolveMaterialValue(obj.backsplash.materialId, globalMaterials);
+        if (resolvedId) ids.add(resolvedId);
+      }
     }
     for (const materialId of Object.values(resolveGlobalMaterials(globalMaterials))) {
       if (materialId) ids.add(materialId);
     }
+    if (room3d?.walls) {
+      for (const wall of Object.values(room3d.walls)) {
+        if (!wall) continue;
+        if (wall.materialId) {
+          const resolvedId = resolveMaterialValue(wall.materialId, globalMaterials);
+          if (resolvedId) ids.add(resolvedId);
+        }
+        if (wall.defaultTileMaterialId) {
+          const resolvedId = resolveMaterialValue(wall.defaultTileMaterialId, globalMaterials);
+          if (resolvedId) ids.add(resolvedId);
+        }
+        if (wall.tiles) {
+          for (const tile of wall.tiles) {
+            if (tile.materialId) {
+              const resolvedId = resolveMaterialValue(tile.materialId, globalMaterials);
+              if (resolvedId) ids.add(resolvedId);
+            }
+          }
+        }
+      }
+    }
     return [...ids];
-  }, [designObjects, globalMaterials]);
+  }, [designObjects, globalMaterials, room3d]);
 
   useEffect(() => {
     let cancelled = false;
@@ -192,12 +219,18 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
         if (cancelled) return;
         const meta = materials.find(m => m.id === materialId);
         if (!meta) continue;
+        const cached = materialDataByIdRef.current[materialId];
+        if (cached && cached.version === meta.lastVersion) {
+          resolved[materialId] = cached;
+          continue;
+        }
         try {
           const data = await fetchMaterialVersion(materialId, meta.lastVersion);
           resolved[materialId] = {
             fileURL: data.fileURL,
             scaleU: data.scaleU,
             scaleV: data.scaleV,
+            version: meta.lastVersion,
           };
         } catch (err) {
           console.warn(`Could not resolve material ${materialId}:`, err);
@@ -210,6 +243,10 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
       cancelled = true;
     };
   }, [referencedMaterialIds, materials]);
+
+  const handleMaterialDataResolved = useCallback((id: string, applied: AppliedMaterial) => {
+    setMaterialDataById((prev) => ({ ...prev, [id]: applied }));
+  }, []);
 
   const resolvedGlobalMaterials = useMemo(() => {
     const resolved: Record<string, AppliedMaterial> = {};
@@ -520,6 +557,7 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
         onClearWallContextMenu={() => setWallContextMenu(null)}
         editingWall={editingWall}
         setEditingWall={setEditingWall}
+        onMaterialDataResolved={handleMaterialDataResolved}
       >
       </View3dOverlay>
 

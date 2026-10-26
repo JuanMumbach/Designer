@@ -462,6 +462,11 @@ export default function MaterialBrowser({
           scaleU={liveScaleU}
           scaleV={liveScaleV}
           captureApi={captureApi}
+          dimensions={
+            selectedTemplate && selectedTemplate.width > 0 && selectedTemplate.height > 0 && selectedTemplate.depth > 0
+              ? [selectedTemplate.width, selectedTemplate.height, selectedTemplate.depth]
+              : undefined
+          }
         />
       </View>
       {discoveredSlots.length > 0 && (
