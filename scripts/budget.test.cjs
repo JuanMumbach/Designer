@@ -75,7 +75,8 @@ async function testPersistence() {
   assert.equal(legacyRestored.objects[0].budgetEntries, undefined);
   await assert.rejects(storage.deserializeProjectState({ ...json, budgetSettings: { extras: [], multipliers: [{ id: 'invalid', name: 'Invalid', factor: 0 }] } }, async () => ''));
   testBudgetScreen(room, object);
-  console.log('Budget calculation, material resolution, validation, project round-trip and rendered-screen checks passed.');
+  testCutsScreen(room, object);
+  console.log('Budget calculation, cuts separation, material resolution, validation, project round-trip and rendered-screen checks passed.');
 }
 
 function testBudgetScreen(room, object) {
@@ -95,6 +96,7 @@ function testBudgetScreen(room, object) {
     const Screen = loadTypeScript('app/(design)/budget.tsx', {
       react: mockedReact,
       'react-native': native,
+      'expo-router': { useRouter: () => ({ navigate: () => {}, push: () => {} }) },
       '@react-navigation/native': { useFocusEffect: () => {} },
       '../../constants/theme': loadTypeScript('constants/theme.ts'),
       '../../services/AccessContext': { useAccess: () => ({ canDesign: true }) },
@@ -112,12 +114,62 @@ function testBudgetScreen(room, object) {
   assert.ok(html.includes('Costos adicionales del proyecto'));
   assert.ok(html.includes('Multiplicadores del proyecto'));
   assert.ok(html.includes('Oculto en vista 3D'));
+  assert.ok(html.includes('Cortes de tableros'));
   assert.ok(render({ empty: true }).includes('77,00'));
   const unpriced = render({ unpriced: true });
   assert.ok(unpriced.includes('Precio sin configurar'));
   assert.ok(unpriced.includes('Presupuesto incompleto'));
   assert.ok(render({ error: 'Catalog unavailable' }).includes('Catalog unavailable'));
   assert.ok(render({ loading: true }).includes('Pendiente'));
+}
+
+function testCutsScreen(room, object) {
+  const React = require('react');
+  const { renderToStaticMarkup } = require('react-dom/server');
+  const native = require('react-native-web');
+  const config = require('../config/defaultDesignMaterials.json');
+  const { simulateBoardCuts } = loadTypeScript('services/cuttingPlan.ts');
+  const boardCutting = loadTypeScript('components/DesignScreen/Budget/BoardCuttingSimulation.tsx', {
+    react: React,
+    'react-native': native,
+    '../../../constants/theme': loadTypeScript('constants/theme.ts'),
+    '../../../services/budget': budget,
+    '../../../services/materialParts': materialParts,
+    '../../../services/cuttingPlan': { simulateBoardCuts },
+  });
+  function render(options = {}) {
+    const partsWithMaterial = [
+      { id: 'part-1', name: 'Lateral', materialSlot: 0, widthMm: 600, heightMm: 700, quantity: 2 },
+    ];
+    const instance = { ...object, budgetEntries: undefined, materialParts: options.noParts ? [] : partsWithMaterial, materialOverrides: {} };
+    const objects = options.empty ? [] : [instance];
+    const modelKeys = options.empty ? '' : 'model:3';
+    const scope = `user:workspace:project:${modelKeys}:0`;
+    const catalog = { scope, materials: [{ id: 'mdf', name: 'MDF', pricePerSquareMeter: 1000 }], versions: { 'model:3': { budgetEntries: [] } }, slots: { 'model:3': [{ slot: 0, displayName: 'Wood', materialTypeName: 'MDF' }] } };
+    let stateIndex = 0;
+    const state = [catalog, !!options.loading, options.error, 0];
+    const mockedReact = { ...React, useState: () => [state[stateIndex++], () => {}], useMemo: (fn) => fn(), useCallback: (fn) => fn, useEffect: () => {} };
+    const Screen = loadTypeScript('app/(design)/cuts.tsx', {
+      react: mockedReact,
+      'react-native': native,
+      'expo-router': { useRouter: () => ({ navigate: () => {}, push: () => {} }) },
+      '@react-navigation/native': { useFocusEffect: () => {} },
+      '../../constants/theme': loadTypeScript('constants/theme.ts'),
+      '../../components/DesignScreen/Budget/BoardCuttingSimulation': boardCutting,
+      '../../services/AccessContext': { useAccess: () => ({ canDesign: true }) },
+      '../../services/AuthContext': { useAuth: () => ({ backendUserId: 'user', selectedWorkspaceId: 'workspace' }) },
+      '../../services/currentProject': { useCurrentProject: () => ({ project: { id: 'project', name: 'Kitchen' }, designSnapshot: { room, objects, globalMaterials: { mdf_primary: 'mdf' } }, budgetSettings: settings, canEditBudgetObjects: true, setBudgetSettings: () => {} }) },
+      '../../services/budget': budget,
+      '../../services/materialParts': materialParts,
+      '../../services/designMaterialDefaults': { designMaterialsConfig: config, normalizeTypeName: (name) => name.trim().toLowerCase() },
+    }).default;
+    return renderToStaticMarkup(React.createElement(Screen));
+  }
+  const html = render();
+  assert.ok(html.includes('Cortes de tableros'));
+  assert.ok(html.includes('Simular cortes'));
+  assert.ok(render({ noParts: true }).includes('No hay piezas con material asignado'));
+  assert.ok(render({ error: 'Cuts unavailable' }).includes('Cuts unavailable'));
 }
 
 testPersistence().catch((error) => { console.error(error); process.exitCode = 1; });

@@ -1,15 +1,15 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
 import BudgetEntriesEditor, { budgetEntryDrafts, readBudgetEntryDrafts } from '../../components/DesignScreen/Budget/BudgetEntriesEditor';
-import BoardCuttingSimulation from '../../components/DesignScreen/Budget/BoardCuttingSimulation';
 import MaterialPartsEditor, { materialPartDrafts, readMaterialPartDrafts } from '../../components/Editors/Objects/MaterialPartsEditor';
 import { COLORS } from '../../constants/theme';
 import { useAccess } from '../../services/AccessContext';
 import { useAuth } from '../../services/AuthContext';
 import { fetchMaterialCatalog, fetchModelMaterialTypes, fetchObjectVersion, MaterialMeta, ObjectMaterialType, ObjectVersion } from '../../services/api';
 import { calculateDesignBudget, formatBudgetAmount, ModelBudgetEntry, resolveBudgetMaterial } from '../../services/budget';
-import { calculatePartsBudget, collectMaterialDemand, formatArea, MaterialPart } from '../../services/materialParts';
+import { calculatePartsBudget, formatArea, MaterialPart } from '../../services/materialParts';
 import { useCurrentProject } from '../../services/currentProject';
 import { designMaterialsConfig, normalizeTypeName } from '../../services/designMaterialDefaults';
 
@@ -72,6 +72,7 @@ function EditDialog({ edit, onClose }: { edit: BudgetEdit; onClose: () => void }
 }
 
 export default function BudgetScreen() {
+  const router = typeof useRouter === 'function' ? useRouter() : undefined;
   const { project, designSnapshot, budgetSettings, setBudgetSettings, updateBudgetEntries, canEditBudgetObjects, updateMaterialParts } = useCurrentProject();
   const { backendUserId, selectedWorkspaceId } = useAuth();
   const { canDesign } = useAccess();
@@ -122,7 +123,6 @@ export default function BudgetScreen() {
     });
     return { object, entries, slots, parts, result };
   }), [designSnapshot, current]);
-  const demands = useMemo(() => collectMaterialDemand(rows, current?.materials ?? []), [rows, current]);
   const summary = calculateDesignBudget(rows.map((row) => row.result), budgetSettings);
   const ready = !loading && !error && !!current && !!designSnapshot;
   const canEdit = canDesign && canEditBudgetObjects && !!designSnapshot;
@@ -143,7 +143,10 @@ export default function BudgetScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.heading}>
           <View><Text style={styles.title}>Presupuesto</Text><Text style={styles.muted}>{project?.name ?? 'Diseño actual'} · {rows.length} módulos</Text></View>
-          <Action label="Actualizar precios" disabled={loading} onPress={() => setRevision((value) => value + 1)} />
+          <View style={styles.actions}>
+            {router && <Action label="Ver cortes de tableros" onPress={() => router.navigate('/(design)/cuts')} />}
+            <Action label="Actualizar precios" disabled={loading} onPress={() => setRevision((value) => value + 1)} />
+          </View>
         </View>
         <Text style={styles.muted}>El despiece calcula m² × precio del material. Los costos fijos y extras se suman aparte. Los slots con despiece reemplazan sus conceptos manuales para evitar duplicar materiales.</Text>
         {!designSnapshot && <Text style={styles.notice}>Abrí la pestaña Diseño para cargar el proyecto.</Text>}
@@ -166,11 +169,17 @@ export default function BudgetScreen() {
             </View>
           </View>
         ))}
-        {ready && <>
-          <Text style={styles.moduleTitle}>Simulación de placas y cortes</Text>
-          {demands.length === 0 && <Text style={styles.muted}>Agregá partes al despiece y asignales un material para simular su distribución en placas.</Text>}
-          {demands.map((demand) => <BoardCuttingSimulation key={demand.material.id} demand={demand} settings={budgetSettings.cutting?.[demand.material.id]} onSettingsChange={canEdit ? (settings) => setBudgetSettings({ ...budgetSettings, cutting: { ...budgetSettings.cutting, [demand.material.id]: settings } }) : undefined} />)}
-        </>}
+        {ready && (
+          <View style={styles.card}>
+            <View style={styles.heading}>
+              <View>
+                <Text style={styles.moduleTitle}>Cortes de tableros</Text>
+                <Text style={styles.muted}>Simulación de cortes rectos y distribución de piezas en placas completas.</Text>
+              </View>
+              {router && <Action label="Ver cortes de tableros" onPress={() => router.navigate('/(design)/cuts')} />}
+            </View>
+          </View>
+        )}
         <View style={styles.card}>
           <View style={styles.heading}><Text style={styles.moduleTitle}>Costos adicionales del proyecto</Text><Action label="Editar extras" disabled={!canEdit} onPress={editExtras} /></View>
           {budgetSettings.extras.length === 0 && <Text style={styles.muted}>Entrega, instalación o cualquier costo fuera del diseño.</Text>}

@@ -34,7 +34,7 @@ const navItems: {
     icon: "folder-outline",
     iconActive: "folder",
     href: "/projectManager",
-    prefixes: ["/projectManager", "/design", "/budget", "/measures"],
+    prefixes: ["/projectManager", "/design", "/budget", "/cuts", "/measures"],
   },
   {
     key: "assets",

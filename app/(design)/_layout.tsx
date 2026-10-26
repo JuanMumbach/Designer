@@ -36,33 +36,46 @@ export default function DesignLayout() {
             ),
           }}
         />
-      <Tabs.Screen
-        name="budget"
-        options={{
-          title: "Presupuesto",
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? "cash" : "cash-outline"}
-              color={color}
-              size={24}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="measures"
-        options={{
-          title: "Medidas",
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? "resize" : "resize-outline"}
-              color={color}
-              size={24}
-            />
-          ),
-        }}
-      />
-    </Tabs>
+        <Tabs.Screen
+          name="budget"
+          options={{
+            title: "Presupuesto",
+            tabBarIcon: ({ color, focused }) => (
+              <Ionicons
+                name={focused ? "cash" : "cash-outline"}
+                color={color}
+                size={24}
+              />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="cuts"
+          options={{
+            title: "Cortes",
+            tabBarIcon: ({ color, focused }) => (
+              <Ionicons
+                name={focused ? "cut" : "cut-outline"}
+                color={color}
+                size={24}
+              />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="measures"
+          options={{
+            title: "Medidas",
+            tabBarIcon: ({ color, focused }) => (
+              <Ionicons
+                name={focused ? "resize" : "resize-outline"}
+                color={color}
+                size={24}
+              />
+            ),
+          }}
+        />
+      </Tabs>
     </CurrentProjectProvider>
   );
 }
