@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFExporter, GLTFLoader } from 'three-stdlib';
 import { Room3dProps } from '@/components/DesignScreen/3dView/Room3d';
+import { resolveWallTileZones } from '@/components/DesignScreen/3dView/wallTiles';
 import { AppliedMaterial, DesignObject, GlobalMaterials, MaterialOverrides, resolveGlobalMaterials } from '@/components/DesignScreen/3dView/DesignObjects';
 import {
   buildSlotIndexMaps,
@@ -17,7 +18,7 @@ import { Alert, Platform } from 'react-native';
 const wallThickness = 0.2;
 const floorThickness = 0.2;
 
-function addRoomToScene(scene: THREE.Scene, room3d: Room3dProps) {
+function addRoomToScene(scene: THREE.Scene, room3d: Room3dProps, designObjects: DesignObject[] = []) {
   const wallMat = new THREE.MeshStandardMaterial({ color: '#a9a58f' });
   const floorMat = new THREE.MeshStandardMaterial({ color: '#e0e3e3' });
 
@@ -287,7 +288,7 @@ async function buildExportScene(
   onProgress?: (current: number, total: number) => void
 ): Promise<THREE.Scene> {
   const scene = new THREE.Scene();
-  addRoomToScene(scene, room3d);
+  addRoomToScene(scene, room3d, designObjects);
   await addFurnitureToScene(scene, designObjects, room3d, materialDataById, globalMaterials, slotTypesByModel, typeToDesignSlot, onProgress);
   return scene;
 }

@@ -11,6 +11,8 @@ import BottomSheet from "./3dViewOverlay/BottomSheet";
 import CategoryBrowser from "./3dViewOverlay/CategoryBrowser";
 import EditFurnitureInstanceMenu from "./3dViewOverlay/EditFurnitureInstanceMenu";
 import EditMeasurementModal, { ActiveMeasurementEdit, MeasurementSide } from "./3dViewOverlay/EditMeasurementModal";
+import EditWallModal from "./3dViewOverlay/EditWallModal";
+import { WallIdentifier } from "./3dView/Room3d";
 import FurnitureInstancesManager from "./3dViewOverlay/FurnitureInstancesManager";
 import GlassSurface from "./3dViewOverlay/GlassSurface";
 import MaterialPicker from "./3dViewOverlay/MaterialPicker";
@@ -49,6 +51,10 @@ interface View3dOverlayProps {
   onSaveProjectCloud: () => void;
   onExport3d: () => void;
   isExporting: boolean;
+  wallContextMenu?: { wallId: WallIdentifier; x: number; y: number } | null;
+  onClearWallContextMenu?: () => void;
+  editingWall?: WallIdentifier | null;
+  setEditingWall?: (wall: WallIdentifier | null) => void;
 }
 
 function useWindowDimensions() {
@@ -146,6 +152,10 @@ export default function View3dOverlay({
   onSaveProjectCloud,
   onExport3d,
   isExporting,
+  wallContextMenu,
+  onClearWallContextMenu,
+  editingWall,
+  setEditingWall,
 }: View3dOverlayProps) {
   const router = useRouter();
   const { width, height } = useWindowDimensions();
@@ -439,6 +449,10 @@ export default function View3dOverlay({
         room3dProps={room3dProps}
         setRoom3d={setRoom3d}
         onClose={() => setIsRoomSettingsVisible(false)}
+        onEditWall={(wId) => {
+          setIsRoomSettingsVisible(false);
+          setEditingWall?.(wId);
+        }}
         containerStyle={sheetPanelStyle}
       />
     )) ||
@@ -659,7 +673,78 @@ export default function View3dOverlay({
           {mobilePanel}
         </BottomSheet>
       )}
-    </View>
+    
+      {wallContextMenu && (
+        <>
+          <Pressable style={styles.menuBackdrop} onPress={onClearWallContextMenu} />
+          <GlassSurface
+            style={[
+              styles.dropdownPanel,
+              {
+                position: "absolute",
+                left: Math.min(wallContextMenu.x, width - 200),
+                top: Math.min(wallContextMenu.y, height - 160),
+                zIndex: 150,
+              },
+            ]}
+          >
+            <View style={{ paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderColor: GLASS.border }}>
+              <Text style={{ fontSize: 13, fontWeight: "700", color: GLASS.text }}>
+                {wallContextMenu.wallId === "back"
+                  ? "Pared Trasera"
+                  : wallContextMenu.wallId === "left"
+                  ? "Pared Izquierda"
+                  : "Pared Derecha"}
+              </Text>
+            </View>
+            <DropdownItem
+              label="Editar pared"
+              onPress={() => {
+                const wId = wallContextMenu.wallId;
+                onClearWallContextMenu?.();
+                setEditingWall?.(wId);
+              }}
+            />
+            {wallContextMenu.wallId !== "back" && (
+              <DropdownItem
+                label={
+                  wallContextMenu.wallId === "left"
+                    ? room3dProps.leftWall
+                      ? "Ocultar pared"
+                      : "Mostrar pared"
+                    : room3dProps.rightWall
+                    ? "Ocultar pared"
+                    : "Mostrar pared"
+                }
+                onPress={() => {
+                  const wId = wallContextMenu.wallId;
+                  setRoom3d((prev) => ({
+                    ...prev,
+                    [wId === "left" ? "leftWall" : "rightWall"]:
+                      wId === "left" ? !prev.leftWall : !prev.rightWall,
+                  }));
+                  onClearWallContextMenu?.();
+                }}
+              />
+            )}
+          </GlassSurface>
+        </>
+      )}
+
+      {editingWall && (
+        <EditWallModal
+          wallId={editingWall}
+          room3d={room3dProps}
+          setRoom3d={setRoom3d}
+          materials={materials}
+          materialCategories={materialCategories}
+          materialDataById={materialDataById}
+          designObjects={designObjects}
+          onClose={() => setEditingWall?.(null)}
+        />
+      )}
+
+</View>
   );
 }
 

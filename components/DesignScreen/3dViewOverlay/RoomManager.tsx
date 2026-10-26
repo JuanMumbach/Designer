@@ -10,6 +10,7 @@ interface RoomManagerProps {
   room3dProps: Room3dProps;
   setRoom3d: React.Dispatch<React.SetStateAction<Room3dProps>>;
   onClose: () => void;
+  onEditWall?: (wallId: import('../3dView/Room3d').WallIdentifier) => void;
   containerStyle?: StyleProp<ViewStyle>;
 }
 const dimensions = [
@@ -18,7 +19,7 @@ const dimensions = [
   { key: 'height', label: 'Altura' },
 ] as const;
 
-export default function RoomManager({ room3dProps, setRoom3d, onClose, containerStyle }: RoomManagerProps) {
+export default function RoomManager({ room3dProps, setRoom3d, onClose, onEditWall, containerStyle }: RoomManagerProps) {
   const [draft, setDraft] = useState({ width: String(room3dProps.width), depth: String(room3dProps.depth), height: String(room3dProps.height) });
   useEffect(() => {
     setDraft({ width: String(room3dProps.width), depth: String(room3dProps.depth), height: String(room3dProps.height) });
@@ -47,6 +48,16 @@ export default function RoomManager({ room3dProps, setRoom3d, onClose, container
       <Text style={styles.label}>Paredes visibles</Text>
       <View style={styles.wall}><Text style={styles.dimensionLabel}>Izquierda</Text><Switch accessibilityLabel="Mostrar pared izquierda" value={room3dProps.leftWall} onValueChange={value => setRoom3d(previous => ({ ...previous, leftWall: value }))} /></View>
       <View style={styles.wall}><Text style={styles.dimensionLabel}>Derecha</Text><Switch accessibilityLabel="Mostrar pared derecha" value={room3dProps.rightWall} onValueChange={value => setRoom3d(previous => ({ ...previous, rightWall: value }))} /></View>
+      {onEditWall && (
+        <>
+          <Text style={styles.label}>Revestimiento y azulejos</Text>
+          <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+            <ManagerAction label="Pared Trasera" onPress={() => onEditWall('back')} />
+            {room3dProps.leftWall && <ManagerAction label="Pared Izq." onPress={() => onEditWall('left')} />}
+            {room3dProps.rightWall && <ManagerAction label="Pared Der." onPress={() => onEditWall('right')} />}
+          </View>
+        </>
+      )}
       <ManagerAction label="Aplicar medidas" primary disabled={!valid} onPress={handleApply} />
     </ScrollView>
   </GlassSurface>;

@@ -20,6 +20,7 @@ export interface ProjectRoom {
   depth: number;
   leftWall: boolean;
   rightWall: boolean;
+  walls?: Room3dProps['walls'];
 }
 
 export interface ProjectTextureOverride {
@@ -44,6 +45,7 @@ export interface ProjectInstance {
   textureOverrides?: ProjectTextureOverride[];
   materialOverrides?: MaterialOverrides;
   hidden?: boolean;
+  backsplash?: import('@/components/DesignScreen/3dView/DesignObjects').CounterBacksplashConfig;
 }
 
 export interface ProjectStateDTO {
@@ -67,6 +69,7 @@ export function serializeProjectState(room3d: Room3dProps, designObjects: Design
       depth: room3d.depth,
       leftWall: room3d.leftWall,
       rightWall: room3d.rightWall,
+      ...(room3d.walls ? { walls: room3d.walls } : {}),
     },
     ...(globalMaterials ? { globalMaterials } : {}),
     instances: designObjects.map((obj) => ({
@@ -83,6 +86,7 @@ export function serializeProjectState(room3d: Room3dProps, designObjects: Design
       objectProperties: obj.objectProperties,
       ...(obj.materialOverrides ? { materialOverrides: obj.materialOverrides } : {}),
       ...(obj.hidden !== undefined ? { hidden: obj.hidden } : {}),
+      ...(obj.backsplash ? { backsplash: obj.backsplash } : {}),
     })),
   };
 }
@@ -124,6 +128,7 @@ export async function deserializeProjectState(
       objectProperties: inst.objectProperties,
       materialOverrides,
       hidden: inst.hidden,
+      backsplash: inst.backsplash,
     };
   }));
 
@@ -135,6 +140,7 @@ export async function deserializeProjectState(
       depth: dto.room.depth,
       leftWall: dto.room.leftWall,
       rightWall: dto.room.rightWall,
+      ...(dto.room.walls ? { walls: dto.room.walls } : {}),
     },
     objects,
     globalMaterials: dto.globalMaterials,

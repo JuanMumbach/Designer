@@ -3,6 +3,8 @@
   "designMaterialSlots": [
     { "key": "mdf_primary", "label": "MDF Primario", "type": "MDF", "materialId": "" },
     { "key": "mdf_secondary", "label": "MDF Secundario", "type": "MDF", "materialId": "" },
-    { "key": "marble", "label": "Marmol/granito", "type": "marble", "materialId": "" }
+    { "key": "marble", "label": "Marmol/granito", "type": "marble", "materialId": "" },
+    { "key": "wall_base", "label": "Pared", "type": "wall", "materialId": "" },
+    { "key": "wall_tile", "label": "Azulejos", "type": "wall_tile", "materialId": "" }
   ]
 }

@@ -49,6 +49,22 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
   const [isDraggingObject, setIsDraggingObject] = useState(false);
   const [forceEditObject, setForceEditObject] = useState<DesignObject | undefined>(undefined);
   const [activeMeasurementEdit, setActiveMeasurementEdit] = useState<ActiveMeasurementEdit | undefined>(undefined);
+  const [wallContextMenu, setWallContextMenu] = useState<{
+    wallId: import('./DesignScreen/3dView/Room3d').WallIdentifier;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [editingWall, setEditingWall] = useState<import('./DesignScreen/3dView/Room3d').WallIdentifier | null>(null);
+
+  const handleWallContextMenu = useCallback((
+    wallId: import('./DesignScreen/3dView/Room3d').WallIdentifier,
+    event: any
+  ) => {
+    const x = event.clientX ?? event.nativeEvent?.clientX ?? 120;
+    const y = event.clientY ?? event.nativeEvent?.clientY ?? 120;
+    setWallContextMenu({ wallId, x, y });
+  }, []);
+
   const [isExporting, setIsExporting] = useState(false);
   const [isProjectPickerVisible, setIsProjectPickerVisible] = useState(false);
   const [isProjectLoading, setIsProjectLoading] = useState(false);
@@ -449,6 +465,7 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
     >
       <Design3dView
         {...{ room3d }}
+        onWallContextMenu={handleWallContextMenu}
         designObjects={designObjects}
         onObjectInteraction={handleObjectInteraction}
         onObjectEdited={handleObjectEdited}
@@ -499,6 +516,10 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
         onExport3d={handleExport3d}
         onSaveProjectCloud={() => setIsProjectPickerVisible(true)}
         isExporting={isExporting}
+        wallContextMenu={wallContextMenu}
+        onClearWallContextMenu={() => setWallContextMenu(null)}
+        editingWall={editingWall}
+        setEditingWall={setEditingWall}
       >
       </View3dOverlay>
 

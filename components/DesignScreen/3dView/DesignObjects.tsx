@@ -56,6 +56,13 @@ export function resolveGlobalMaterials(globalMaterials: GlobalMaterials): Global
     return resolved;
 }
 
+export interface CounterBacksplashConfig {
+    enabled: boolean;
+    bottom?: number;
+    height?: number;
+    materialId?: string;
+}
+
 export interface DesignObject {
     materialParts?: import('../../../services/materialParts').MaterialPart[];
     budgetEntries?: import('../../../services/budget').ModelBudgetEntry[];
@@ -72,6 +79,7 @@ export interface DesignObject {
     slots?: MaterialSlotInfo[];
     materialOverrides?: MaterialOverrides;
     hidden?: boolean;
+    backsplash?: CounterBacksplashConfig;
 }
 
 export function createDesignObject(template: ObjectTemplate, position?: [number, number, number]): DesignObject {
@@ -88,6 +96,7 @@ export function createDesignObject(template: ObjectTemplate, position?: [number,
         objectProperties: template.objectProperties,
         materialOverrides: {},
         hidden: false,
+        backsplash: template.objectProperties?.movingBehaviour === 'counter' ? { enabled: true } : undefined,
     };
 }
 
@@ -113,6 +122,7 @@ export function duplicateDesignObject(
         materialParts: object.materialParts ? object.materialParts.map(p => ({ ...p })) : undefined,
         budgetEntries: object.budgetEntries ? object.budgetEntries.map(b => ({ ...b })) : undefined,
         hidden: false,
+        backsplash: object.backsplash ? { ...object.backsplash } : undefined,
     };
 }
 

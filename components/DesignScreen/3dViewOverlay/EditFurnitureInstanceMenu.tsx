@@ -1,6 +1,6 @@
 import Button from "@/components/Button";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Text, TextInput, View, ViewStyle } from "react-native";
+import { Alert, Switch, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Text, TextInput, View, ViewStyle } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { DesignObject, GlobalMaterials, MaterialOverrides, resolveGlobalMaterials } from "../3dView/DesignObjects";
 import { MaterialCategory, MaterialMeta, MaterialData, ObjectMaterialType } from "../../../services/api";
@@ -42,7 +42,7 @@ export default function EditFurnitureInstanceMenu({
   containerStyle,
 }: {
   object: DesignObject;
-  onEditComplete: (id: string, updates: { name: string; position: [number, number, number]; materialOverrides?: MaterialOverrides; dimensions?: [number, number, number] }) => void;
+  onEditComplete: (id: string, updates: { name: string; position: [number, number, number]; materialOverrides?: MaterialOverrides; dimensions?: [number, number, number]; backsplash?: import("../3dView/DesignObjects").CounterBacksplashConfig }) => void;
   onDimensionPreview?: (id: string, dimensions: [number, number, number]) => void;
   onDelete?: (id: string) => void;
   onDuplicate?: (object: DesignObject) => void;
@@ -66,6 +66,10 @@ export default function EditFurnitureInstanceMenu({
   const [sizeWidth, setSizeWidth] = useState(formatSize(object.dimensions[0]));
   const [sizeHeight, setSizeHeight] = useState(formatSize(object.dimensions[1]));
   const [sizeDepth, setSizeDepth] = useState(formatSize(object.dimensions[2]));
+  const isCounter = object.objectProperties?.movingBehaviour === 'counter';
+  const [backsplashEnabled, setBacksplashEnabled] = useState(object.backsplash?.enabled ?? true);
+  const [backsplashBottom, setBacksplashBottom] = useState(String(object.backsplash?.bottom ?? 0.90));
+  const [backsplashHeight, setBacksplashHeight] = useState(String(object.backsplash?.height ?? 0.60));
   const originalDimensionsRef = useRef<[number, number, number]>([...object.dimensions]);
   const previewedDimensionsRef = useRef(false);
   const trackedObjectIdRef = useRef(object.id);
@@ -169,6 +173,14 @@ export default function EditFurnitureInstanceMenu({
       ],
       materialOverrides: dirtyOverrides,
       dimensions: [sizeWidthValue, sizeHeightValue, sizeDepthValue],
+      backsplash: isCounter
+        ? {
+            enabled: backsplashEnabled,
+            bottom: Number(backsplashBottom.replace(',', '.')) || 0.90,
+            height: Number(backsplashHeight.replace(',', '.')) || 0.60,
+            materialId: object.backsplash?.materialId,
+          }
+        : undefined,
     });
   };
 
@@ -498,6 +510,43 @@ export default function EditFurnitureInstanceMenu({
             {!isSizeValid && (
               <Text style={styles.sizeError}>Enter a width, height and depth greater than zero.</Text>
             )}
+            {isCounter && (
+              <View style={styles.backsplashCard}>
+                <View style={styles.backsplashHeader}>
+                  <View style={styles.backsplashInfo}>
+                    <Text style={styles.backsplashTitle}>Azulejos sobre mesada</Text>
+                    <Text style={styles.backsplashSubtitle}>Genera azulejos en la pared trasera de 0.90 m a 1.50 m</Text>
+                  </View>
+                  <Switch
+                    value={backsplashEnabled}
+                    onValueChange={setBacksplashEnabled}
+                  />
+                </View>
+                {backsplashEnabled && (
+                  <View style={styles.backsplashInputsRow}>
+                    <View style={styles.backsplashInputCol}>
+                      <Text style={styles.backsplashInputLabel}>Elevación (m)</Text>
+                      <TextInput
+                        style={styles.backsplashInput}
+                        value={backsplashBottom}
+                        onChangeText={setBacksplashBottom}
+                        keyboardType="decimal-pad"
+                      />
+                    </View>
+                    <View style={styles.backsplashInputCol}>
+                      <Text style={styles.backsplashInputLabel}>Altura (m)</Text>
+                      <TextInput
+                        style={styles.backsplashInput}
+                        value={backsplashHeight}
+                        onChangeText={setBacksplashHeight}
+                        keyboardType="decimal-pad"
+                      />
+                    </View>
+                  </View>
+                )}
+              </View>
+            )}
+
           </>
         ) : (
           <>
@@ -572,6 +621,58 @@ export default function EditFurnitureInstanceMenu({
 }
 
 const styles = StyleSheet.create({
+  backsplashCard: {
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: GLASS.bgStrong,
+    borderRadius: RADII.md,
+    borderWidth: 1,
+    borderColor: GLASS.border,
+  },
+  backsplashHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  backsplashInfo: {
+    flex: 1,
+    marginRight: 8,
+  },
+  backsplashTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: GLASS.text,
+  },
+  backsplashSubtitle: {
+    fontSize: 11,
+    color: GLASS.textMuted,
+    marginTop: 2,
+  },
+  backsplashInputsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 10,
+  },
+  backsplashInputCol: {
+    flex: 1,
+  },
+  backsplashInputLabel: {
+    fontSize: 11,
+    color: GLASS.textMuted,
+    marginBottom: 4,
+  },
+  backsplashInput: {
+    height: 36,
+    borderWidth: 1,
+    borderColor: GLASS.border,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    color: GLASS.text,
+    backgroundColor: GLASS.bg,
+    fontSize: 13,
+    textAlign: 'center',
+  },
+
   container: {
     width: 320,
     maxHeight: "100%",

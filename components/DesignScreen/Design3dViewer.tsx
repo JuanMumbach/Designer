@@ -83,7 +83,8 @@ function SceneContent({
   slotTypesByModel,
   typeToDesignSlot,
   activeMeasurementSide,
-  onSelectMeasurement
+  onSelectMeasurement,
+  onWallContextMenu,
 }: {
   room3d: Room3dProps,
   designObjects: DesignObject[],
@@ -104,7 +105,8 @@ function SceneContent({
   slotTypesByModel?: Record<string, ObjectMaterialType[]>,
   typeToDesignSlot?: Record<string, string>,
   activeMeasurementSide?: import('./3dViewOverlay/EditMeasurementModal').MeasurementSide,
-  onSelectMeasurement?: (object: DesignObject, side: import('./3dViewOverlay/EditMeasurementModal').MeasurementSide, currentValue: number) => void
+  onSelectMeasurement?: (object: DesignObject, side: import('./3dViewOverlay/EditMeasurementModal').MeasurementSide, currentValue: number) => void,
+  onWallContextMenu?: (wallId: import('./3dView/Room3d').WallIdentifier, event: any) => void
 }) {
   const wallCulling = useWallCulling(room3d);
   let roomOrigin = RoomOrigin({room3d});
@@ -112,7 +114,14 @@ function SceneContent({
   return (
     <>
       <CameraController room3d={room3d}/>
-      <Room3d {...room3d} culledLeft={wallCulling.left} culledRight={wallCulling.right}/>
+      <Room3d
+        {...room3d}
+        culledLeft={wallCulling.left}
+        culledRight={wallCulling.right}
+        materialDataById={materialDataById}
+        designObjects={designObjects}
+        onWallContextMenu={onWallContextMenu}
+      />
       <DesignObjectsRenderer
           objects={designObjects}
           origin={roomOrigin}
@@ -162,7 +171,9 @@ export default function Design3dView({
   typeToDesignSlot,
   captureApi,
   activeMeasurementSide,
-  onSelectMeasurement}:
+  onSelectMeasurement,
+  onWallContextMenu
+}:
   {
   room3d: Room3dProps,
   designObjects: DesignObject[],
@@ -183,7 +194,8 @@ export default function Design3dView({
   typeToDesignSlot?: Record<string, string>,
   captureApi?: ThumbnailCaptureApi,
   activeMeasurementSide?: import('./3dViewOverlay/EditMeasurementModal').MeasurementSide,
-  onSelectMeasurement?: (object: DesignObject, side: import('./3dViewOverlay/EditMeasurementModal').MeasurementSide, currentValue: number) => void
+  onSelectMeasurement?: (object: DesignObject, side: import('./3dViewOverlay/EditMeasurementModal').MeasurementSide, currentValue: number) => void,
+  onWallContextMenu?: (wallId: import('./3dView/Room3d').WallIdentifier, event: any) => void
 })
 {
   const isDragging = useRef(0);
@@ -209,6 +221,7 @@ export default function Design3dView({
         <ambientLight intensity={.25}/>
         <pointLight castShadow position={[0, 3, room3d.depth*.75]} intensity={(room3d.depth*room3d.width)*2} />
         <SceneContent
+            onWallContextMenu={onWallContextMenu}
             room3d={room3d}
             designObjects={designObjects}
             onObjectInteraction={onObjectInteraction}
