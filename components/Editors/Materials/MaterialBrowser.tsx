@@ -237,13 +237,19 @@ export default function MaterialBrowser({
         const thumbnailURL = await captureApi.requestCapture('thumbnails/materials');
         await createMaterialVersion(editingMaterial.id, {
           fileURL: data.fileURL,
-          scaleU: parseFloat(data.scaleU) || 1,
-          scaleV: parseFloat(data.scaleV) || 1,
+          scaleU: parseFloat(data.scaleU.replace(',', '.')) || 1,
+          scaleV: parseFloat(data.scaleV.replace(',', '.')) || 1,
           materialProperties: data.materialProperties || undefined,
-          creatorId: backendUserId ?? '',
+          creatorId: backendUserId || data.creatorId || editingMaterial.creatorId || '',
           thumbnailURL: thumbnailURL || undefined,
         });
       }
+      thumbnailAttemptedRef.current.delete(editingMaterial.id);
+      setThumbnails((prev) => {
+        const next = { ...prev };
+        delete next[editingMaterial.id];
+        return next;
+      });
     } else {
       const meta = await createMaterial({
         costMultiplier: data.costMultiplier,
@@ -254,7 +260,7 @@ export default function MaterialBrowser({
         workspaceId: selectedWorkspaceId,
         isPublic: data.isPublic,
         name: data.name,
-        creatorId: backendUserId ?? '',
+        creatorId: backendUserId || data.creatorId || '',
         categoryId: data.categoryId || undefined,
       });
       if (data.typeId) {
@@ -263,10 +269,10 @@ export default function MaterialBrowser({
       const thumbnailURL = await captureApi.requestCapture('thumbnails/materials');
       await createMaterialVersion(meta.id, {
         fileURL: data.fileURL,
-        scaleU: parseFloat(data.scaleU) || 1,
-        scaleV: parseFloat(data.scaleV) || 1,
+        scaleU: parseFloat(data.scaleU.replace(',', '.')) || 1,
+        scaleV: parseFloat(data.scaleV.replace(',', '.')) || 1,
         materialProperties: data.materialProperties || undefined,
-        creatorId: backendUserId ?? '',
+        creatorId: backendUserId || data.creatorId || meta.creatorId || '',
         thumbnailURL: thumbnailURL || undefined,
       });
     }

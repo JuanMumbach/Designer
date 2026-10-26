@@ -88,8 +88,8 @@ export default function MaterialEditor({
   const [pendingPublicValue, setPendingPublicValue] = useState<boolean | null>(null);
   useEffect(() => {
     if (!onScaleChange) return;
-    const su = parseFloat(scaleU);
-    const sv = parseFloat(scaleV);
+    const su = parseFloat(scaleU.replace(',', '.'));
+    const sv = parseFloat(scaleV.replace(',', '.'));
     if (!isNaN(su) && !isNaN(sv)) {
       onScaleChange(su, sv);
     }
@@ -150,8 +150,8 @@ export default function MaterialEditor({
           categoryId: categoryId || null,
           typeId: typeId || null,
           fileURL: finalUrl,
-          scaleU: scaleU || '1',
-          scaleV: scaleV || '1',
+          scaleU: scaleU.replace(',', '.') || '1',
+          scaleV: scaleV.replace(',', '.') || '1',
           materialProperties: materialProperties.trim(),
           costMultiplier: parsedMultiplier,
           pricePerSquareMeter: price,
