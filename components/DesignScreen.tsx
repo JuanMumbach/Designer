@@ -34,7 +34,7 @@ const initialRoom3d: Room3dProps = {
 
 export default function DesignScreen({ projectId }: { projectId?: string }) {
   const { backendUserId, selectedWorkspaceId } = useAuth();
-  const { setProject, setDesignSnapshot, budgetSettings, setBudgetSettings, registerBudgetEditor, registerPartsEditor } = useCurrentProject();
+  const { project, projectName, setProject, setProjectName, setDesignSnapshot, budgetSettings, setBudgetSettings, registerBudgetEditor, registerPartsEditor } = useCurrentProject();
   const { objectTemplates, categories: objectCategories, isLoading: modelsLoading, error: modelsError } = useObjectTemplates(selectedWorkspaceId ?? undefined);
   const { materials, categories: materialCategories, isLoading: materialsLoading } = useMaterials(selectedWorkspaceId ?? undefined);
   const [room3d, setRoom3d] = useState<Room3dProps>(initialRoom3d);
@@ -69,16 +69,19 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
   }, [registerBudgetEditor, registerPartsEditor, isProjectLoading]);
   useEffect(() => {
     if (projectId) return;
+    if (loadedProjectIdRef.current !== null) {
+      setProjectName('');
+      loadedProjectIdRef.current = null;
+    }
     setBudgetSettings(emptyBudgetSettings());
     setGlobalMaterials({});
     setDesignObjects([]);
     setProject(null);
-    loadedProjectIdRef.current = null;
     projectLoadGenerationRef.current += 1;
     setIsProjectLoading(false);
     projectLoadedRef.current = false;
     defaultSceneInitializedRef.current = false;
-  }, [projectId, setBudgetSettings, setProject]);
+  }, [projectId, setBudgetSettings, setProject, setProjectName]);
 
   const captureApi = useMemo<ThumbnailCaptureApi>(
     () => createThumbnailCaptureApi(),
@@ -98,7 +101,8 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
 
   const handleSaveProject = async () => {
     const serializedState = serializeProjectState(room3d, designObjects, globalMaterials, budgetSettings);
-    await saveProject(serializedState, 'my_designer_project.json');
+    const safeName = (projectName || project?.name || 'my_designer_project').trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+    await saveProject(serializedState, `${safeName || 'my_designer_project'}.json`);
   };
 
   const applyProjectData = useCallback(async (projectData: ProjectStateDTO, generation = ++projectLoadGenerationRef.current) => {
@@ -503,6 +507,9 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
           <ProjectPicker
             projectState={serializeProjectState(room3d, designObjects, globalMaterials, budgetSettings)}
             creatorId={backendUserId}
+            initialProjectName={projectName || project?.name || ''}
+            initialProjectId={project?.id ?? null}
+            initialWorkspaceId={project?.workspaceId ?? null}
             onSaved={(project) => setProject(project)}
             onClose={() => setIsProjectPickerVisible(false)}
             captureApi={captureApi}

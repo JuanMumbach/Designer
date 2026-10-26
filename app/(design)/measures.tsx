@@ -19,7 +19,7 @@ function Dimension({ left, top, width, label }: { left: number; top: number; wid
 }
 
 export default function MeasuresScreen() {
-  const { designSnapshot, project } = useCurrentProject();
+  const { designSnapshot, project, projectName } = useCurrentProject();
   const router = useRouter();
   const [selectedView, setSelectedView] = useState(WallView.Front);
   const [zoom, setZoom] = useState(1);
@@ -60,7 +60,7 @@ export default function MeasuresScreen() {
       <View style={styles.header}>
         <View style={styles.heading}>
           <Text style={styles.title}>Measurements</Text>
-          <Text style={styles.description}>{project?.name ? `${project.name} · ` : ''}Wall elevations · All dimensions in mm</Text>
+          <Text style={styles.description}>{(project?.name || projectName) ? `${project?.name || projectName} · ` : ''}Wall elevations · All dimensions in mm</Text>
         </View>
         <View style={styles.controls}>
           <Action label="Zoom out" disabled={zoom <= 1} onPress={() => setZoom(value => Math.max(1, value - 0.5))} />

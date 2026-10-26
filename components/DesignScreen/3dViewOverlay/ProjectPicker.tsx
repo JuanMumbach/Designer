@@ -37,6 +37,9 @@ interface ProjectPickerProps {
   onClose: () => void;
   onSaved?: (project: Project) => void;
   captureApi?: ThumbnailCaptureApi;
+  initialProjectName?: string;
+  initialProjectId?: string | null;
+  initialWorkspaceId?: string | null;
 }
 
 export default function ProjectPicker({
@@ -45,6 +48,9 @@ export default function ProjectPicker({
   onClose,
   onSaved,
   captureApi,
+  initialProjectName,
+  initialProjectId,
+  initialWorkspaceId,
 }: ProjectPickerProps) {
   const { selectedWorkspaceId: contextSelectedWorkspaceId } = useAuth();
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
@@ -54,9 +60,11 @@ export default function ProjectPicker({
     null
   );
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
-    null
+    initialProjectId ?? null
   );
-  const [newProjectName, setNewProjectName] = useState('');
+  const [newProjectName, setNewProjectName] = useState(
+    initialProjectId ? '' : (initialProjectName ?? '')
+  );
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
   const [showNewWorkspace, setShowNewWorkspace] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -76,11 +84,15 @@ export default function ProjectPicker({
         setProjects(pr);
         setSelectedWorkspaceId((prev) => {
           if (prev) return prev;
+          const targetWorkspaceId =
+            initialWorkspaceId ||
+            pr.find((p) => p.id === initialProjectId)?.workspaceId ||
+            contextSelectedWorkspaceId;
           if (
-            contextSelectedWorkspaceId &&
-            ws.some((w) => w.id === contextSelectedWorkspaceId)
+            targetWorkspaceId &&
+            ws.some((w) => w.id === targetWorkspaceId)
           ) {
-            return contextSelectedWorkspaceId;
+            return targetWorkspaceId;
           }
           return null;
         });
@@ -94,7 +106,7 @@ export default function ProjectPicker({
     return () => {
       mounted = false;
     };
-  }, [contextSelectedWorkspaceId]);
+  }, [contextSelectedWorkspaceId, initialProjectId, initialWorkspaceId]);
 
   const handleCreateWorkspace = async () => {
     const name = newWorkspaceName.trim();

@@ -34,7 +34,7 @@ function Action({ label, onPress, disabled = false }: { label: string; onPress: 
 
 export default function CutsScreen() {
   const router = typeof useRouter === 'function' ? useRouter() : undefined;
-  const { project, designSnapshot, budgetSettings, setBudgetSettings, canEditBudgetObjects } = useCurrentProject();
+  const { project, projectName, designSnapshot, budgetSettings, setBudgetSettings, canEditBudgetObjects } = useCurrentProject();
   const { backendUserId, selectedWorkspaceId } = useAuth();
   const { canDesign } = useAccess();
   const [catalog, setCatalog] = useState<Catalog>();
@@ -93,7 +93,7 @@ export default function CutsScreen() {
           <View>
             <Text style={styles.title}>Cortes de tableros</Text>
             <Text style={styles.muted}>
-              {project?.name ?? 'Diseño actual'} · {demands.length} {demands.length === 1 ? 'material con piezas' : 'materiales con piezas'}
+              {project?.name || projectName || 'Diseño actual'} · {demands.length} {demands.length === 1 ? 'material con piezas' : 'materiales con piezas'}
             </Text>
           </View>
           <View style={styles.actions}>

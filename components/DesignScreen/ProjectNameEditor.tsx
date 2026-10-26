@@ -13,18 +13,17 @@ import { useCurrentProject } from "@/services/currentProject";
 import { COLORS } from "@/constants/theme";
 
 export default function ProjectNameEditor() {
-  const { project, setProject } = useCurrentProject();
+  const { project, setProject, projectName, setProjectName } = useCurrentProject();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const submittedRef = useRef(false);
 
+  const currentName = (project?.name ?? projectName).trim();
+  const displayName = currentName || "Untitled";
+
   const startEditing = () => {
-    if (!project) {
-      Alert.alert("Info", "Save the project first.");
-      return;
-    }
     submittedRef.current = false;
-    setDraft(project.name);
+    setDraft(currentName);
     setEditing(true);
   };
 
@@ -33,21 +32,26 @@ export default function ProjectNameEditor() {
     submittedRef.current = true;
     setEditing(false);
 
-    const current = project;
-    if (!current) return;
-
     const trimmed = draft.trim();
-    if (trimmed === "" || trimmed === current.name) return;
 
+    if (!project) {
+      if (trimmed === projectName.trim()) return;
+      setProjectName(trimmed);
+      return;
+    }
+
+    if (trimmed === "" || trimmed === project.name) return;
+
+    const current = project;
     renameProject({ id: current.id, name: trimmed })
-      .then(() => setProject({ ...current, name: trimmed }))
+      .then(() => {
+        setProject({ ...current, name: trimmed });
+      })
       .catch((err) => {
         console.error("Rename failed:", err);
         Alert.alert("Error", "Failed to rename the project.");
       });
   };
-
-  const displayName = project?.name?.trim() ?? "Untitled";
 
   if (editing) {
     return (

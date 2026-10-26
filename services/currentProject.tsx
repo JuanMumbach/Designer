@@ -14,6 +14,8 @@ export interface DesignSnapshot {
 interface CurrentProjectContextValue {
   project: Project | null;
   setProject: (project: Project | null) => void;
+  projectName: string;
+  setProjectName: (name: string) => void;
   designSnapshot: DesignSnapshot | null;
   setDesignSnapshot: (snapshot: DesignSnapshot) => void;
   budgetSettings: BudgetSettings;
@@ -28,6 +30,8 @@ interface CurrentProjectContextValue {
 const CurrentProjectContext = createContext<CurrentProjectContextValue>({
   project: null,
   setProject: () => {},
+  projectName: '',
+  setProjectName: () => {},
   designSnapshot: null,
   setDesignSnapshot: () => {},
   budgetSettings: emptyBudgetSettings(),
@@ -40,11 +44,20 @@ const CurrentProjectContext = createContext<CurrentProjectContextValue>({
 });
 
 export function CurrentProjectProvider({ children }: { children: React.ReactNode }) {
-  const [project, setProject] = useState<Project | null>(null);
+  const [project, setProjectState] = useState<Project | null>(null);
+  const [projectName, setProjectName] = useState<string>('');
   const [designSnapshot, setDesignSnapshot] = useState<DesignSnapshot | null>(null);
   const [budgetSettings, setBudgetSettings] = useState<BudgetSettings>(emptyBudgetSettings);
   const editorRef = useRef<((id: string, entries: ModelBudgetEntry[] | undefined) => void) | null>(null);
   const [canEditBudgetObjects, setCanEditBudgetObjects] = useState(false);
+
+  const setProject = useCallback((nextProject: Project | null) => {
+    setProjectState(nextProject);
+    if (nextProject) {
+      setProjectName(nextProject.name ?? '');
+    }
+  }, []);
+
   const registerBudgetEditor = useCallback((editor: typeof editorRef.current) => {
     editorRef.current = editor;
     setCanEditBudgetObjects(editor !== null);
@@ -55,7 +68,7 @@ export function CurrentProjectProvider({ children }: { children: React.ReactNode
   const updateMaterialParts = useCallback((id: string, parts: MaterialPart[] | undefined) => partsEditorRef.current?.(id, parts), []);
 
   return (
-    <CurrentProjectContext.Provider value={{ project, setProject, designSnapshot, setDesignSnapshot, budgetSettings, setBudgetSettings, registerBudgetEditor, updateBudgetEntries, canEditBudgetObjects, registerPartsEditor, updateMaterialParts }}>
+    <CurrentProjectContext.Provider value={{ project, setProject, projectName, setProjectName, designSnapshot, setDesignSnapshot, budgetSettings, setBudgetSettings, registerBudgetEditor, updateBudgetEntries, canEditBudgetObjects, registerPartsEditor, updateMaterialParts }}>
       {children}
     </CurrentProjectContext.Provider>
   );

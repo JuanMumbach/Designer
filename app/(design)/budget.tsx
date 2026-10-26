@@ -73,7 +73,7 @@ function EditDialog({ edit, onClose }: { edit: BudgetEdit; onClose: () => void }
 
 export default function BudgetScreen() {
   const router = typeof useRouter === 'function' ? useRouter() : undefined;
-  const { project, designSnapshot, budgetSettings, setBudgetSettings, updateBudgetEntries, canEditBudgetObjects, updateMaterialParts } = useCurrentProject();
+  const { project, projectName, designSnapshot, budgetSettings, setBudgetSettings, updateBudgetEntries, canEditBudgetObjects, updateMaterialParts } = useCurrentProject();
   const { backendUserId, selectedWorkspaceId } = useAuth();
   const { canDesign } = useAccess();
   const [catalog, setCatalog] = useState<Catalog>();
@@ -142,7 +142,7 @@ export default function BudgetScreen() {
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.heading}>
-          <View><Text style={styles.title}>Presupuesto</Text><Text style={styles.muted}>{project?.name ?? 'Diseño actual'} · {rows.length} módulos</Text></View>
+          <View><Text style={styles.title}>Presupuesto</Text><Text style={styles.muted}>{project?.name || projectName || 'Diseño actual'} · {rows.length} módulos</Text></View>
           <View style={styles.actions}>
             {router && <Action label="Ver cortes de tableros" onPress={() => router.navigate('/(design)/cuts')} />}
             <Action label="Actualizar precios" disabled={loading} onPress={() => setRevision((value) => value + 1)} />
