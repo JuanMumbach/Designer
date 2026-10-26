@@ -1,5 +1,5 @@
 import { Billboard, Box, Gltf, ScreenSizer, Text, useTexture } from '@react-three/drei/native';
-import { useFrame } from '@react-three/fiber';
+import { ThreeEvent, useFrame } from '@react-three/fiber';
 import { Asset } from 'expo-asset';
 import * as FileSystem from 'expo-file-system';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
@@ -122,7 +122,7 @@ export function useDownload3dModel(remoteUrl: string, assetName: string = 'asset
 }
 
 export function DesignObject3D({
-    obj, position, origin, dimensions, modelScale, rotation, onObjectInteraction, isSelected, onObjectEdited, onObjectDeleted, onEditObject, room3d, magnetEnabled, allObjects, onDragStateChange, onSlotsDiscovered, interactionDisabled, instanceOverrides, globalMaterials, globalMaterialsRaw, materialDataById, slotTypesByModel, typeToDesignSlot, forcedHidden, activeMeasurementSide, onSelectMeasurement
+    obj, position, origin, dimensions, modelScale, rotation, onObjectInteraction, isSelected, onObjectEdited, onObjectDeleted, onEditObject, onObjectDuplicate, room3d, magnetEnabled, allObjects, onDragStateChange, onSlotsDiscovered, interactionDisabled, instanceOverrides, globalMaterials, globalMaterialsRaw, materialDataById, slotTypesByModel, typeToDesignSlot, forcedHidden, activeMeasurementSide, onSelectMeasurement
 }: {
     obj: DesignObject,
     position: [number, number, number],
@@ -135,6 +135,7 @@ export function DesignObject3D({
     onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number], rotation?: number, hidden?: boolean }) => void,
     onObjectDeleted?: (id: string) => void,
     onEditObject?: (object: DesignObject) => void,
+    onObjectDuplicate?: (object: DesignObject) => void,
     room3d: Room3dProps,
     magnetEnabled: boolean,
     allObjects: DesignObject[],
@@ -159,6 +160,7 @@ export function DesignObject3D({
     const [optionsOpen, setOptionsOpen] = useState(false);
     const dragStartPoint = useRef<THREE.Vector3>(new THREE.Vector3());
     const initialPosition = useRef<[number, number, number]>([0, 0, 0]);
+    const prevIsSelectedRef = useRef(isSelected);
 
     const markerAsset = Asset.fromModule(require('../../../assets/images/move-marker.png'));
     const dragIconTexture = useTexture(markerAsset.uri);
@@ -168,6 +170,9 @@ export function DesignObject3D({
 
     const editAsset = Asset.fromModule(require('../../../assets/images/edit-icon.png'));
     const editIconTexture = useTexture(editAsset.uri);
+
+    const duplicateAsset = Asset.fromModule(require('../../../assets/images/duplicate-icon.png'));
+    const duplicateIconTexture = useTexture(duplicateAsset.uri);
 
     const eyeAsset = Asset.fromModule(require('../../../assets/images/eye-icon.png'));
     const eyeIconTexture = useTexture(eyeAsset.uri);
@@ -255,7 +260,10 @@ export function DesignObject3D({
     }, [groupReady]);
 
     useEffect(() => {
-      if (!isSelected) setOptionsOpen(false);
+      if (prevIsSelectedRef.current && !isSelected) {
+        setOptionsOpen(false);
+      }
+      prevIsSelectedRef.current = isSelected;
     }, [isSelected]);
 
     useEffect(() => {
@@ -495,7 +503,7 @@ export function DesignObject3D({
         }
     }, [isDragging]);
 
-    const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+    const longPressTimer = useRef<any>(null);
     const pointerDownPosition = useRef<{ x: number, y: number } | null>(null);
 
     const handleInteraction = React.useCallback((e?: any) => {
@@ -503,6 +511,19 @@ export function DesignObject3D({
         console.log("Object interaction from remote3dModel");
         onObjectInteraction(obj);
     }, [obj, onObjectInteraction]);
+
+    const handleContextMenu = React.useCallback((e: ThreeEvent<MouseEvent>) => {
+        if (globalIsDragging) return;
+        if (e.nativeEvent?.preventDefault) {
+            e.nativeEvent.preventDefault();
+        }
+        if ((e as any).preventDefault) {
+            (e as any).preventDefault();
+        }
+        e.stopPropagation();
+        handleInteraction(e);
+        setOptionsOpen(true);
+    }, [handleInteraction]);
 
     const boxPosition: [number, number, number] = [
         origin[0] + position[0] + dimensions[0] / 2,
@@ -599,11 +620,12 @@ export function DesignObject3D({
         e.stopPropagation();
         const local = e.object.worldToLocal(e.point.clone());
         const rows: [number, (ev: any) => void][] = [
-            [-0.55, handleEditRowClick],
-            [0, handleHideRowClick],
-            [0.55, handleDeleteRowClick],
+            [-0.75, handleEditRowClick],
+            [-0.25, handleDuplicateRowClick],
+            [0.25, handleHideRowClick],
+            [0.75, handleDeleteRowClick],
         ];
-        const hit = rows.find(([y]) => Math.abs(local.y - y) <= 0.25);
+        const hit = rows.find(([y]) => Math.abs(local.y - y) <= 0.24);
         if (hit) hit[1](e);
     };
 
@@ -611,6 +633,12 @@ export function DesignObject3D({
         e.stopPropagation();
         setOptionsOpen(false);
         if (onEditObject) onEditObject(obj);
+    };
+
+    const handleDuplicateRowClick = (e: any) => {
+        e.stopPropagation();
+        setOptionsOpen(false);
+        if (onObjectDuplicate) onObjectDuplicate(obj);
     };
 
     const handleHideRowClick = (e: any) => {
@@ -645,7 +673,7 @@ export function DesignObject3D({
     if (isLoading) {
         return (
             <group>
-                <Box key={obj.id} position={boxPosition} args={dimensions} visible={!hideObject}>
+                <Box key={obj.id} position={boxPosition} args={dimensions} visible={!hideObject} onContextMenu={handleContextMenu}>
                     <meshStandardMaterial attach="material" color="#ffffff" />
                 </Box>
                 {!hideObject && <LoadingSpinner3D position={boxPosition} />}
@@ -655,7 +683,7 @@ export function DesignObject3D({
 
     if (error || !localUri) {
         return (
-            <Box key={obj.id} position={boxPosition} args={dimensions} >
+            <Box key={obj.id} position={boxPosition} args={dimensions} onContextMenu={handleContextMenu}>
                 <meshStandardMaterial attach="material" color="red" />
             </Box>
         );
@@ -685,32 +713,38 @@ export function DesignObject3D({
            ];
  
      // Conditional event handlers: disable interaction when another object is selected
-     const gltfHandlers = interactionDisabled ? {} : {
-       onClick: (e) => {
-         if (globalIsDragging) return;
-         e.stopPropagation();
-       },
-       onDoubleClick: (e) => {
-         if (globalIsDragging) return;
-         e.stopPropagation();
-         if (isDesktop) handleInteraction(e);
-       },
-       onPointerDown: (e) => {
-         if (globalIsDragging) return;
-         handlePointerDown(e);
-       },
-       onPointerUp: (e) => {
-         if (globalIsDragging) return;
-         handlePointerUp(e);
-       },
-       onPointerMove: (e) => {
-         if (globalIsDragging) return;
-         handlePointerMove(e);
-       },
-       onPointerLeave: (e) => {
-         if (globalIsDragging) return;
-         handlePointerLeave(e);
-       }
+     const gltfHandlers = {
+       onContextMenu: handleContextMenu,
+       ...(interactionDisabled ? {} : {
+         onClick: (e: any) => {
+           if (globalIsDragging) return;
+           e.stopPropagation();
+           if (optionsOpen) {
+             setOptionsOpen(false);
+           }
+         },
+         onDoubleClick: (e: any) => {
+           if (globalIsDragging) return;
+           e.stopPropagation();
+           if (isDesktop) handleInteraction(e);
+         },
+         onPointerDown: (e: any) => {
+           if (globalIsDragging) return;
+           handlePointerDown(e);
+         },
+         onPointerUp: (e: any) => {
+           if (globalIsDragging) return;
+           handlePointerUp(e);
+         },
+         onPointerMove: (e: any) => {
+           if (globalIsDragging) return;
+           handlePointerMove(e);
+         },
+         onPointerLeave: (e: any) => {
+           if (globalIsDragging) return;
+           handlePointerLeave(e);
+         }
+       })
      };
 
      const fitScale: [number, number, number] = fitScaleFromSize(modelFitSize, dimensions) ?? [1, 1, 1];
@@ -766,6 +800,12 @@ export function DesignObject3D({
                                     e.stopPropagation();
                                     setOptionsOpen(true);
                                 }}
+                                onContextMenu={(e: any) => {
+                                    if (e.nativeEvent?.preventDefault) e.nativeEvent.preventDefault();
+                                    if (e.preventDefault) e.preventDefault();
+                                    e.stopPropagation();
+                                    setOptionsOpen(true);
+                                }}
                             >
                                 <sprite scale={[1, 1, 1]}>
                                     <spriteMaterial
@@ -779,13 +819,13 @@ export function DesignObject3D({
                         )}
                         {optionsOpen && (
                             <ScreenSizer
-                                position={[dimensions[0] / 2, dimensions[1] + 1, 0]}
+                                position={[dimensions[0] / 2, dimensions[1] + 1.2, 0]}
                                 scale={uiPixelScale}
                             >
                                 <Billboard>
                                     <sprite
                                         position={[0, 0, 0]}
-                                        scale={[2, 2, 1]}
+                                        scale={[2.2, 2.6, 1]}
                                         renderOrder={1}
                                     >
                                         <spriteMaterial
@@ -801,11 +841,16 @@ export function DesignObject3D({
                                         onPointerDown={(e) => {
                                             e.stopPropagation();
                                         }}
+                                        onContextMenu={(e: any) => {
+                                            if (e.nativeEvent?.preventDefault) e.nativeEvent.preventDefault();
+                                            if (e.preventDefault) e.preventDefault();
+                                            e.stopPropagation();
+                                        }}
                                     >
-                                        <planeGeometry args={[2, 2]} />
+                                        <planeGeometry args={[2.2, 2.6]} />
                                         <meshBasicMaterial transparent opacity={0} depthTest={false} side={2} />
                                     </mesh>
-                                    <group position={[-0.5, -0.55, 0]}>
+                                    <group position={[-0.55, -0.75, 0]}>
                                         <sprite
                                             scale={[0.28, 0.28, 0.28]}
                                             renderOrder={2}
@@ -830,7 +875,32 @@ export function DesignObject3D({
                                             Edit
                                         </Text>
                                     </group>
-                                    <group position={[-0.5, 0, 0]}>
+                                    <group position={[-0.55, -0.25, 0]}>
+                                        <sprite
+                                            scale={[0.28, 0.28, 0.28]}
+                                            renderOrder={2}
+                                        >
+                                            <spriteMaterial
+                                                map={duplicateIconTexture}
+                                                color="#111827"
+                                                depthTest={false}
+                                                transparent={true}
+                                            />
+                                        </sprite>
+                                        <Text
+                                            position={[0.32, 0, 0]}
+                                            fontSize={0.2}
+                                            color="#111827"
+                                            anchorX="left"
+                                            anchorY="middle"
+                                            renderOrder={3}
+                                            material-depthTest={false}
+                                            material-transparent={true}
+                                        >
+                                            Duplicate
+                                        </Text>
+                                    </group>
+                                    <group position={[-0.55, 0.25, 0]}>
                                         <sprite
                                             scale={[0.28, 0.28, 0.28]}
                                             renderOrder={2}
@@ -855,7 +925,7 @@ export function DesignObject3D({
                                             {obj.hidden ? 'Show' : 'Hide'}
                                         </Text>
                                     </group>
-                                    <group position={[-0.5, 0.55, 0]}>
+                                    <group position={[-0.55, 0.75, 0]}>
                                         <sprite
                                             scale={[0.28, 0.28, 0.28]}
                                             renderOrder={2}
