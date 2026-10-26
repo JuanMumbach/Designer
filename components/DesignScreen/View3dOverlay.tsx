@@ -28,6 +28,7 @@ interface View3dOverlayProps {
   onObjectAdded: (newObject: DesignObject) => void;
   onObjectEdited: (id: string, updates: { name: string; position: [number, number, number]; rotation?: number; materialOverrides?: MaterialOverrides; dimensions?: [number, number, number] }) => void;
   onObjectDeleted: (id: string) => void;
+  onObjectDuplicate?: (object: DesignObject) => void;
   movingObject?: DesignObject;
   setMovingObject: (object?: DesignObject) => void;
   magnetEnabled: boolean;
@@ -126,6 +127,7 @@ export default function View3dOverlay({
   onObjectAdded,
   onObjectEdited,
   onObjectDeleted,
+  onObjectDuplicate,
   movingObject,
   forceEditObject,
   clearForceEdit,
@@ -231,6 +233,11 @@ export default function View3dOverlay({
 
   const handleObjectDeleteAndClose = (id: string) => {
     onObjectDeleted(id);
+    closeEditMenu();
+  };
+
+  const handleObjectDuplicateAndClose = (object: DesignObject) => {
+    if (onObjectDuplicate) onObjectDuplicate(object);
     closeEditMenu();
   };
 
@@ -461,6 +468,7 @@ export default function View3dOverlay({
         onEditComplete={handleObjectEditAndClose}
         onDimensionPreview={handleDimensionPreview}
         onDelete={handleObjectDeleteAndClose}
+        onDuplicate={handleObjectDuplicateAndClose}
         onClose={closeEditMenu}
         materials={materials}
         materialCategories={materialCategories}
@@ -553,6 +561,7 @@ export default function View3dOverlay({
                 onEditComplete={handleObjectEditAndClose}
                 onDimensionPreview={handleDimensionPreview}
                 onDelete={handleObjectDeleteAndClose}
+                onDuplicate={handleObjectDuplicateAndClose}
                 onClose={closeEditMenu}
                 materials={materials}
                 materialCategories={materialCategories}

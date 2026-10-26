@@ -17,7 +17,7 @@ import {
 } from "../services/thumbnailCapture";
 import { useObjectTemplates } from "../services/useFurnitureModels";
 import { useMaterials } from "../services/useMaterials";
-import { AppliedMaterial, createDesignObject, DesignObject, getInitialPosition, GlobalMaterials, MaterialOverrides, resolveGlobalMaterials } from "./DesignScreen/3dView/DesignObjects";
+import { AppliedMaterial, createDesignObject, duplicateDesignObject, DesignObject, getInitialPosition, GlobalMaterials, MaterialOverrides, resolveGlobalMaterials } from "./DesignScreen/3dView/DesignObjects";
 import { Room3dProps } from "./DesignScreen/3dView/Room3d";
 import { ActiveMeasurementEdit, MeasurementSide } from "./DesignScreen/3dViewOverlay/EditMeasurementModal";
 import { emptyBudgetSettings, ModelBudgetEntry } from '../services/budget';
@@ -397,6 +397,12 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
     if (movingObject?.id === id) setMovingObject(undefined);
   };
 
+  const handleObjectDuplicate = (object: DesignObject) => {
+    const duplicated = duplicateDesignObject(object, designObjects, room3d);
+    setDesignObjects(prev => [...prev, duplicated]);
+    setMovingObject(duplicated);
+  };
+
   const handleSlotsDiscovered = (id: string, slots: MaterialSlotInfo[]) => {
     const deduped = slots.filter((s, i, arr) => arr.findIndex(a => a.slot === s.slot) === i);
     setDesignObjects(prev => prev.map(obj => {
@@ -444,6 +450,7 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
         onObjectEdited={handleObjectEdited}
         onObjectDeleted={handleObjectDeleted}
         onEditObject={handleEditObjectFrom3D}
+        onObjectDuplicate={handleObjectDuplicate}
         movingObject={movingObject}
         setMovingObject={setMovingObject}
         magnetEnabled={magnetEnabled}
@@ -467,6 +474,7 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
         onObjectAdded={handleObjectAdded}
         onObjectEdited={handleObjectEdited}
         onObjectDeleted={handleObjectDeleted}
+        onObjectDuplicate={handleObjectDuplicate}
         movingObject={movingObject}
         setMovingObject={setMovingObject}
         magnetEnabled={magnetEnabled}

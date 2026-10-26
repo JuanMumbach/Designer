@@ -70,6 +70,7 @@ function SceneContent({
   onObjectEdited,
   onObjectDeleted,
   onEditObject,
+  onObjectDuplicate,
   movingObject,
   setMovingObject,
   magnetEnabled,
@@ -90,6 +91,7 @@ function SceneContent({
   onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number], rotation?: number, hidden?: boolean }) => void,
   onObjectDeleted?: (id: string) => void,
   onEditObject?: (object: DesignObject) => void,
+  onObjectDuplicate?: (object: DesignObject) => void,
   movingObject?: DesignObject,
   setMovingObject?: (object?: DesignObject) => void,
   magnetEnabled: boolean,
@@ -118,6 +120,7 @@ function SceneContent({
           onObjectEdited={onObjectEdited}
           onObjectDeleted={onObjectDeleted}
           onEditObject={onEditObject}
+          onObjectDuplicate={onObjectDuplicate}
           movingObjectId={movingObject?.id}
           room3d={room3d}
           magnetEnabled={magnetEnabled}
@@ -145,6 +148,7 @@ export default function Design3dView({
   onObjectEdited,
   onObjectDeleted,
   onEditObject,
+  onObjectDuplicate,
   movingObject,
   setMovingObject,
   magnetEnabled,
@@ -165,6 +169,7 @@ export default function Design3dView({
   onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number], rotation?: number }) => void,
   onObjectDeleted?: (id: string) => void,
   onEditObject?: (object: DesignObject) => void,
+  onObjectDuplicate?: (object: DesignObject) => void,
   movingObject?: DesignObject,
   setMovingObject?: (object?: DesignObject) => void,
   magnetEnabled: boolean,
@@ -209,6 +214,7 @@ export default function Design3dView({
             onObjectEdited={onObjectEdited}
             onObjectDeleted={onObjectDeleted}
             onEditObject={onEditObject}
+            onObjectDuplicate={onObjectDuplicate}
             movingObject={movingObject}
             setMovingObject={setMovingObject}
             magnetEnabled={magnetEnabled}

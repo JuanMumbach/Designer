@@ -31,6 +31,7 @@ export default function EditFurnitureInstanceMenu({
   onEditComplete,
   onDimensionPreview,
   onDelete,
+  onDuplicate,
   onClose,
   materials,
   materialCategories,
@@ -44,6 +45,7 @@ export default function EditFurnitureInstanceMenu({
   onEditComplete: (id: string, updates: { name: string; position: [number, number, number]; materialOverrides?: MaterialOverrides; dimensions?: [number, number, number] }) => void;
   onDimensionPreview?: (id: string, dimensions: [number, number, number]) => void;
   onDelete?: (id: string) => void;
+  onDuplicate?: (object: DesignObject) => void;
   onClose?: () => void;
   materials: MaterialMeta[];
   materialCategories: MaterialCategory[];
@@ -173,6 +175,11 @@ export default function EditFurnitureInstanceMenu({
   const handleClose = () => {
     revertDimensionPreview();
     if (onClose) onClose();
+  };
+
+  const handleDuplicate = () => {
+    revertDimensionPreview();
+    if (onDuplicate) onDuplicate(object);
   };
 
   const handleDelete = () => {
@@ -542,6 +549,16 @@ export default function EditFurnitureInstanceMenu({
           <Button label="Save Changes" onPress={handleSave} />
         </View>
 
+        {onDuplicate && (
+          <Pressable
+            style={({ pressed }) => [styles.duplicateButton, pressed && styles.duplicateButtonPressed]}
+            onPress={handleDuplicate}
+          >
+            <Ionicons name="copy-outline" size={16} color={COLORS.primary} />
+            <Text style={styles.duplicateButtonLabel}>Duplicate Object</Text>
+          </Pressable>
+        )}
+
         <Pressable
           style={({ pressed }) => [styles.deleteButton, pressed && styles.deleteButtonPressed]}
           onPress={handleDelete}
@@ -809,6 +826,27 @@ const styles = StyleSheet.create({
   actionRow: {
     marginTop: 10,
     alignItems: "center",
+  },
+  duplicateButton: {
+    flexDirection: "row",
+    gap: 6,
+    borderRadius: RADII.md,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 10,
+    backgroundColor: "rgba(37, 99, 235, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(37, 99, 235, 0.25)",
+  },
+  duplicateButtonPressed: {
+    backgroundColor: "rgba(37, 99, 235, 0.16)",
+  },
+  duplicateButtonLabel: {
+    color: COLORS.primary,
+    fontSize: 13,
+    fontWeight: "600",
   },
   deleteButton: {
     flexDirection: "row",

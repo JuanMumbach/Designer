@@ -91,6 +91,159 @@ export function createDesignObject(template: ObjectTemplate, position?: [number,
     };
 }
 
+export function duplicateDesignObject(
+    object: DesignObject,
+    allObjects: DesignObject[],
+    room3d: Room3dProps
+): DesignObject {
+    const newPosition = calculateDuplicatePosition(object, allObjects, room3d);
+    return {
+        id: generateUUID(),
+        modelId: object.modelId,
+        version: object.version,
+        name: object.name,
+        position: newPosition,
+        rotation: object.rotation,
+        dimensions: [...object.dimensions],
+        color: object.color,
+        modelUrl: object.modelUrl,
+        objectProperties: object.objectProperties ? { ...object.objectProperties } : undefined,
+        slots: object.slots ? object.slots.map(s => ({ ...s })) : undefined,
+        materialOverrides: object.materialOverrides ? { ...object.materialOverrides } : {},
+        materialParts: object.materialParts ? object.materialParts.map(p => ({ ...p })) : undefined,
+        budgetEntries: object.budgetEntries ? object.budgetEntries.map(b => ({ ...b })) : undefined,
+        hidden: false,
+    };
+}
+
+export function calculateDuplicatePosition(
+    object: DesignObject,
+    allObjects: DesignObject[],
+    room3d: Room3dProps
+): [number, number, number] {
+    const EPSILON = 0.1;
+    const [width, , depth] = object.dimensions;
+    const [objX, objY, objZ] = object.position;
+    const rotation = object.rotation || 0;
+    const movingBehaviour = object.objectProperties?.movingBehaviour;
+
+    const isBackWall = Math.abs(rotation) < EPSILON;
+    const isLeftWall = Math.abs(rotation - Math.PI / 2) < EPSILON;
+    const isRightWall = Math.abs(rotation + Math.PI / 2) < EPSILON;
+
+    const sameLayer = allObjects.filter(
+        o =>
+            o.id !== object.id &&
+            o.objectProperties?.movingBehaviour === movingBehaviour &&
+            Math.abs((o.rotation || 0) - rotation) < EPSILON
+    );
+
+    if (isBackWall) {
+        const isOccupied = (x: number) =>
+            sameLayer.some(
+                o =>
+                    Math.abs(o.position[2] - objZ) < EPSILON &&
+                    Math.abs(o.position[1] - objY) < EPSILON &&
+                    !(o.position[0] + o.dimensions[0] <= x + 0.01 || o.position[0] >= x + width - 0.01)
+            );
+
+        const rightX = Math.round((objX + width) * 100) / 100;
+        const leftX = Math.round((objX - width) * 100) / 100;
+        const rightFits = rightX + width <= room3d.width + 0.01;
+        const leftFits = leftX >= -0.01;
+
+        let targetX = rightX;
+        if (rightFits && !isOccupied(rightX)) {
+            targetX = rightX;
+        } else if (leftFits && !isOccupied(leftX)) {
+            targetX = leftX;
+        } else if (rightFits) {
+            targetX = rightX;
+        } else if (leftFits) {
+            targetX = leftX;
+        }
+
+        const clampedX = Math.max(0, Math.min(room3d.width - width, targetX));
+        return [clampedX, objY, objZ];
+    }
+
+    if (isLeftWall) {
+        const isOccupied = (z: number) =>
+            sameLayer.some(
+                o =>
+                    Math.abs(o.position[0] - objX) < EPSILON &&
+                    Math.abs(o.position[1] - objY) < EPSILON &&
+                    !(o.position[2] <= z - width + 0.01 || o.position[2] - o.dimensions[0] >= z - 0.01)
+            );
+
+        const frontZ = Math.round((objZ + width) * 100) / 100;
+        const backZ = Math.round((objZ - width) * 100) / 100;
+        const frontFits = frontZ <= room3d.depth + 0.01;
+        const backFits = backZ - width >= -0.01;
+
+        let targetZ = frontZ;
+        if (frontFits && !isOccupied(frontZ)) {
+            targetZ = frontZ;
+        } else if (backFits && !isOccupied(backZ)) {
+            targetZ = backZ;
+        } else if (frontFits) {
+            targetZ = frontZ;
+        } else if (backFits) {
+            targetZ = backZ;
+        }
+
+        const clampedZ = Math.max(width, Math.min(room3d.depth, targetZ));
+        return [objX, objY, clampedZ];
+    }
+
+    if (isRightWall) {
+        const isOccupied = (z: number) =>
+            sameLayer.some(
+                o =>
+                    Math.abs(o.position[0] - objX) < EPSILON &&
+                    Math.abs(o.position[1] - objY) < EPSILON &&
+                    !(o.position[2] + o.dimensions[0] <= z + 0.01 || o.position[2] >= z + width - 0.01)
+            );
+
+        const frontZ = Math.round((objZ + width) * 100) / 100;
+        const backZ = Math.round((objZ - width) * 100) / 100;
+        const frontFits = frontZ + width <= room3d.depth + 0.01;
+        const backFits = backZ >= -0.01;
+
+        let targetZ = frontZ;
+        if (frontFits && !isOccupied(frontZ)) {
+            targetZ = frontZ;
+        } else if (backFits && !isOccupied(backZ)) {
+            targetZ = backZ;
+        } else if (frontFits) {
+            targetZ = frontZ;
+        } else if (backFits) {
+            targetZ = backZ;
+        }
+
+        const clampedZ = Math.max(0, Math.min(room3d.depth - width, targetZ));
+        return [objX, objY, clampedZ];
+    }
+
+    const dx = Math.round(width * Math.cos(rotation) * 100) / 100;
+    const dz = Math.round(-width * Math.sin(rotation) * 100) / 100;
+
+    const targetX1 = objX + dx;
+    const targetZ1 = objZ + dz;
+    const fits1 = targetX1 >= 0 && targetX1 + width <= room3d.width && targetZ1 >= 0 && targetZ1 + depth <= room3d.depth;
+
+    const targetX2 = objX - dx;
+    const targetZ2 = objZ - dz;
+    const fits2 = targetX2 >= 0 && targetX2 + width <= room3d.width && targetZ2 >= 0 && targetZ2 + depth <= room3d.depth;
+
+    if (fits1) return [targetX1, objY, targetZ1];
+    if (fits2) return [targetX2, objY, targetZ2];
+
+    const clampedX = Math.max(0, Math.min(room3d.width - width, targetX1));
+    const clampedZ = Math.max(0, Math.min(room3d.depth - depth, targetZ1));
+    return [clampedX, objY, clampedZ];
+}
+
 export const DEFAULT_CUPBOARD_HEIGHT = 1.5;
 
 export function getInitialPosition(template: ObjectTemplate): [number, number, number] {
@@ -163,6 +316,7 @@ export default function DesignObjectsRenderer({
   onObjectEdited,
   onObjectDeleted,
   onEditObject,
+  onObjectDuplicate,
   movingObjectId,
   room3d,
   magnetEnabled,
@@ -184,6 +338,7 @@ export default function DesignObjectsRenderer({
   onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number], rotation?: number, materialOverrides?: MaterialOverrides, hidden?: boolean }) => void,
   onObjectDeleted?: (id: string) => void,
   onEditObject?: (object: DesignObject) => void,
+  onObjectDuplicate?: (object: DesignObject) => void,
   movingObjectId?: string,
   room3d: Room3dProps,
   magnetEnabled: boolean,
@@ -220,6 +375,7 @@ export default function DesignObjectsRenderer({
                              onObjectEdited={onObjectEdited}
                              onObjectDeleted={onObjectDeleted}
                              onEditObject={onEditObject}
+                             onObjectDuplicate={onObjectDuplicate}
                              room3d={room3d}
                              magnetEnabled={magnetEnabled}
                              allObjects={allObjects}
@@ -279,6 +435,7 @@ function DesignObjectWithMaterials({
   onObjectEdited,
   onObjectDeleted,
   onEditObject,
+  onObjectDuplicate,
   room3d,
   magnetEnabled,
   allObjects,
@@ -306,6 +463,7 @@ function DesignObjectWithMaterials({
   onObjectEdited?: (id: string, updates: { name: string, position: [number, number, number], rotation?: number, materialOverrides?: MaterialOverrides, hidden?: boolean }) => void,
   onObjectDeleted?: (id: string) => void,
   onEditObject?: (object: DesignObject) => void,
+  onObjectDuplicate?: (object: DesignObject) => void,
   room3d: Room3dProps,
   magnetEnabled: boolean,
   allObjects: DesignObject[],
@@ -339,6 +497,7 @@ function DesignObjectWithMaterials({
       onObjectEdited={onObjectEdited}
       onObjectDeleted={onObjectDeleted}
       onEditObject={onEditObject}
+      onObjectDuplicate={onObjectDuplicate}
       room3d={room3d}
       magnetEnabled={magnetEnabled}
       allObjects={allObjects}
