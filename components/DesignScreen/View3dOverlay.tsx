@@ -1,19 +1,21 @@
 import { COLORS, GLASS, RADII } from "@/constants/theme";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Dimensions, Pressable, ScaledSize, StyleSheet, Text, View, ViewProps } from "react-native";
+import { ActivityIndicator, Dimensions, LayoutChangeEvent, Pressable, ScaledSize, StyleSheet, Text, View, ViewProps } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { MaterialCategory, MaterialMeta, ObjectCategory, ObjectMaterialType } from "../../services/api";
+import { SavedView } from "../../services/currentProject";
 import { DesignMaterialSlot } from "../../services/designMaterialDefaults";
+import { CameraStateSnapshot, ThumbnailCaptureApi } from "../../services/thumbnailCapture";
 import { AppliedMaterial, createDesignObject, DesignObject, getInitialPosition, GlobalMaterials, MaterialOverrides, ObjectTemplate } from "./3dView/DesignObjects";
-import { Room3dProps } from "./3dView/Room3d";
+import { Room3dProps, WallIdentifier } from "./3dView/Room3d";
 import BottomSheet from "./3dViewOverlay/BottomSheet";
 import CategoryBrowser from "./3dViewOverlay/CategoryBrowser";
 import EditFurnitureInstanceMenu from "./3dViewOverlay/EditFurnitureInstanceMenu";
 import EditMeasurementModal, { ActiveMeasurementEdit, MeasurementSide } from "./3dViewOverlay/EditMeasurementModal";
 import EditWallModal from "./3dViewOverlay/EditWallModal";
-import { WallIdentifier } from "./3dView/Room3d";
 import FurnitureInstancesManager from "./3dViewOverlay/FurnitureInstancesManager";
+import GenerateImagesModal, { FramingSessionState } from "./3dViewOverlay/GenerateImagesModal";
 import GlassSurface from "./3dViewOverlay/GlassSurface";
 import MaterialPicker from "./3dViewOverlay/MaterialPicker";
 import MaterialsWidget from "./3dViewOverlay/MaterialsWidget";
@@ -56,6 +58,11 @@ interface View3dOverlayProps {
   editingWall?: WallIdentifier | null;
   setEditingWall?: (wall: WallIdentifier | null) => void;
   onMaterialDataResolved?: (id: string, data: AppliedMaterial) => void;
+  savedViews: SavedView[];
+  setSavedViews: React.Dispatch<React.SetStateAction<SavedView[]>>;
+  captureApi: ThumbnailCaptureApi;
+  projectName: string;
+  onFramingModeChange?: (isFraming: boolean) => void;
 }
 
 function useWindowDimensions() {
@@ -136,6 +143,7 @@ export default function View3dOverlay({
   onObjectDeleted,
   onObjectDuplicate,
   movingObject,
+  setMovingObject,
   forceEditObject,
   clearForceEdit,
   activeMeasurementEdit,
@@ -158,10 +166,19 @@ export default function View3dOverlay({
   editingWall,
   setEditingWall,
   onMaterialDataResolved,
+  savedViews,
+  setSavedViews,
+  captureApi,
+  projectName,
+  onFramingModeChange,
 }: View3dOverlayProps) {
   const router = useRouter();
-  const { width, height } = useWindowDimensions();
+  const { width: winWidth, height: winHeight } = useWindowDimensions();
+  const [overlaySize, setOverlaySize] = useState<{ width: number; height: number } | null>(null);
+  const width = overlaySize?.width || winWidth;
+  const height = overlaySize?.height || winHeight;
   const isDesktop = width > 768;
+
   const [isObjectsManagerVisible, setIsObjectsManagerVisible] = useState(false);
   const [isListInstantiableObjectsVisible, setIsListInstantiableObjectsVisible] = useState(false);
   const [isRoomSettingsVisible, setIsRoomSettingsVisible] = useState(false);
@@ -174,6 +191,18 @@ export default function View3dOverlay({
 
   const [isEditObjectMenuVisible, setIsEditObjectMenuVisible] = useState(false);
   const [selectedObjectState, setSelectedObjectState] = useState<DesignObject | undefined>(undefined);
+
+  const [isGenerateImagesModalVisible, setIsGenerateImagesModalVisible] = useState(false);
+  const [framingSession, setFramingSession] = useState<FramingSessionState | null>(null);
+  const [reopenEditViewId, setReopenEditViewId] = useState<string | null>(null);
+  const preFramingCameraRef = useRef<CameraStateSnapshot | null>(null);
+
+  const handleOverlayLayout = (e: LayoutChangeEvent) => {
+    const { width: w, height: h } = e.nativeEvent.layout;
+    if (w > 0 && h > 0) {
+      setOverlaySize({ width: w, height: h });
+    }
+  };
 
   useEffect(() => {
     if (forceEditObject) {
@@ -201,6 +230,113 @@ export default function View3dOverlay({
       }
     }
   }, [designObjects, selectedObjectState]);
+
+  const closeAllPanels = () => {
+    setIsEditObjectMenuVisible(false);
+    setIsObjectsManagerVisible(false);
+    setIsListInstantiableObjectsVisible(false);
+    setIsRoomSettingsVisible(false);
+    setIsGlobalMaterialsVisible(false);
+    setIsMaterialsPreviewsVisible(false);
+    setMaterialsInitialSlot(null);
+    setActiveMaterialCardId(null);
+    setIsOptionsMenuVisible(false);
+    setIsExportMenuVisible(false);
+    onClearMeasurementEdit?.();
+    onClearWallContextMenu?.();
+  };
+
+  const openGenerateImagesModal = () => {
+    closeAllPanels();
+    setMovingObject(undefined);
+    setIsGenerateImagesModalVisible(true);
+  };
+
+  const handleStartFraming = (session: FramingSessionState) => {
+    preFramingCameraRef.current = captureApi.getCameraState();
+    setIsGenerateImagesModalVisible(false);
+    closeAllPanels();
+    setMovingObject(undefined);
+    setFramingSession(session);
+    onFramingModeChange?.(true);
+
+    captureApi.setCameraState({
+      position: session.initialCamera.position,
+      target: session.initialCamera.target,
+      fov: session.initialCamera.fov,
+      zoom: session.initialCamera.zoom,
+    });
+  };
+
+  const handleConfirmFraming = async () => {
+    if (!framingSession) return;
+    const currentCam = captureApi.getCameraState();
+    const aspect =
+      framingSession.resolution.width / Math.max(1, framingSession.resolution.height);
+    const thumbW = aspect >= 1 ? 320 : Math.max(120, Math.round(320 * aspect));
+    const thumbH = aspect >= 1 ? Math.max(120, Math.round(320 / aspect)) : 320;
+
+    let previewDataUrl: string | undefined;
+    try {
+      const thumb = await captureApi.captureImage({
+        width: thumbW,
+        height: thumbH,
+        cameraPosition: currentCam.position,
+        cameraTarget: currentCam.target,
+        fov: currentCam.fov,
+        zoom: currentCam.zoom,
+      });
+      if (thumb) {
+        previewDataUrl = `data:image/png;base64,${thumb.base64}`;
+      }
+    } catch (err) {
+      console.warn('Preview thumbnail capture failed:', err);
+    }
+
+    const newView: SavedView = {
+      id: framingSession.viewId,
+      name: framingSession.name,
+      cameraPosition: currentCam.position,
+      cameraTarget: currentCam.target,
+      fov: currentCam.fov,
+      zoom: currentCam.zoom,
+      resolution: framingSession.resolution,
+      ...(previewDataUrl ? { previewDataUrl } : {}),
+    };
+
+    if (framingSession.mode === 'create') {
+      setSavedViews(prev => [...prev, newView]);
+      setReopenEditViewId(null);
+    } else {
+      setSavedViews(prev =>
+        prev.map(v =>
+          v.id === newView.id
+            ? { ...newView, previewDataUrl: previewDataUrl ?? v.previewDataUrl }
+            : v
+        )
+      );
+      setReopenEditViewId(framingSession.returnToEditModal ? newView.id : null);
+    }
+
+    setFramingSession(null);
+    onFramingModeChange?.(false);
+    setIsGenerateImagesModalVisible(true);
+  };
+
+  const handleCancelFraming = () => {
+    if (preFramingCameraRef.current) {
+      captureApi.setCameraState(preFramingCameraRef.current);
+      preFramingCameraRef.current = null;
+    }
+    const shouldReopenEdit =
+      framingSession?.mode === 'edit' && framingSession.returnToEditModal
+        ? framingSession.viewId
+        : null;
+    setReopenEditViewId(shouldReopenEdit);
+    setFramingSession(null);
+    onFramingModeChange?.(false);
+    setIsGenerateImagesModalVisible(true);
+  };
 
   const handleAddObject = (objectType: ObjectTemplate) => {
     setIsEditObjectMenuVisible(false);
@@ -417,6 +553,119 @@ export default function View3dOverlay({
     closeEditMenu();
   };
 
+  if (framingSession) {
+    const targetAspect =
+      framingSession.resolution.width / Math.max(1, framingSession.resolution.height);
+    const viewportAspect = width / Math.max(1, height);
+
+    let frameW = width;
+    let frameH = height;
+    if (viewportAspect > targetAspect) {
+      frameH = height;
+      frameW = height * targetAspect;
+    } else {
+      frameW = width;
+      frameH = width / targetAspect;
+    }
+
+    const maskTopBottom = Math.max(0, (height - frameH) / 2);
+    const maskLeftRight = Math.max(0, (width - frameW) / 2);
+
+    return (
+      <View style={styles.overlay} onLayout={handleOverlayLayout} pointerEvents="box-none">
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          {maskTopBottom > 0 && (
+            <>
+              <View
+                style={[
+                  styles.framingMaskBar,
+                  { top: 0, left: 0, right: 0, height: maskTopBottom },
+                ]}
+              />
+              <View
+                style={[
+                  styles.framingMaskBar,
+                  { bottom: 0, left: 0, right: 0, height: maskTopBottom },
+                ]}
+              />
+            </>
+          )}
+          {maskLeftRight > 0 && (
+            <>
+              <View
+                style={[
+                  styles.framingMaskBar,
+                  {
+                    top: maskTopBottom,
+                    bottom: maskTopBottom,
+                    left: 0,
+                    width: maskLeftRight,
+                  },
+                ]}
+              />
+              <View
+                style={[
+                  styles.framingMaskBar,
+                  {
+                    top: maskTopBottom,
+                    bottom: maskTopBottom,
+                    right: 0,
+                    width: maskLeftRight,
+                  },
+                ]}
+              />
+            </>
+          )}
+          <View
+            style={[
+              styles.framingViewportBorder,
+              {
+                top: maskTopBottom,
+                left: maskLeftRight,
+                width: frameW,
+                height: frameH,
+              },
+            ]}
+          />
+          <View style={styles.framingBadgeWrap}>
+            <View style={styles.framingBadge}>
+              <Ionicons name="scan-outline" size={14} color={COLORS.white} />
+              <Text style={styles.framingBadgeText}>
+                {framingSession.name} · {framingSession.resolution.width}×{framingSession.resolution.height}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.framingActionsBottom} pointerEvents="box-none">
+          <GlassSurface style={styles.framingActionsSurface} blurIntensity={60}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.framingCancelBtn,
+                pressed && styles.dockButtonPressed,
+              ]}
+              onPress={handleCancelFraming}
+            >
+              <Ionicons name="close" size={18} color={GLASS.text} />
+              <Text style={styles.framingCancelText}>Cancel</Text>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.framingConfirmBtn,
+                pressed && styles.dockPrimaryActionActive,
+              ]}
+              onPress={handleConfirmFraming}
+            >
+              <Ionicons name="checkmark" size={18} color={COLORS.white} />
+              <Text style={styles.framingConfirmText}>Confirm Position</Text>
+            </Pressable>
+          </GlassSurface>
+        </View>
+      </View>
+    );
+  }
+
   const sheetMaxHeight = Math.round(height * 0.75);
   const desktopPanelMaxHeight = Math.max(300, Math.round(height * 0.55));
   const widePanelStyle = [styles.widePanel, { maxHeight: desktopPanelMaxHeight }];
@@ -497,7 +746,7 @@ export default function View3dOverlay({
     ));
 
   return (
-    <View style={styles.overlay}>
+    <View style={styles.overlay} onLayout={handleOverlayLayout}>
       {isOptionsMenuVisible && (
         <Pressable style={styles.menuBackdrop} onPress={closeOptionsMenu} />
       )}
@@ -508,6 +757,7 @@ export default function View3dOverlay({
             <DropdownItem label="Save project" onPress={() => { closeOptionsMenu(); onSaveProjectCloud(); }} />
             <DropdownItem label="Load project" onPress={() => { closeOptionsMenu(); router.push("/projectManager"); }} />
             <View style={styles.dropdownDivider} />
+            <DropdownItem label="Generate Images" onPress={() => { closeOptionsMenu(); openGenerateImagesModal(); }} />
             <DropdownItem label="Import from file" onPress={() => { closeOptionsMenu(); onLoadProject(); }} />
             <View
               style={styles.dropdownExportItem}
@@ -516,6 +766,7 @@ export default function View3dOverlay({
               <DropdownItem label="Export" chevronOpen={isExportMenuVisible} onPress={toggleExportMenu} />
               {isExportMenuVisible && isDesktop && (
                 <View style={styles.dropdownSideSubmenu}>
+                  <DropdownItem label="Generate Images..." onPress={() => { closeOptionsMenu(); openGenerateImagesModal(); }} />
                   <DropdownItem label="Project file" onPress={() => { closeOptionsMenu(); onSaveProject(); }} />
                   <DropdownItem label="3D model (.glb)" busy={isExporting} onPress={() => { closeOptionsMenu(); onExport3d(); }} />
                 </View>
@@ -523,6 +774,7 @@ export default function View3dOverlay({
             </View>
             {isExportMenuVisible && !isDesktop && (
               <View style={styles.dropdownSubmenu}>
+                <DropdownItem submenu label="Generate Images..." onPress={() => { closeOptionsMenu(); openGenerateImagesModal(); }} />
                 <DropdownItem submenu label="Project file" onPress={() => { closeOptionsMenu(); onSaveProject(); }} />
                 <DropdownItem submenu label="3D model (.glb)" busy={isExporting} onPress={() => { closeOptionsMenu(); onExport3d(); }} />
               </View>
@@ -645,6 +897,31 @@ export default function View3dOverlay({
                 <Text style={styles.countBadgeText}>{designObjects.length}</Text>
               </View>
             </Pressable>
+
+            <View style={styles.dockDivider} />
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.dockAction,
+                isGenerateImagesModalVisible && styles.dockActionActive,
+                pressed && styles.dockButtonPressed,
+              ]}
+              onPress={openGenerateImagesModal}
+            >
+              <Ionicons
+                name="camera-outline"
+                size={16}
+                color={isGenerateImagesModalVisible ? COLORS.primary : GLASS.text}
+              />
+              <Text style={[styles.dockActionText, isGenerateImagesModalVisible && styles.dockActionTextActive]}>
+                Generate Images
+              </Text>
+              {savedViews.length > 0 && (
+                <View style={styles.countBadge}>
+                  <Text style={styles.countBadgeText}>{savedViews.length}</Text>
+                </View>
+              )}
+            </Pressable>
           </GlassSurface>
         </View>
       </View>
@@ -675,7 +952,7 @@ export default function View3dOverlay({
           {mobilePanel}
         </BottomSheet>
       )}
-    
+
       {wallContextMenu && (
         <>
           <Pressable style={styles.menuBackdrop} onPress={onClearWallContextMenu} />
@@ -748,7 +1025,21 @@ export default function View3dOverlay({
         />
       )}
 
-</View>
+      <GenerateImagesModal
+        visible={isGenerateImagesModalVisible}
+        onClose={() => {
+          setIsGenerateImagesModalVisible(false);
+          setReopenEditViewId(null);
+        }}
+        savedViews={savedViews}
+        setSavedViews={setSavedViews}
+        captureApi={captureApi}
+        projectName={projectName}
+        onStartFraming={handleStartFraming}
+        reopenEditViewId={reopenEditViewId}
+        onClearReopenEditView={() => setReopenEditViewId(null)}
+      />
+    </View>
   );
 }
 
@@ -803,6 +1094,8 @@ const styles = StyleSheet.create({
   dockSurface: {
     flexDirection: "row",
     alignItems: "center",
+    flexWrap: "wrap",
+    justifyContent: "center",
     paddingVertical: 5,
     paddingHorizontal: 6,
     borderRadius: RADII.full,
@@ -1003,5 +1296,88 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: GLASS.text,
     letterSpacing: 0.3,
+  },
+  framingMaskBar: {
+    position: "absolute",
+    backgroundColor: "rgba(30, 35, 45, 0.58)",
+  },
+  framingViewportBorder: {
+    position: "absolute",
+    borderWidth: 2,
+    borderColor: "rgba(255, 255, 255, 0.85)",
+  },
+  framingBadgeWrap: {
+    position: "absolute",
+    top: 20,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+  },
+  framingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(17, 24, 39, 0.78)",
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: RADII.full,
+  },
+  framingBadgeText: {
+    color: COLORS.white,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  framingActionsBottom: {
+    position: "absolute",
+    bottom: 28,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 200,
+  },
+  framingActionsSurface: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: RADII.full,
+    backgroundColor: GLASS.bgStrong,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  framingCancelBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: RADII.full,
+    backgroundColor: GLASS.bgInput,
+    borderWidth: 1,
+    borderColor: GLASS.border,
+  },
+  framingCancelText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: GLASS.text,
+  },
+  framingConfirmBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: RADII.full,
+    backgroundColor: COLORS.primary,
+  },
+  framingConfirmText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: COLORS.white,
   },
 });

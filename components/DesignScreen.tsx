@@ -34,7 +34,7 @@ const initialRoom3d: Room3dProps = {
 
 export default function DesignScreen({ projectId }: { projectId?: string }) {
   const { backendUserId, selectedWorkspaceId } = useAuth();
-  const { project, projectName, setProject, setProjectName, setDesignSnapshot, budgetSettings, setBudgetSettings, registerBudgetEditor, registerPartsEditor } = useCurrentProject();
+  const { project, projectName, setProject, setProjectName, setDesignSnapshot, savedViews, setSavedViews, budgetSettings, setBudgetSettings, registerBudgetEditor, registerPartsEditor } = useCurrentProject();
   const { objectTemplates, categories: objectCategories, isLoading: modelsLoading, error: modelsError } = useObjectTemplates(selectedWorkspaceId ?? undefined);
   const { materials, categories: materialCategories, isLoading: materialsLoading } = useMaterials(selectedWorkspaceId ?? undefined);
   const [room3d, setRoom3d] = useState<Room3dProps>(initialRoom3d);
@@ -51,6 +51,7 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
   const [isDraggingObject, setIsDraggingObject] = useState(false);
   const [forceEditObject, setForceEditObject] = useState<DesignObject | undefined>(undefined);
   const [activeMeasurementEdit, setActiveMeasurementEdit] = useState<ActiveMeasurementEdit | undefined>(undefined);
+  const [isFraming, setIsFraming] = useState(false);
   const [wallContextMenu, setWallContextMenu] = useState<{
     wallId: import('./DesignScreen/3dView/Room3d').WallIdentifier;
     x: number;
@@ -92,6 +93,7 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
       loadedProjectIdRef.current = null;
     }
     setBudgetSettings(emptyBudgetSettings());
+    setSavedViews([]);
     setGlobalMaterials({});
     setDesignObjects([]);
     setProject(null);
@@ -99,7 +101,7 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
     setIsProjectLoading(false);
     projectLoadedRef.current = false;
     defaultSceneInitializedRef.current = false;
-  }, [projectId, setBudgetSettings, setProject, setProjectName]);
+  }, [projectId, setBudgetSettings, setSavedViews, setProject, setProjectName]);
 
   const captureApi = useMemo<ThumbnailCaptureApi>(
     () => createThumbnailCaptureApi(),
@@ -118,7 +120,7 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
   };
 
   const handleSaveProject = async () => {
-    const serializedState = serializeProjectState(room3d, designObjects, globalMaterials, budgetSettings);
+    const serializedState = serializeProjectState(room3d, designObjects, globalMaterials, budgetSettings, savedViews);
     const safeName = (projectName || project?.name || 'my_designer_project').trim().replace(/[^a-zA-Z0-9_-]/g, '_');
     await saveProject(serializedState, `${safeName || 'my_designer_project'}.json`);
   };
@@ -131,7 +133,7 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
       return storedVersion.fileURL;
     };
 
-    const { room, objects, globalMaterials: loadedGlobalMaterials, budgetSettings: loadedBudget } = await deserializeProjectState(projectData, getModelUrl);
+    const { room, objects, globalMaterials: loadedGlobalMaterials, budgetSettings: loadedBudget, savedViews: loadedSavedViews } = await deserializeProjectState(projectData, getModelUrl);
     if (generation !== projectLoadGenerationRef.current) return;
     setIsProjectLoading(false);
     projectLoadedRef.current = true;
@@ -139,8 +141,9 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
     setDesignObjects(objects);
     setGlobalMaterials(loadedGlobalMaterials ?? {});
     setBudgetSettings(loadedBudget);
+    setSavedViews(loadedSavedViews);
     setMovingObject(undefined);
-  }, [objectTemplates, setBudgetSettings]);
+  }, [objectTemplates, setBudgetSettings, setSavedViews]);
 
   const confirmReplaceScene = (action: () => void) => {
     if (designObjects.length === 0) {
@@ -367,6 +370,7 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
     setIsProjectLoading(true);
     setDesignObjects([]);
     setBudgetSettings(emptyBudgetSettings());
+    setSavedViews([]);
     setGlobalMaterials({});
     setProject(null);
     try {
@@ -393,7 +397,7 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
     } finally {
       if (generation === projectLoadGenerationRef.current) setIsProjectLoading(false);
     }
-  }, [applyProjectData, setProject, setBudgetSettings]);
+  }, [applyProjectData, setProject, setBudgetSettings, setSavedViews]);
 
   useEffect(() => {
     if (!projectId) return;
@@ -411,7 +415,6 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
   }, [movingObject, activeMeasurementEdit]);
 
   const handleObjectInteraction = (object: DesignObject) => {
-    console.log("Interacted with object:", object.id);
     setMovingObject(object);
   };
 
@@ -522,6 +525,7 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
         captureApi={captureApi}
         activeMeasurementSide={activeMeasurementEdit?.side}
         onSelectMeasurement={handleSelectMeasurement}
+        isFraming={isFraming}
       />
       <View3dOverlay
         objectTemplates={objectTemplates}
@@ -558,13 +562,17 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
         editingWall={editingWall}
         setEditingWall={setEditingWall}
         onMaterialDataResolved={handleMaterialDataResolved}
-      >
-      </View3dOverlay>
+        savedViews={savedViews}
+        setSavedViews={setSavedViews}
+        captureApi={captureApi}
+        projectName={projectName || project?.name || 'Project'}
+        onFramingModeChange={setIsFraming}
+      />
 
       {isProjectPickerVisible && (
         <View style={styles.pickerOverlay}>
           <ProjectPicker
-            projectState={serializeProjectState(room3d, designObjects, globalMaterials, budgetSettings)}
+            projectState={serializeProjectState(room3d, designObjects, globalMaterials, budgetSettings, savedViews)}
             creatorId={backendUserId}
             initialProjectName={projectName || project?.name || ''}
             initialProjectId={project?.id ?? null}

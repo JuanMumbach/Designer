@@ -7,6 +7,7 @@ import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { Alert, Platform } from 'react-native';
 import { BudgetSettings, emptyBudgetSettings, ModelBudgetEntry, validateBudgetEntries, validateBudgetSettings } from './budget';
+import { SavedView } from './currentProject';
 import { MaterialPart, validateMaterialParts } from './materialParts';
 
 export interface ProjectMetadata {
@@ -54,9 +55,67 @@ export interface ProjectStateDTO {
   room: ProjectRoom;
   instances: ProjectInstance[];
   globalMaterials?: GlobalMaterials;
+  savedViews?: SavedView[];
 }
 
-export function serializeProjectState(room3d: Room3dProps, designObjects: DesignObject[], globalMaterials?: GlobalMaterials, budgetSettings?: BudgetSettings): ProjectStateDTO {
+export function validateSavedViews(views: SavedView[]): string | undefined {
+  if (!Array.isArray(views)) return 'Saved views must be an array.';
+  if (views.length > 200) return 'Maximum of 200 saved views exceeded.';
+  const ids = new Set<string>();
+  for (const view of views) {
+    if (!view || typeof view.id !== 'string' || !view.id.trim() || ids.has(view.id)) {
+      return 'Each saved view must have a unique id.';
+    }
+    ids.add(view.id);
+    if (typeof view.name !== 'string' || !view.name.trim()) {
+      return 'Each saved view must have a non-empty name.';
+    }
+    if (
+      !Array.isArray(view.cameraPosition) ||
+      view.cameraPosition.length !== 3 ||
+      !view.cameraPosition.every(Number.isFinite)
+    ) {
+      return 'Invalid cameraPosition in saved view.';
+    }
+    if (
+      !Array.isArray(view.cameraTarget) ||
+      view.cameraTarget.length !== 3 ||
+      !view.cameraTarget.every(Number.isFinite)
+    ) {
+      return 'Invalid cameraTarget in saved view.';
+    }
+    if (!Number.isFinite(view.fov) || view.fov <= 0 || view.fov >= 180) {
+      return 'Invalid fov in saved view.';
+    }
+    if (view.zoom !== undefined && (!Number.isFinite(view.zoom) || view.zoom <= 0)) {
+      return 'Invalid zoom in saved view.';
+    }
+    if (
+      !view.resolution ||
+      typeof view.resolution.preset !== 'string' ||
+      !Number.isFinite(view.resolution.width) ||
+      !Number.isFinite(view.resolution.height) ||
+      view.resolution.width < 64 ||
+      view.resolution.height < 64 ||
+      view.resolution.width > 8192 ||
+      view.resolution.height > 8192
+    ) {
+      return 'Invalid resolution in saved view.';
+    }
+    if (view.previewDataUrl !== undefined && typeof view.previewDataUrl !== 'string') {
+      return 'Invalid previewDataUrl in saved view.';
+    }
+  }
+  return undefined;
+}
+
+export function serializeProjectState(
+  room3d: Room3dProps,
+  designObjects: DesignObject[],
+  globalMaterials?: GlobalMaterials,
+  budgetSettings?: BudgetSettings,
+  savedViews?: SavedView[]
+): ProjectStateDTO {
   return {
     ...(budgetSettings ? { budgetSettings } : {}),
     metadata: {
@@ -72,6 +131,7 @@ export function serializeProjectState(room3d: Room3dProps, designObjects: Design
       ...(room3d.walls ? { walls: room3d.walls } : {}),
     },
     ...(globalMaterials ? { globalMaterials } : {}),
+    ...(savedViews && savedViews.length > 0 ? { savedViews } : {}),
     instances: designObjects.map((obj) => ({
       ...(obj.materialParts !== undefined ? { materialParts: obj.materialParts } : {}),
       ...(obj.budgetEntries !== undefined ? { budgetEntries: obj.budgetEntries } : {}),
@@ -94,8 +154,15 @@ export function serializeProjectState(room3d: Room3dProps, designObjects: Design
 export async function deserializeProjectState(
   dto: ProjectStateDTO,
   getModelUrl: (modelId: string, version: number) => Promise<string | undefined>
-): Promise<{ room: Room3dProps; objects: DesignObject[]; globalMaterials?: GlobalMaterials; budgetSettings: BudgetSettings }> {
+): Promise<{
+  room: Room3dProps;
+  objects: DesignObject[];
+  globalMaterials?: GlobalMaterials;
+  budgetSettings: BudgetSettings;
+  savedViews: SavedView[];
+}> {
   if (dto.budgetSettings && validateBudgetSettings(dto.budgetSettings)) throw new Error('Invalid project budget settings.');
+  if (dto.savedViews !== undefined && validateSavedViews(dto.savedViews)) throw new Error('Invalid project saved views.');
   const objects = await Promise.all(dto.instances.map(async (inst) => {
     if (inst.materialParts !== undefined && validateMaterialParts(inst.materialParts)) throw new Error('Invalid module material parts.');
     if (inst.budgetEntries !== undefined && (!Array.isArray(inst.budgetEntries) || validateBudgetEntries(inst.budgetEntries))) throw new Error('Invalid module budget entries.');
@@ -144,6 +211,7 @@ export async function deserializeProjectState(
     },
     objects,
     globalMaterials: dto.globalMaterials,
+    savedViews: dto.savedViews ?? [],
   };
 }
 

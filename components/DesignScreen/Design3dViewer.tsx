@@ -1,6 +1,6 @@
 import { OrbitControls } from '@react-three/drei/native';
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import DesignObjectsRenderer, { AppliedMaterial, DesignObject, GlobalMaterials } from "./3dView/DesignObjects";
 import Room3d, { Room3dProps, RoomOrigin } from "./3dView/Room3d";
@@ -13,25 +13,65 @@ import {
 } from "../../services/thumbnailCapture";
 
 const cameraControlsProps = {
-    mouseButtons: {
-      MIDDLE: THREE.MOUSE.ROTATE,
-    },
-    touches: {
-      ONE: THREE.TOUCH.ROTATE,
-    },
-    enableDamping: false,
-    minAzimuthAngle: -Math.PI / 4,
-    maxAzimuthAngle: Math.PI / 4,
-    minPolarAngle: Math.PI / 4+.3,
-    maxPolarAngle: Math.PI / 4+.3,
-    rotateSpeed: 0.25,
-  };
+  mouseButtons: {
+    MIDDLE: THREE.MOUSE.ROTATE,
+  },
+  touches: {
+    ONE: THREE.TOUCH.ROTATE,
+  },
+  enableDamping: false,
+  minAzimuthAngle: -Math.PI / 4,
+  maxAzimuthAngle: Math.PI / 4,
+  minPolarAngle: Math.PI / 4 + 0.3,
+  maxPolarAngle: Math.PI / 4 + 0.3,
+  rotateSpeed: 0.25,
+};
 
-function CameraController({room3d}: {room3d : Room3dProps}) {
+const framingCameraControlsProps = {
+  mouseButtons: {
+    LEFT: THREE.MOUSE.ROTATE,
+    MIDDLE: THREE.MOUSE.ROTATE,
+    RIGHT: THREE.MOUSE.PAN,
+  },
+  touches: {
+    ONE: THREE.TOUCH.ROTATE,
+    TWO: THREE.TOUCH.DOLLY_PAN,
+  },
+  enableDamping: false,
+  enableZoom: true,
+  enablePan: true,
+  minAzimuthAngle: -Infinity,
+  maxAzimuthAngle: Infinity,
+  minPolarAngle: 0.05,
+  maxPolarAngle: Math.PI - 0.05,
+  rotateSpeed: 0.4,
+};
+
+function CameraController({
+  room3d,
+  isFraming,
+  controlsRef,
+}: {
+  room3d: Room3dProps;
+  isFraming?: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  controlsRef: React.RefObject<any>;
+}) {
   const { camera } = useThree();
 
+  useEffect(() => {
+    if (!isFraming && controlsRef.current?.target) {
+      controlsRef.current.target.set(0, 1.5, room3d.depth / 2);
+      controlsRef.current.update?.();
+    }
+  }, [room3d.depth, isFraming, controlsRef]);
+
   useFrame(() => {
-    camera.lookAt(0, 1.5, room3d.depth / 2);
+    if (controlsRef.current?.target) {
+      camera.lookAt(controlsRef.current.target);
+    } else {
+      camera.lookAt(0, 1.5, room3d.depth / 2);
+    }
     camera.updateProjectionMatrix();
   });
 
@@ -59,10 +99,6 @@ function useWallCulling(room3d: Room3dProps): WallCulling {
   return culling;
 }
 
-const handleBoxClick = () => {
-    console.log("Box clicked!");
-  }
-
 function SceneContent({
   room3d,
   designObjects,
@@ -85,6 +121,8 @@ function SceneContent({
   activeMeasurementSide,
   onSelectMeasurement,
   onWallContextMenu,
+  isFraming,
+  controlsRef,
 }: {
   room3d: Room3dProps,
   designObjects: DesignObject[],
@@ -106,14 +144,17 @@ function SceneContent({
   typeToDesignSlot?: Record<string, string>,
   activeMeasurementSide?: import('./3dViewOverlay/EditMeasurementModal').MeasurementSide,
   onSelectMeasurement?: (object: DesignObject, side: import('./3dViewOverlay/EditMeasurementModal').MeasurementSide, currentValue: number) => void,
-  onWallContextMenu?: (wallId: import('./3dView/Room3d').WallIdentifier, event: any) => void
+  onWallContextMenu?: (wallId: import('./3dView/Room3d').WallIdentifier, event: any) => void,
+  isFraming?: boolean,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  controlsRef: React.RefObject<any>,
 }) {
   const wallCulling = useWallCulling(room3d);
-  let roomOrigin = RoomOrigin({room3d});
+  let roomOrigin = RoomOrigin({ room3d });
 
   return (
     <>
-      <CameraController room3d={room3d}/>
+      <CameraController room3d={room3d} isFraming={isFraming} controlsRef={controlsRef} />
       <Room3d
         {...room3d}
         culledLeft={wallCulling.left}
@@ -122,33 +163,37 @@ function SceneContent({
         globalMaterials={globalMaterials}
         globalMaterialsRaw={globalMaterialsRaw}
         designObjects={designObjects}
-        onWallContextMenu={onWallContextMenu}
+        onWallContextMenu={isFraming ? undefined : onWallContextMenu}
       />
       <DesignObjectsRenderer
-          objects={designObjects}
-          origin={roomOrigin}
-          onObjectInteraction={onObjectInteraction}
-          onDeselect={() => setMovingObject?.(undefined)}
-          onObjectEdited={onObjectEdited}
-          onObjectDeleted={onObjectDeleted}
-          onEditObject={onEditObject}
-          onObjectDuplicate={onObjectDuplicate}
-          movingObjectId={movingObject?.id}
-          room3d={room3d}
-          magnetEnabled={magnetEnabled}
-          allObjects={designObjects}
-          onDragStateChange={onDragStateChange}
-          onSlotsDiscovered={onSlotsDiscovered}
-          globalMaterials={globalMaterials}
-          globalMaterialsRaw={globalMaterialsRaw}
-          materialDataById={materialDataById}
-          slotTypesByModel={slotTypesByModel}
-          typeToDesignSlot={typeToDesignSlot}
-          wallCulling={wallCulling}
-          activeMeasurementSide={activeMeasurementSide}
-          onSelectMeasurement={onSelectMeasurement}
+        objects={designObjects}
+        origin={roomOrigin}
+        onObjectInteraction={isFraming ? () => {} : onObjectInteraction}
+        onDeselect={() => setMovingObject?.(undefined)}
+        onObjectEdited={isFraming ? undefined : onObjectEdited}
+        onObjectDeleted={isFraming ? undefined : onObjectDeleted}
+        onEditObject={isFraming ? undefined : onEditObject}
+        onObjectDuplicate={isFraming ? undefined : onObjectDuplicate}
+        movingObjectId={isFraming ? undefined : movingObject?.id}
+        room3d={room3d}
+        magnetEnabled={magnetEnabled}
+        allObjects={designObjects}
+        onDragStateChange={onDragStateChange}
+        onSlotsDiscovered={onSlotsDiscovered}
+        globalMaterials={globalMaterials}
+        globalMaterialsRaw={globalMaterialsRaw}
+        materialDataById={materialDataById}
+        slotTypesByModel={slotTypesByModel}
+        typeToDesignSlot={typeToDesignSlot}
+        wallCulling={wallCulling}
+        activeMeasurementSide={isFraming ? undefined : activeMeasurementSide}
+        onSelectMeasurement={isFraming ? undefined : onSelectMeasurement}
       />
-      <OrbitControls {...cameraControlsProps} enabled={draggingRef.current === 0} />
+      <OrbitControls
+        ref={controlsRef}
+        {...(isFraming ? framingCameraControlsProps : cameraControlsProps)}
+        enabled={draggingRef.current === 0}
+      />
     </>
   );
 }
@@ -174,9 +219,9 @@ export default function Design3dView({
   captureApi,
   activeMeasurementSide,
   onSelectMeasurement,
-  onWallContextMenu
-}:
-  {
+  onWallContextMenu,
+  isFraming,
+}: {
   room3d: Room3dProps,
   designObjects: DesignObject[],
   onObjectInteraction: (object: DesignObject) => void,
@@ -197,10 +242,12 @@ export default function Design3dView({
   captureApi?: ThumbnailCaptureApi,
   activeMeasurementSide?: import('./3dViewOverlay/EditMeasurementModal').MeasurementSide,
   onSelectMeasurement?: (object: DesignObject, side: import('./3dViewOverlay/EditMeasurementModal').MeasurementSide, currentValue: number) => void,
-  onWallContextMenu?: (wallId: import('./3dView/Room3d').WallIdentifier, event: any) => void
-})
-{
+  onWallContextMenu?: (wallId: import('./3dView/Room3d').WallIdentifier, event: any) => void,
+  isFraming?: boolean,
+}) {
   const isDragging = useRef(0);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const controlsRef = useRef<any>(null);
   const [, forceUpdate] = useState(0);
 
   const handleDragStateChange = (dragging: boolean) => {
@@ -209,44 +256,51 @@ export default function Design3dView({
     forceUpdate(n => n + 1);
   };
 
-  console.log("Design3dView render, designObjects:", designObjects);
   return (
     <Canvas
-    shadows
-    style={{ background: COLORS.sceneBg }}
-    camera={{ position: [0, 3, 3] }}
-    onPointerMissed={() => {
-        console.log("Canvas clicked. Deselecting objects.");
+      shadows
+      style={{ background: COLORS.sceneBg }}
+      camera={{ position: [0, 3, 3] }}
+      onPointerMissed={() => {
         if (setMovingObject) setMovingObject(undefined);
       }}
     >
-        <ambientLight intensity={.25}/>
-        <pointLight castShadow position={[0, 3, room3d.depth*.75]} intensity={(room3d.depth*room3d.width)*2} />
-        <SceneContent
-            onWallContextMenu={onWallContextMenu}
-            room3d={room3d}
-            designObjects={designObjects}
-            onObjectInteraction={onObjectInteraction}
-            onObjectEdited={onObjectEdited}
-            onObjectDeleted={onObjectDeleted}
-            onEditObject={onEditObject}
-            onObjectDuplicate={onObjectDuplicate}
-            movingObject={movingObject}
-            setMovingObject={setMovingObject}
-            magnetEnabled={magnetEnabled}
-            draggingRef={isDragging}
-            onDragStateChange={handleDragStateChange}
-            onSlotsDiscovered={onSlotsDiscovered}
-            globalMaterials={globalMaterials}
-            globalMaterialsRaw={globalMaterialsRaw}
-            materialDataById={materialDataById}
-            slotTypesByModel={slotTypesByModel}
-            typeToDesignSlot={typeToDesignSlot}
-            activeMeasurementSide={activeMeasurementSide}
-            onSelectMeasurement={onSelectMeasurement}
+      <ambientLight intensity={0.25} />
+      <pointLight castShadow position={[0, 3, room3d.depth * 0.75]} intensity={(room3d.depth * room3d.width) * 2} />
+      <SceneContent
+        onWallContextMenu={onWallContextMenu}
+        room3d={room3d}
+        designObjects={designObjects}
+        onObjectInteraction={onObjectInteraction}
+        onObjectEdited={onObjectEdited}
+        onObjectDeleted={onObjectDeleted}
+        onEditObject={onEditObject}
+        onObjectDuplicate={onObjectDuplicate}
+        movingObject={movingObject}
+        setMovingObject={setMovingObject}
+        magnetEnabled={magnetEnabled}
+        draggingRef={isDragging}
+        onDragStateChange={handleDragStateChange}
+        onSlotsDiscovered={onSlotsDiscovered}
+        globalMaterials={globalMaterials}
+        globalMaterialsRaw={globalMaterialsRaw}
+        materialDataById={materialDataById}
+        slotTypesByModel={slotTypesByModel}
+        typeToDesignSlot={typeToDesignSlot}
+        activeMeasurementSide={activeMeasurementSide}
+        onSelectMeasurement={onSelectMeasurement}
+        isFraming={isFraming}
+        controlsRef={controlsRef}
+      />
+      {captureApi && (
+        <ThumbnailCaptureHost
+          captureApi={captureApi}
+          defaultTarget={[0, 1.5, room3d.depth / 2]}
+          controlsRef={controlsRef}
+          roomWidth={room3d.width}
         />
-        {captureApi && <ThumbnailCaptureHost captureApi={captureApi} />}
-        <fog attach="fog" args={[COLORS.sceneBg, 5, 20]} />
+      )}
+      <fog attach="fog" args={[COLORS.sceneBg, 5, 20]} />
     </Canvas>
   );
 }

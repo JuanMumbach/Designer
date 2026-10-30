@@ -5,6 +5,23 @@ import type { DesignObject } from '../components/DesignScreen/3dView/DesignObjec
 import type { Room3dProps } from '../components/DesignScreen/3dView/Room3d';
 import type { MaterialPart } from './materialParts';
 
+export interface SavedViewResolution {
+  preset: string | 'custom';
+  width: number;
+  height: number;
+}
+
+export interface SavedView {
+  id: string;
+  name: string;
+  cameraPosition: [number, number, number];
+  cameraTarget: [number, number, number];
+  fov: number;
+  zoom?: number;
+  resolution: SavedViewResolution;
+  previewDataUrl?: string;
+}
+
 export interface DesignSnapshot {
   room: Room3dProps;
   objects: DesignObject[];
@@ -18,6 +35,8 @@ interface CurrentProjectContextValue {
   setProjectName: (name: string) => void;
   designSnapshot: DesignSnapshot | null;
   setDesignSnapshot: (snapshot: DesignSnapshot) => void;
+  savedViews: SavedView[];
+  setSavedViews: React.Dispatch<React.SetStateAction<SavedView[]>>;
   budgetSettings: BudgetSettings;
   setBudgetSettings: (settings: BudgetSettings) => void;
   registerBudgetEditor: (editor: ((id: string, entries: ModelBudgetEntry[] | undefined) => void) | null) => void;
@@ -34,6 +53,8 @@ const CurrentProjectContext = createContext<CurrentProjectContextValue>({
   setProjectName: () => {},
   designSnapshot: null,
   setDesignSnapshot: () => {},
+  savedViews: [],
+  setSavedViews: () => {},
   budgetSettings: emptyBudgetSettings(),
   setBudgetSettings: () => {},
   registerBudgetEditor: () => {},
@@ -47,6 +68,7 @@ export function CurrentProjectProvider({ children }: { children: React.ReactNode
   const [project, setProjectState] = useState<Project | null>(null);
   const [projectName, setProjectName] = useState<string>('');
   const [designSnapshot, setDesignSnapshot] = useState<DesignSnapshot | null>(null);
+  const [savedViews, setSavedViews] = useState<SavedView[]>([]);
   const [budgetSettings, setBudgetSettings] = useState<BudgetSettings>(emptyBudgetSettings);
   const editorRef = useRef<((id: string, entries: ModelBudgetEntry[] | undefined) => void) | null>(null);
   const [canEditBudgetObjects, setCanEditBudgetObjects] = useState(false);
@@ -68,7 +90,7 @@ export function CurrentProjectProvider({ children }: { children: React.ReactNode
   const updateMaterialParts = useCallback((id: string, parts: MaterialPart[] | undefined) => partsEditorRef.current?.(id, parts), []);
 
   return (
-    <CurrentProjectContext.Provider value={{ project, setProject, projectName, setProjectName, designSnapshot, setDesignSnapshot, budgetSettings, setBudgetSettings, registerBudgetEditor, updateBudgetEntries, canEditBudgetObjects, registerPartsEditor, updateMaterialParts }}>
+    <CurrentProjectContext.Provider value={{ project, setProject, projectName, setProjectName, designSnapshot, setDesignSnapshot, savedViews, setSavedViews, budgetSettings, setBudgetSettings, registerBudgetEditor, updateBudgetEntries, canEditBudgetObjects, registerPartsEditor, updateMaterialParts }}>
       {children}
     </CurrentProjectContext.Provider>
   );
