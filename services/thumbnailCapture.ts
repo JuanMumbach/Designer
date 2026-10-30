@@ -17,7 +17,7 @@ export function createThumbnailCaptureApi(): ThumbnailCaptureApi {
   return { requestCapture: () => Promise.resolve(null) };
 }
 
-function uint8ArrayToBase64(buffer: Uint8Array): string {
+export function uint8ArrayToBase64(buffer: Uint8Array): string {
   let binary = '';
   const len = buffer.byteLength;
   for (let i = 0; i < len; i++) {

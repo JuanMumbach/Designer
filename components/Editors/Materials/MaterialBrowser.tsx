@@ -41,9 +41,11 @@ import MaterialPreview from './MaterialPreview';
 import CatalogueView, { CatalogueGroup, InspectorRow } from '../../Catalogue/CatalogueView';
 import CategoryManagerPanel from '../CategoryManagerPanel';
 import {
-  createThumbnailCaptureApi,
-  ThumbnailCaptureApi,
-} from '../../../services/thumbnailCapture';
+  createMaterialSwatchApi,
+  generateMaterialThumbnail,
+  MaterialSwatchApi,
+  MaterialSwatchRenderer,
+} from '../../../services/materialSwatch';
 
 const VIEW_MODE_KEY = '@catalogue:materialsViewMode';
 const UNCATEGORIZED_KEY = '__none__';
@@ -95,10 +97,8 @@ export default function MaterialBrowser({
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([]);
 
-  const captureApi = useMemo<ThumbnailCaptureApi>(
-    () => createThumbnailCaptureApi(),
-    []
-  );
+  const swatchApi = useMemo<MaterialSwatchApi>(() => createMaterialSwatchApi(), []);
+  const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
 
   const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
   const thumbnailAttemptedRef = useRef<Set<string>>(new Set());
@@ -234,11 +234,18 @@ export default function MaterialBrowser({
         await categorizeMaterialType({ id: editingMaterial.id, typeId: data.typeId });
       }
       if (data.fileURL || data.scaleU || data.scaleV || data.materialProperties) {
-        const thumbnailURL = await captureApi.requestCapture('thumbnails/materials');
+        const scaleU = parseFloat(data.scaleU.replace(',', '.')) || 1;
+        const scaleV = parseFloat(data.scaleV.replace(',', '.')) || 1;
+        const thumbnailURL = await generateMaterialThumbnail(
+          swatchApi,
+          data.fileURL || editingMaterialData?.fileURL,
+          scaleU,
+          scaleV
+        );
         await createMaterialVersion(editingMaterial.id, {
           fileURL: data.fileURL,
-          scaleU: parseFloat(data.scaleU.replace(',', '.')) || 1,
-          scaleV: parseFloat(data.scaleV.replace(',', '.')) || 1,
+          scaleU,
+          scaleV,
           materialProperties: data.materialProperties || undefined,
           creatorId: backendUserId || data.creatorId || editingMaterial.creatorId || '',
           thumbnailURL: thumbnailURL || undefined,
@@ -266,11 +273,13 @@ export default function MaterialBrowser({
       if (data.typeId) {
         await categorizeMaterialType({ id: meta.id, typeId: data.typeId });
       }
-      const thumbnailURL = await captureApi.requestCapture('thumbnails/materials');
+      const scaleU = parseFloat(data.scaleU.replace(',', '.')) || 1;
+      const scaleV = parseFloat(data.scaleV.replace(',', '.')) || 1;
+      const thumbnailURL = await generateMaterialThumbnail(swatchApi, data.fileURL, scaleU, scaleV);
       await createMaterialVersion(meta.id, {
         fileURL: data.fileURL,
-        scaleU: parseFloat(data.scaleU.replace(',', '.')) || 1,
-        scaleV: parseFloat(data.scaleV.replace(',', '.')) || 1,
+        scaleU,
+        scaleV,
         materialProperties: data.materialProperties || undefined,
         creatorId: backendUserId || data.creatorId || meta.creatorId || '',
         thumbnailURL: thumbnailURL || undefined,
@@ -279,6 +288,43 @@ export default function MaterialBrowser({
     setEditingMaterial(null);
     setShowCreator(false);
     onRefresh();
+  };
+
+  const handleRegenerateThumbnail = async (material: MaterialMeta) => {
+    if (regeneratingId) return;
+    setRegeneratingId(material.id);
+    try {
+      const version = await fetchMaterialVersion(material.id, material.lastVersion);
+      if (!version.fileURL) {
+        Alert.alert('Error', 'El material no tiene textura.');
+        return;
+      }
+      const thumbnailURL = await generateMaterialThumbnail(
+        swatchApi,
+        version.fileURL,
+        version.scaleU,
+        version.scaleV
+      );
+      if (!thumbnailURL) {
+        Alert.alert('Error', 'No se pudo generar la miniatura.');
+        return;
+      }
+      await createMaterialVersion(material.id, {
+        fileURL: version.fileURL,
+        scaleU: version.scaleU,
+        scaleV: version.scaleV,
+        materialProperties: version.materialProperties || undefined,
+        creatorId: backendUserId || version.creatorId || material.creatorId || '',
+        thumbnailURL,
+      });
+      setThumbnails((prev) => ({ ...prev, [material.id]: thumbnailURL }));
+      onRefresh();
+    } catch (err) {
+      console.warn('Thumbnail regeneration failed:', err);
+      Alert.alert('Error', 'No se pudo regenerar la miniatura.');
+    } finally {
+      setRegeneratingId(null);
+    }
   };
 
   const handleDeleteMaterial = async () => {
@@ -461,7 +507,6 @@ export default function MaterialBrowser({
           onSlotsDiscovered={handleSlotsDiscovered}
           scaleU={liveScaleU}
           scaleV={liveScaleV}
-          captureApi={captureApi}
           dimensions={
             selectedTemplate && selectedTemplate.width > 0 && selectedTemplate.height > 0 && selectedTemplate.depth > 0
               ? [selectedTemplate.width, selectedTemplate.height, selectedTemplate.depth]
@@ -553,6 +598,7 @@ export default function MaterialBrowser({
           {isLoadingData ? renderLoading() : renderPreview()}
         </View>
         <View style={isWide ? styles.editorWide : styles.editorNarrow}>{renderEditor()}</View>
+        <MaterialSwatchRenderer api={swatchApi} />
       </View>
     );
   }
@@ -577,6 +623,7 @@ export default function MaterialBrowser({
   ];
 
   return (
+    <View style={styles.container}>
     <CatalogueView
       headerActions={headerActions}
       contextLabel={`${materials.length} materiales`}
@@ -599,8 +646,20 @@ export default function MaterialBrowser({
       storageKey={VIEW_MODE_KEY}
       inspectorContent={inspector}
       inspectorEmptyText="Selecciona un material para ver sus detalles."
-      inspectorActions={selectedMaterial ? { primary: { label: 'Editar', onPress: () => setEditingMaterial(selectedMaterial) } } : undefined}
+      inspectorActions={
+        selectedMaterial
+          ? {
+              primary: { label: 'Editar', onPress: () => setEditingMaterial(selectedMaterial) },
+              secondary: {
+                label: regeneratingId === selectedMaterial.id ? 'Regenerando…' : 'Regenerar miniatura',
+                onPress: () => handleRegenerateThumbnail(selectedMaterial),
+              },
+            }
+          : undefined
+      }
     />
+    <MaterialSwatchRenderer api={swatchApi} />
+    </View>
   );
 }
 

@@ -17,6 +17,73 @@ import {
 } from '../../../services/materialSlots';
 import { extractGlbParts, readGlbBytes } from '../../../services/glbParts';
 
+function TexturePlane({
+  textureUri,
+  scaleU,
+  scaleV,
+}: {
+  textureUri: string | null;
+  scaleU: number;
+  scaleV: number;
+}) {
+  const [texture, setTexture] = useState<THREE.Texture | null>(null);
+
+  useEffect(() => {
+    if (!textureUri) {
+      setTexture(null);
+      return;
+    }
+    let cancelled = false;
+    let loaded: THREE.Texture | null = null;
+    new THREE.TextureLoader().load(
+      textureUri,
+      (tex) => {
+        if (cancelled) {
+          tex.dispose();
+          return;
+        }
+        tex.wrapS = THREE.RepeatWrapping;
+        tex.wrapT = THREE.RepeatWrapping;
+        tex.colorSpace = THREE.SRGBColorSpace;
+        loaded = tex;
+        setTexture(tex);
+      },
+      undefined,
+      () => {
+        if (!cancelled) setTexture(null);
+      }
+    );
+    return () => {
+      cancelled = true;
+      loaded?.dispose();
+    };
+  }, [textureUri]);
+
+  useEffect(() => {
+    const image = texture?.image as { width?: number; height?: number } | undefined;
+    if (!texture || !image?.width || !image?.height) return;
+    const su = scaleU > 0 ? scaleU : image.width;
+    const sv = scaleV > 0 ? scaleV : image.height;
+    texture.repeat.set(
+      Math.max(0.001, su / image.width),
+      Math.max(0.001, sv / image.height)
+    );
+    texture.needsUpdate = true;
+  }, [texture, scaleU, scaleV]);
+
+  return (
+    <mesh>
+      <planeGeometry args={[1, 1]} />
+      <meshStandardMaterial
+        key={texture ? texture.uuid : 'none'}
+        map={texture}
+        color={texture ? '#ffffff' : '#9ca3af'}
+        side={THREE.DoubleSide}
+      />
+    </mesh>
+  );
+}
+
 export default function MaterialPreview({
   modelUrl,
   textureUri,
@@ -226,12 +293,7 @@ export default function MaterialPreview({
               <Gltf ref={handleGltfReady} src={modelUrl} scale={0.01} />
             </Suspense>
           )}
-          {!modelUrl && (
-            <mesh>
-              <boxGeometry args={[0.3, 0.3, 0.3]} />
-              <meshStandardMaterial color="#9ca3af" />
-            </mesh>
-          )}
+          {!modelUrl && (<TexturePlane textureUri={processedTextureUri} scaleU={scaleU} scaleV={scaleV} />)}
           {captureApi && <ThumbnailCaptureHost captureApi={captureApi} />}
         </PreviewEnvironment>
       </Canvas>
