@@ -961,8 +961,9 @@ export default function View3dOverlay({
               styles.dropdownPanel,
               {
                 position: "absolute",
-                left: Math.min(wallContextMenu.x, width - 200),
-                top: Math.min(wallContextMenu.y, height - 160),
+                marginTop: 0,
+                left: Math.max(8, Math.min(wallContextMenu.x, width - 228)),
+                top: Math.max(8, Math.min(wallContextMenu.y, height - 160)),
                 zIndex: 150,
               },
             ]}

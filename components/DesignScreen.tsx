@@ -63,8 +63,24 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
     wallId: import('./DesignScreen/3dView/Room3d').WallIdentifier,
     event: any
   ) => {
-    const x = event.clientX ?? event.nativeEvent?.clientX ?? 120;
-    const y = event.clientY ?? event.nativeEvent?.clientY ?? 120;
+    const native = event.nativeEvent ?? event;
+    let x = native?.offsetX ?? event.offsetX;
+    let y = native?.offsetY ?? event.offsetY;
+
+    if (typeof x !== 'number' || typeof y !== 'number') {
+      const clientX = event.clientX ?? native?.clientX ?? 120;
+      const clientY = event.clientY ?? native?.clientY ?? 120;
+      const target = native?.target ?? event.target;
+      const rect = target?.getBoundingClientRect?.();
+      if (rect) {
+        x = clientX - rect.left;
+        y = clientY - rect.top;
+      } else {
+        x = clientX;
+        y = clientY;
+      }
+    }
+
     setWallContextMenu({ wallId, x, y });
   }, []);
 

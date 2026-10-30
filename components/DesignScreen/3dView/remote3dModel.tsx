@@ -502,6 +502,7 @@ export function DesignObject3D({
     const longPressTimer = useRef<any>(null);
     const longPressTriggered = useRef(false);
     const pointerDownPosition = useRef<{ x: number, y: number } | null>(null);
+    const pointerMovedRef = useRef(false);
 
     const handleInteraction = React.useCallback((e?: any) => {
         if (e) e.stopPropagation();
@@ -536,9 +537,10 @@ export function DesignObject3D({
 
     const handlePointerDown = (e: any) => {
         e.stopPropagation();
+        pointerMovedRef.current = false;
+        pointerDownPosition.current = { x: e.clientX, y: e.clientY };
         if (isDesktop) return;
         longPressTriggered.current = false;
-        pointerDownPosition.current = { x: e.clientX, y: e.clientY };
         longPressTimer.current = setTimeout(() => {
             e.stopPropagation();
             longPressTriggered.current = true;
@@ -550,26 +552,28 @@ export function DesignObject3D({
 
     const handlePointerUp = (e: any) => {
         e.stopPropagation();
+        pointerDownPosition.current = null;
         if (isDesktop) return;
         if (longPressTimer.current) {
             clearTimeout(longPressTimer.current);
             longPressTimer.current = null;
         }
-        pointerDownPosition.current = null;
     };
 
     const handlePointerMove = (e: any) => {
         e.stopPropagation();
-        if (isDesktop || !pointerDownPosition.current) return;
-        if (longPressTimer.current) {
-            const deltaX = Math.abs(e.clientX - pointerDownPosition.current.x);
-            const deltaY = Math.abs(e.clientY - pointerDownPosition.current.y);
-            const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-            if (distance > 10) {
-                clearTimeout(longPressTimer.current);
-                longPressTimer.current = null;
-                pointerDownPosition.current = null;
-            }
+        if (!pointerDownPosition.current) return;
+        const deltaX = Math.abs(e.clientX - pointerDownPosition.current.x);
+        const deltaY = Math.abs(e.clientY - pointerDownPosition.current.y);
+        const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+        if (distance > 5) {
+            pointerMovedRef.current = true;
+        }
+        if (isDesktop) return;
+        if (longPressTimer.current && distance > 10) {
+            clearTimeout(longPressTimer.current);
+            longPressTimer.current = null;
+            pointerDownPosition.current = null;
         }
     };
 
@@ -674,6 +678,10 @@ export function DesignObject3D({
       onClick: (e: any) => {
         if (globalIsDragging) return;
         e.stopPropagation();
+        if (pointerMovedRef.current) {
+          pointerMovedRef.current = false;
+          return;
+        }
         if (longPressTriggered.current) {
           longPressTriggered.current = false;
           return;

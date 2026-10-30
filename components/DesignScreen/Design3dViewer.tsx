@@ -14,6 +14,7 @@ import {
 
 const cameraControlsProps = {
   mouseButtons: {
+    LEFT: THREE.MOUSE.ROTATE,
     MIDDLE: THREE.MOUSE.ROTATE,
   },
   touches: {
@@ -248,6 +249,7 @@ export default function Design3dView({
   const isDragging = useRef(0);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const controlsRef = useRef<any>(null);
+  const pointerDownPosRef = useRef<{ x: number; y: number } | null>(null);
   const [, forceUpdate] = useState(0);
 
   const handleDragStateChange = (dragging: boolean) => {
@@ -261,7 +263,21 @@ export default function Design3dView({
       shadows
       style={{ background: COLORS.sceneBg }}
       camera={{ position: [0, 3, 3] }}
-      onPointerMissed={() => {
+      onPointerDown={(e: any) => {
+        const clientX = e.clientX ?? e.nativeEvent?.pageX ?? 0;
+        const clientY = e.clientY ?? e.nativeEvent?.pageY ?? 0;
+        pointerDownPosRef.current = { x: clientX, y: clientY };
+      }}
+      onPointerMissed={(e: any) => {
+        if (pointerDownPosRef.current) {
+          const clientX = e.clientX ?? e.nativeEvent?.pageX ?? 0;
+          const clientY = e.clientY ?? e.nativeEvent?.pageY ?? 0;
+          const dx = Math.abs(clientX - pointerDownPosRef.current.x);
+          const dy = Math.abs(clientY - pointerDownPosRef.current.y);
+          if (Math.sqrt(dx * dx + dy * dy) > 5) {
+            return;
+          }
+        }
         if (setMovingObject) setMovingObject(undefined);
       }}
     >
