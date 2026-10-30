@@ -23,6 +23,20 @@ export interface ModuleElevation {
   outsideWall: boolean;
 }
 
+export interface HorizontalGapMeasurement {
+  id: string;
+  left: number;
+  width: number;
+  y: number;
+}
+
+export interface VerticalGapMeasurement {
+  id: string;
+  x: number;
+  bottom: number;
+  height: number;
+}
+
 export function getMeasurementWalls(room: Room3dProps): MeasurementWall[] {
   const walls = [
     ...(room.leftWall ? [{ view: WallView.Left, label: 'Left', width: room.depth }] : []),
@@ -52,6 +66,126 @@ export function getModuleElevations(objects: DesignObject[], room: Room3dProps, 
     return [{ object, left, bottom, width: projectedWidth, height,
       outsideWall: left < -0.001 || left + projectedWidth > wall.width + 0.001 || bottom < -0.001 || bottom + height > room.height + 0.001 }];
   }).sort((a, b) => a.left - b.left || a.bottom - b.bottom || a.object.id.localeCompare(b.object.id));
+}
+
+const MIN_GAP_METERS = 0.005;
+
+export function getElevationGaps(
+  modules: ModuleElevation[],
+  wall: MeasurementWall
+): {
+  horizontalGaps: HorizontalGapMeasurement[];
+  verticalGaps: VerticalGapMeasurement[];
+} {
+  const horizontalGaps: HorizontalGapMeasurement[] = [];
+  const verticalGaps: VerticalGapMeasurement[] = [];
+
+  const upperModules = modules.filter(
+    m => m.object.objectProperties?.movingBehaviour === 'cupboard' || m.bottom >= 0.5
+  );
+  const lowerModules = modules.filter(
+    m => m.object.objectProperties?.movingBehaviour !== 'cupboard' && m.bottom < 0.5
+  );
+
+  const computeRowHorizontalGaps = (row: ModuleElevation[], prefix: string) => {
+    if (row.length === 0) return;
+    const sorted = [...row].sort((a, b) => a.left - b.left);
+
+    const first = sorted[0];
+    if (first.left >= MIN_GAP_METERS) {
+      horizontalGaps.push({
+        id: `${prefix}-left-wall`,
+        left: 0,
+        width: first.left,
+        y: first.bottom + first.height / 2,
+      });
+    }
+
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const current = sorted[i];
+      const next = sorted[i + 1];
+      const currentRight = current.left + current.width;
+      const gap = next.left - currentRight;
+      if (gap >= MIN_GAP_METERS) {
+        const overlapBottom = Math.max(current.bottom, next.bottom);
+        const overlapTop = Math.min(current.bottom + current.height, next.bottom + next.height);
+        const midY =
+          overlapTop > overlapBottom
+            ? (overlapBottom + overlapTop) / 2
+            : (current.bottom + current.height / 2 + next.bottom + next.height / 2) / 2;
+        horizontalGaps.push({
+          id: `${prefix}-${current.object.id}-${next.object.id}`,
+          left: currentRight,
+          width: gap,
+          y: midY,
+        });
+      }
+    }
+
+    const last = sorted[sorted.length - 1];
+    const lastRight = last.left + last.width;
+    const rightWallGap = wall.width - lastRight;
+    if (rightWallGap >= MIN_GAP_METERS) {
+      horizontalGaps.push({
+        id: `${prefix}-right-wall`,
+        left: lastRight,
+        width: rightWallGap,
+        y: last.bottom + last.height / 2,
+      });
+    }
+  };
+
+  computeRowHorizontalGaps(lowerModules, 'lower');
+  computeRowHorizontalGaps(upperModules, 'upper');
+
+  const usedVerticalKeys = new Set<string>();
+
+  for (const upper of upperModules) {
+    const overlappingLowers = lowerModules.filter(lower => {
+      const overlapStart = Math.max(upper.left, lower.left);
+      const overlapEnd = Math.min(upper.left + upper.width, lower.left + lower.width);
+      return overlapEnd - overlapStart >= 0.01 && lower.bottom + lower.height <= upper.bottom + 0.005;
+    });
+
+    if (overlappingLowers.length > 0) {
+      let highestLower = overlappingLowers[0];
+      for (const candidate of overlappingLowers) {
+        if (candidate.bottom + candidate.height > highestLower.bottom + highestLower.height) {
+          highestLower = candidate;
+        }
+      }
+      const lowerTop = highestLower.bottom + highestLower.height;
+      const vGap = upper.bottom - lowerTop;
+      if (vGap >= MIN_GAP_METERS) {
+        const overlapStart = Math.max(upper.left, highestLower.left);
+        const overlapEnd = Math.min(
+          upper.left + upper.width,
+          highestLower.left + highestLower.width
+        );
+        const midX = (overlapStart + overlapEnd) / 2;
+        const key = `${Math.round(lowerTop * 1000)}-${Math.round(upper.bottom * 1000)}-${Math.round(midX * 100)}`;
+        if (!usedVerticalKeys.has(key)) {
+          usedVerticalKeys.add(key);
+          verticalGaps.push({
+            id: `vgap-${upper.object.id}-${highestLower.object.id}`,
+            x: midX,
+            bottom: lowerTop,
+            height: vGap,
+          });
+        }
+      }
+    } else if (upper.bottom >= MIN_GAP_METERS) {
+      const midX = upper.left + upper.width / 2;
+      verticalGaps.push({
+        id: `vgap-floor-${upper.object.id}`,
+        x: midX,
+        bottom: 0,
+        height: upper.bottom,
+      });
+    }
+  }
+
+  return { horizontalGaps, verticalGaps };
 }
 
 export function formatMeasurement(meters: number): string {

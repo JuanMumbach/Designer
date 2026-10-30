@@ -1,9 +1,33 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useCurrentProject } from '../../services/currentProject';
-import { formatMeasurement, getMeasurementWalls, getModuleElevations, WallView } from '../../services/measurements';
-import MeasurementModels from '../../components/DesignScreen/Measurements/MeasurementModels';
+import {
+  formatMeasurement,
+  getElevationGaps,
+  getMeasurementWalls,
+  getModuleElevations,
+  MeasurementWall,
+  WallView,
+} from '../../services/measurements';
+import MeasurementModels, {
+  ElevationCaptureApi,
+} from '../../components/DesignScreen/Measurements/MeasurementModels';
+import MeasurementsExportModal from '../../components/DesignScreen/Measurements/MeasurementsExportModal';
+import {
+  computeDocumentDimensions,
+  computeWallGeometry,
+  MeasurementExportOptions,
+  renderMeasurementExportImage,
+} from '../../services/measurementsExport';
+import {
+  buildImageFilename,
+  downloadImagesAsZip,
+  downloadImagesIndividually,
+  downloadSingleImage,
+  ExportImageItem,
+  sanitizeFilenamePart,
+} from '../../services/imageExport';
 
 function Action({ label, onPress, disabled = false }: { label: string; onPress: () => void; disabled?: boolean }) {
   return <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={[styles.action, disabled && styles.disabled]}>
@@ -26,6 +50,9 @@ export default function MeasuresScreen() {
   const [viewportWidth, setViewportWidth] = useState(800);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [modelStatus, setModelStatus] = useState<Record<string, 'ready' | 'unavailable'>>({});
+  const [exportModalVisible, setExportModalVisible] = useState(false);
+  const elevationCaptureRef = useRef<ElevationCaptureApi | null>(null);
+
   const handleModelStatus = useCallback((key: string, status: 'ready' | 'unavailable') => {
     setModelStatus(current => current[key] === status ? current : { ...current, [key]: status });
   }, []);
@@ -33,6 +60,116 @@ export default function MeasuresScreen() {
   const wall = walls.find(item => item.view === selectedView) ?? walls[0];
   const modules = useMemo(() => designSnapshot && wall
     ? getModuleElevations(designSnapshot.objects, designSnapshot.room, wall) : [], [designSnapshot, wall]);
+  const { horizontalGaps, verticalGaps } = useMemo(
+    () => (wall ? getElevationGaps(modules, wall) : { horizontalGaps: [], verticalGaps: [] }),
+    [modules, wall]
+  );
+
+  const getModulesForWall = useCallback(
+    (targetWall: MeasurementWall) => {
+      if (!designSnapshot) return [];
+      return getModuleElevations(designSnapshot.objects, designSnapshot.room, targetWall);
+    },
+    [designSnapshot]
+  );
+
+  const activeProjectName = project?.name || projectName || 'Project';
+
+  const handleExportWalls = useCallback(
+    async (
+      wallsToExport: MeasurementWall[],
+      options: MeasurementExportOptions,
+      mode: 'single' | 'individual' | 'zip'
+    ) => {
+      if (!designSnapshot || !wall) return;
+      const originalView = selectedView;
+      const exportedItems: ExportImageItem[] = [];
+
+      for (const targetWall of wallsToExport) {
+        const wallMods = getModulesForWall(targetWall);
+        if (targetWall.view !== selectedView) {
+          setSelectedView(targetWall.view);
+          await new Promise(resolve => setTimeout(resolve, 260));
+        } else {
+          await new Promise(resolve => setTimeout(resolve, 60));
+        }
+
+        const minX = Math.min(0, ...wallMods.map(m => m.left));
+        const maxX = Math.max(targetWall.width, ...wallMods.map(m => m.left + m.width));
+        const minY = Math.min(0, ...wallMods.map(m => m.bottom));
+        const maxY = Math.max(designSnapshot.room.height, ...wallMods.map(m => m.bottom + m.height));
+        const currentScale = Math.max(24, Math.min(Math.max(180, viewportWidth - 160) / (maxX - minX), 420 / (maxY - minY))) * zoom;
+        const currentOriginX = 56 - minX * currentScale;
+        const currentOriginY = 66 + maxY * currentScale;
+        const currentDrawingWidth = Math.max(viewportWidth - 34, (maxX - minX) * currentScale + 144);
+        const currentDrawingHeight = (maxY - minY) * currentScale + 150;
+        const currentWallTop = currentOriginY - designSnapshot.room.height * currentScale;
+
+        const geometry = wallMods.length > 0
+          ? {
+              minX,
+              maxX,
+              minY,
+              maxY,
+              baseScale: currentScale,
+              originX: currentOriginX,
+              originY: currentOriginY,
+              drawingWidth: currentDrawingWidth,
+              drawingHeight: currentDrawingHeight,
+              wallTop: currentWallTop,
+            }
+          : computeWallGeometry(targetWall, designSnapshot.room, wallMods, viewportWidth);
+
+        const docDims = computeDocumentDimensions(geometry, options);
+        const captureW = Math.round(geometry.drawingWidth * docDims.scaleFactor);
+        const captureH = Math.round(geometry.drawingHeight * docDims.scaleFactor);
+
+        const modelCapture =
+          wallMods.length > 0 && elevationCaptureRef.current
+            ? await elevationCaptureRef.current.captureElevation(captureW, captureH)
+            : null;
+
+        const rendered = await renderMeasurementExportImage({
+          wall: targetWall,
+          room: designSnapshot.room,
+          modules: wallMods,
+          geometry,
+          options,
+          modelCapture,
+        });
+
+        const filename = buildImageFilename(
+          activeProjectName,
+          `${targetWall.name}_${targetWall.label}_Elevation`,
+          rendered.width,
+          rendered.height
+        );
+
+        exportedItems.push({
+          filename,
+          bytes: rendered.bytes,
+          base64: rendered.base64,
+          dataUrl: rendered.dataUrl,
+        });
+      }
+
+      if (selectedView !== originalView) {
+        setSelectedView(originalView);
+      }
+
+      if (exportedItems.length === 0) return;
+
+      if (mode === 'single' || exportedItems.length === 1) {
+        await downloadSingleImage(exportedItems[0]);
+      } else if (mode === 'zip') {
+        const zipName = `${sanitizeFilenamePart(activeProjectName, 'Project')}_Measurements.zip`;
+        await downloadImagesAsZip(exportedItems, zipName);
+      } else {
+        await downloadImagesIndividually(exportedItems);
+      }
+    },
+    [designSnapshot, wall, selectedView, getModulesForWall, viewportWidth, zoom, activeProjectName]
+  );
 
   if (!designSnapshot || !wall) {
     return <View style={styles.empty}>
@@ -67,6 +204,13 @@ export default function MeasuresScreen() {
           <Text style={styles.zoom}>{Math.round(zoom * 100)}%</Text>
           <Action label="Zoom in" disabled={zoom >= 3} onPress={() => setZoom(value => Math.min(3, value + 0.5))} />
           <Action label="Fit" onPress={() => setZoom(1)} />
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setExportModalVisible(true)}
+            style={styles.exportAction}
+          >
+            <Text style={styles.exportActionText}>Export Measurements Image</Text>
+          </Pressable>
         </View>
       </View>
       <View style={styles.tabs} accessibilityRole="tablist">
@@ -87,7 +231,7 @@ export default function MeasuresScreen() {
           <Dimension left={originX} top={wallTop - 38} width={wall.width * scale} label={`${formatMeasurement(wall.width)} mm`} />
           <View style={[styles.wallOutline, { left: originX, top: wallTop, width: wall.width * scale, height: room.height * scale }]} />
           {modules.length > 0 && <MeasurementModels modules={modules} wall={wall.view} scale={scale} originX={originX} originY={originY}
-            width={drawingWidth} height={drawingHeight} onStatus={handleModelStatus} />}
+            width={drawingWidth} height={drawingHeight} onStatus={handleModelStatus} captureRef={elevationCaptureRef} />}
           <View style={[styles.verticalDimension, { left: originX + wall.width * scale + 24, top: wallTop, height: room.height * scale }]}>
             <View style={styles.verticalRule} /><View style={styles.topTick} /><View style={styles.bottomTick} />
             <Text style={styles.verticalText}>{formatMeasurement(room.height)} mm</Text>
@@ -107,6 +251,28 @@ export default function MeasuresScreen() {
               {status !== 'ready' && width >= 68 && height >= 58 && <Text style={styles.modelStatus}>{status === 'unavailable' ? 'Model unavailable' : 'Loading model…'}</Text>}
               {width >= 68 && height >= 58 && <Text style={styles.moduleSize}>{formatMeasurement(module.width)} × {formatMeasurement(module.height)}</Text>}
             </Pressable>;
+          })}
+          {horizontalGaps.map(gap => {
+            const left = originX + gap.left * scale;
+            const width = gap.width * scale;
+            const top = originY - gap.y * scale - 10;
+            return <View key={gap.id} pointerEvents="none" style={[styles.gapHorizontal, { left, top, width }]}>
+              <View style={styles.gapHorizontalRule} />
+              <View style={styles.gapStartTick} />
+              <View style={styles.gapEndTick} />
+              <Text numberOfLines={1} style={styles.gapLabelText}>{formatMeasurement(gap.width)} mm</Text>
+            </View>;
+          })}
+          {verticalGaps.map(vgap => {
+            const left = originX + vgap.x * scale - 36;
+            const top = originY - (vgap.bottom + vgap.height) * scale;
+            const height = vgap.height * scale;
+            return <View key={vgap.id} pointerEvents="none" style={[styles.gapVertical, { left, top, height }]}>
+              <View style={styles.gapVerticalRule} />
+              <View style={styles.gapTopTick} />
+              <View style={styles.gapBottomTick} />
+              <Text numberOfLines={1} style={styles.gapLabelText}>{formatMeasurement(vgap.height)} mm</Text>
+            </View>;
           })}
           <Text style={[styles.floorLabel, { left: originX, top: originY + 16 }]}>Floor · 0 mm</Text>
           <Text style={[styles.edgeLabel, { left: originX, top: originY + 40 }]}>{wall.view === WallView.Left ? 'Room opening' : wall.view === WallView.Right ? 'Front wall' : 'Left edge'}</Text>
@@ -136,6 +302,17 @@ export default function MeasuresScreen() {
         </ScrollView>
       </>}
     </ScrollView>
+    <MeasurementsExportModal
+      visible={exportModalVisible}
+      onClose={() => setExportModalVisible(false)}
+      currentWall={wall}
+      allWalls={walls}
+      room={room}
+      currentModules={modules}
+      getModulesForWall={getModulesForWall}
+      projectName={activeProjectName}
+      onExportWalls={handleExportWalls}
+    />
   </View>;
 }
 
@@ -146,7 +323,10 @@ const styles = StyleSheet.create({
   heading: { gap: 6 }, title: { fontSize: 24, fontWeight: '700', color: '#000' }, description: { fontSize: 13, color: '#333', lineHeight: 20 },
   controls: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
   action: { minHeight: 40, paddingHorizontal: 12, justifyContent: 'center', borderWidth: 1, borderColor: '#000', borderRadius: 6 },
-  actionText: { color: '#000', fontSize: 13, fontWeight: '600' }, disabled: { opacity: 0.35 },
+  actionText: { color: '#000', fontSize: 13, fontWeight: '600' },
+  exportAction: { minHeight: 40, paddingHorizontal: 14, justifyContent: 'center', backgroundColor: '#000', borderWidth: 1, borderColor: '#000', borderRadius: 6 },
+  exportActionText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  disabled: { opacity: 0.35 },
   zoom: { color: '#000', fontSize: 12, minWidth: 36, textAlign: 'center' }, tabs: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   tab: { minWidth: 92, paddingHorizontal: 18, paddingVertical: 10, borderWidth: 1, borderColor: '#000', borderRadius: 6, gap: 4 },
   activeTab: { backgroundColor: '#000' }, tabName: { color: '#000', fontSize: 15, fontWeight: '700' },
@@ -163,6 +343,15 @@ const styles = StyleSheet.create({
   topTick: { position: 'absolute', top: 0, left: -5, width: 11, borderTopWidth: 1, borderColor: '#000' },
   bottomTick: { position: 'absolute', bottom: 0, left: -5, width: 11, borderTopWidth: 1, borderColor: '#000' },
   verticalText: { color: '#000', fontSize: 11, backgroundColor: '#fff', paddingVertical: 4, marginLeft: 5 },
+  gapHorizontal: { position: 'absolute', height: 20, alignItems: 'center', justifyContent: 'center' },
+  gapHorizontalRule: { position: 'absolute', left: 0, right: 0, top: 10, borderTopWidth: 1, borderStyle: 'dashed', borderColor: '#1d4ed8' },
+  gapStartTick: { position: 'absolute', left: 0, top: 5, height: 10, borderLeftWidth: 1, borderColor: '#1d4ed8' },
+  gapEndTick: { position: 'absolute', right: 0, top: 5, height: 10, borderRightWidth: 1, borderColor: '#1d4ed8' },
+  gapVertical: { position: 'absolute', width: 72, alignItems: 'center', justifyContent: 'center' },
+  gapVerticalRule: { position: 'absolute', top: 0, bottom: 0, left: 36, borderLeftWidth: 1, borderStyle: 'dashed', borderColor: '#1d4ed8' },
+  gapTopTick: { position: 'absolute', top: 0, left: 31, width: 10, borderTopWidth: 1, borderColor: '#1d4ed8' },
+  gapBottomTick: { position: 'absolute', bottom: 0, left: 31, width: 10, borderBottomWidth: 1, borderColor: '#1d4ed8' },
+  gapLabelText: { color: '#1d4ed8', fontSize: 10, fontWeight: '600', backgroundColor: 'rgba(255,255,255,0.92)', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 3, borderWidth: 1, borderColor: '#bfdbfe' },
   module: { position: 'absolute', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   modulePlaceholder: { backgroundColor: '#fff' }, selectedModule: { borderWidth: 3, borderColor: '#000', borderStyle: 'dashed' },
   moduleNumber: { position: 'absolute', top: 3, left: 3, paddingHorizontal: 3, backgroundColor: '#fff', fontSize: 12, fontWeight: '700', color: '#000' },
