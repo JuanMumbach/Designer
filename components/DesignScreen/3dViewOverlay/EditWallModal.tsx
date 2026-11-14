@@ -15,7 +15,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Room3dProps, WallConfig, WallIdentifier, WallTileZone } from '../3dView/Room3d';
 import { AppliedMaterial, DesignObject, GlobalMaterials, resolveGlobalMaterials } from '../3dView/DesignObjects';
 import { resolveWallTileZones } from '../3dView/wallTiles';
-import { MaterialCategory, MaterialData, MaterialMeta } from '../../../services/api';
+import { MaterialCategory, MaterialData, MaterialMeta, MaterialType } from '../../../services/api';
 import FormPanel, { formStyles } from '../../Editors/FormPanel';
 import { InspectorRow, inspectorStyles } from '../../Catalogue/CatalogueView';
 import MaterialPicker from './MaterialPicker';
@@ -28,6 +28,7 @@ interface EditWallModalProps {
   setRoom3d: React.Dispatch<React.SetStateAction<Room3dProps>>;
   materials: MaterialMeta[];
   materialCategories: MaterialCategory[];
+  materialTypes?: MaterialType[];
   materialDataById?: Record<string, AppliedMaterial>;
   globalMaterials?: GlobalMaterials;
   designObjects: DesignObject[];
@@ -50,6 +51,7 @@ export default function EditWallModal({
   setRoom3d,
   materials,
   materialCategories,
+  materialTypes = [],
   materialDataById,
   globalMaterials,
   designObjects,
@@ -114,22 +116,33 @@ export default function EditWallModal({
   const baseMaterialMeta = materials.find((m) => m.id === effectiveBaseMaterialId);
   const defaultTileMaterialMeta = materials.find((m) => m.id === effectiveTileMaterialId);
 
+  const typeNameById = useMemo(
+    () => new Map(materialTypes.map((t) => [t.id, t.name])),
+    [materialTypes]
+  );
+
+  const resolveMaterialTypeName = (material?: MaterialMeta): string | undefined => {
+    if (!material) return undefined;
+    return material.type?.name ?? (material.typeId ? typeNameById.get(material.typeId) : undefined);
+  };
+
   const wallMaterials = useMemo(() => {
-    const filtered = materials.filter(
-      (m) => m.type?.name?.toLowerCase().includes('wall') || m.type?.name?.toLowerCase().includes('pared')
-    );
+    const filtered = materials.filter((m) => {
+      const typeName = m.type?.name ?? (m.typeId ? typeNameById.get(m.typeId) : undefined);
+      const lower = typeName?.toLowerCase();
+      return Boolean(lower && (lower.includes('wall') || lower.includes('pared')));
+    });
     return filtered.length > 0 ? filtered : materials;
-  }, [materials]);
+  }, [materials, typeNameById]);
 
   const tileMaterials = useMemo(() => {
-    const filtered = materials.filter(
-      (m) =>
-        m.type?.name?.toLowerCase().includes('tile') ||
-        m.type?.name?.toLowerCase().includes('azulejo') ||
-        m.type?.name?.toLowerCase().includes('revestimiento')
-    );
+    const filtered = materials.filter((m) => {
+      const typeName = m.type?.name ?? (m.typeId ? typeNameById.get(m.typeId) : undefined);
+      const lower = typeName?.toLowerCase();
+      return Boolean(lower && (lower.includes('tile') || lower.includes('azulejo') || lower.includes('revestimiento')));
+    });
     return filtered.length > 0 ? filtered : materials;
-  }, [materials]);
+  }, [materials, typeNameById]);
 
   const handleSelectMaterial = async (meta: MaterialMeta, _data: MaterialData) => {
     if (_data?.fileURL) {
@@ -229,7 +242,7 @@ export default function EditWallModal({
                         {baseMaterialMeta.name}
                       </Text>
                       <Text style={styles.materialType}>
-                        {baseMaterialMeta.type?.name ?? 'Revestimiento'}
+                        {resolveMaterialTypeName(baseMaterialMeta) ?? 'Revestimiento'}
                       </Text>
                     </View>
                     <Pressable
@@ -303,7 +316,7 @@ export default function EditWallModal({
                             {defaultTileMaterialMeta.name}
                           </Text>
                           <Text style={styles.materialType}>
-                            {defaultTileMaterialMeta.type?.name ?? 'Azulejo'}
+                            {resolveMaterialTypeName(defaultTileMaterialMeta) ?? 'Azulejo'}
                           </Text>
                         </View>
                         <Pressable

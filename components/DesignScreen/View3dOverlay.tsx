@@ -3,7 +3,7 @@ import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Dimensions, LayoutChangeEvent, Pressable, ScaledSize, StyleSheet, Text, View, ViewProps } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { MaterialCategory, MaterialMeta, ObjectCategory, ObjectMaterialType } from "../../services/api";
+import { MaterialCategory, MaterialMeta, MaterialType, ObjectCategory, ObjectMaterialType } from "../../services/api";
 import { SavedView } from "../../services/currentProject";
 import { DesignMaterialSlot } from "../../services/designMaterialDefaults";
 import { CameraStateSnapshot, ThumbnailCaptureApi } from "../../services/thumbnailCapture";
@@ -42,6 +42,7 @@ interface View3dOverlayProps {
   onClearMeasurementEdit?: () => void;
   materials: MaterialMeta[];
   materialCategories: MaterialCategory[];
+  materialTypes?: MaterialType[];
   globalMaterials: GlobalMaterials;
   setGlobalMaterials: React.Dispatch<React.SetStateAction<GlobalMaterials>>;
   materialDataById: Record<string, AppliedMaterial>;
@@ -150,6 +151,7 @@ export default function View3dOverlay({
   onClearMeasurementEdit,
   materials,
   materialCategories,
+  materialTypes,
   globalMaterials,
   setGlobalMaterials,
   materialDataById,
@@ -1018,6 +1020,7 @@ export default function View3dOverlay({
           setRoom3d={setRoom3d}
           materials={materials}
           materialCategories={materialCategories}
+          materialTypes={materialTypes}
           materialDataById={materialDataById}
           globalMaterials={globalMaterials}
           designObjects={designObjects}

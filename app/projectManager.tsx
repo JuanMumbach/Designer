@@ -10,7 +10,6 @@ import {
   fetchAllUsers,
   fetchAllWorkspaces,
   fetchProjectVersion,
-  fetchProjectVersions,
   Project,
   Workspace,
 } from "../services/api";
@@ -57,8 +56,6 @@ export default function ProjectManagerScreen() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [users, setUsers] = useState<BackendUser[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const [createdDate, setCreatedDate] = useState<string | null>(null);
-  const [derivingDate, setDerivingDate] = useState(false);
   const [groupBy, setGroupBy] = useState<"lastUpdate" | "createdAt">("lastUpdate");
   const [loading, setLoading] = useState(true);
 
@@ -86,36 +83,6 @@ export default function ProjectManagerScreen() {
       loadData();
     }, [loadData])
   );
-
-  useEffect(() => {
-    setCreatedDate(null);
-    if (!selectedProject) {
-      setDerivingDate(false);
-      return;
-    }
-    if (hasUsableDate(selectedProject.createdAt)) {
-      setDerivingDate(false);
-      return;
-    }
-    let cancelled = false;
-    setDerivingDate(true);
-    fetchProjectVersions(selectedProject.id)
-      .then((versions) => {
-        if (cancelled) return;
-        const sorted = [...versions].sort((a, b) => a.version - b.version);
-        const first = sorted.find((v) => hasUsableDate(v.createdAt));
-        setCreatedDate(first?.createdAt ?? null);
-      })
-      .catch(() => {
-        if (!cancelled) setCreatedDate(null);
-      })
-      .finally(() => {
-        if (!cancelled) setDerivingDate(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedProject]);
 
   const workspaceNameById = useMemo(() => {
     const map: Record<string, string> = {};
@@ -293,13 +260,8 @@ export default function ProjectManagerScreen() {
     return `${project.creatorId.slice(0, 8)}…`;
   };
 
-  const creationDateLabel = (project: Project) => {
-    if (hasUsableDate(project.createdAt)) {
-      return formatDate(project.createdAt);
-    }
-    if (derivingDate) return "…";
-    return formatDate(createdDate ?? undefined);
-  };
+  const creationDateLabel = (project: Project) =>
+    hasUsableDate(project.createdAt) ? formatDate(project.createdAt) : "—";
 
   const inspector = selectedProject ? (
     <View>

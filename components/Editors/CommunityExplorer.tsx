@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import { useAuth } from '../../services/AuthContext';
-import { fetchAllWorkspaces, Workspace } from '../../services/api';
+import { fetchAllMaterialTypes, fetchAllWorkspaces, MaterialType, Workspace } from '../../services/api';
 import { useObjects } from '../../services/useObjects';
 import { useMaterials } from '../../services/useMaterials';
 import { COLORS } from '@/constants/theme';
@@ -38,6 +38,7 @@ interface PublicItem {
   name: string;
   lastVersion: number;
   creatorId?: string;
+  typeId?: string | null;
   type?: { name: string } | null;
 }
 
@@ -52,6 +53,7 @@ export default function CommunityExplorer() {
   const { backendUserId, selectedWorkspaceId: contextSelectedWorkspaceId } = useAuth();
 
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([]);
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
     null
   );
@@ -124,6 +126,29 @@ export default function CommunityExplorer() {
     setPendingAction(action);
   };
 
+  useEffect(() => {
+    let mounted = true;
+    fetchAllMaterialTypes()
+      .then((types) => {
+        if (mounted) setMaterialTypes(types);
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const typeNameById = useMemo(
+    () => new Map(materialTypes.map((t) => [t.id, t.name])),
+    [materialTypes]
+  );
+
+  const resolveTypeName = useCallback(
+    (item: PublicItem): string | undefined =>
+      item.type?.name ?? (item.typeId ? typeNameById.get(item.typeId) : undefined),
+    [typeNameById]
+  );
+
   const items: PublicItem[] = kind === 'objects'
     ? objectsQuery.publicObjects
     : materialsQuery.publicMaterials;
@@ -146,11 +171,11 @@ export default function CommunityExplorer() {
           id: item.id,
           name: item.name,
           subtitle: `v${item.lastVersion} · ${item.creatorId?.slice(0, 8) ?? ''}…`,
-          badge: item.type?.name,
+          badge: resolveTypeName(item),
         })),
       },
     ];
-  }, [items, kind, query]);
+  }, [items, kind, query, resolveTypeName]);
 
   const selectedItem = items.find((item) => item.id === selectedId) ?? null;
 
@@ -232,12 +257,14 @@ export default function CommunityExplorer() {
     );
   };
 
+  const selectedTypeName = selectedItem ? resolveTypeName(selectedItem) : undefined;
+
   const inspector = selectedItem ? (
     <View>
       <InspectorRow label="Nombre" value={selectedItem.name} />
       <InspectorRow label="Versión" value={`v${selectedItem.lastVersion}`} />
       <InspectorRow label="Creador" value={`${selectedItem.creatorId?.slice(0, 8) ?? ''}…`} />
-      {!!selectedItem.type?.name && <InspectorRow label="Tipo" value={selectedItem.type.name} />}
+      {!!selectedTypeName && <InspectorRow label="Tipo" value={selectedTypeName} />}
     </View>
   ) : null;
 

@@ -574,6 +574,7 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
         onClearMeasurementEdit={() => setActiveMeasurementEdit(undefined)}
         materials={materials}
         materialCategories={materialCategories}
+        materialTypes={materialTypes}
         globalMaterials={globalMaterials}
         setGlobalMaterials={setGlobalMaterials}
         materialDataById={materialDataById}

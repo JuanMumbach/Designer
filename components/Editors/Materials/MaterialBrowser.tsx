@@ -184,6 +184,14 @@ export default function MaterialBrowser({
     [materials, selectedId]
   );
 
+  const typeNameById = useMemo(
+    () => new Map(materialTypes.map((t) => [t.id, t.name])),
+    [materialTypes]
+  );
+
+  const resolveMaterialTypeName = (material: MaterialMeta): string | undefined =>
+    material.type?.name ?? (material.typeId ? typeNameById.get(material.typeId) : undefined);
+
   const groups = useMemo((): CatalogueGroup[] => {
     const needle = query.trim().toLocaleLowerCase();
     const filtered = materials
@@ -194,9 +202,10 @@ export default function MaterialBrowser({
       const key = groupBy === 'category'
         ? material.categoryId ?? UNCATEGORIZED_KEY
         : material.typeId ?? UNCATEGORIZED_KEY;
+      const typeName = material.type?.name ?? (material.typeId ? typeNameById.get(material.typeId) : undefined);
       const label = groupBy === 'category'
         ? getCategoryPath(material.categoryId, categories)
-        : material.type?.name ?? materialTypes.find((t) => t.id === material.typeId)?.name ?? 'Sin tipo';
+        : typeName ?? 'Sin tipo';
       let group = map.get(key);
       if (!group) {
         group = { key, label, items: [] };
@@ -206,7 +215,7 @@ export default function MaterialBrowser({
         id: material.id,
         name: material.name,
         subtitle: `v${material.lastVersion}`,
-        badge: material.type?.name,
+        badge: typeName,
         thumbnailUri: thumbnails[material.id],
       });
     }
@@ -215,7 +224,7 @@ export default function MaterialBrowser({
       if (b.key === UNCATEGORIZED_KEY) return -1;
       return a.label.localeCompare(b.label);
     });
-  }, [materials, categories, materialTypes, query, groupBy, thumbnails]);
+  }, [materials, categories, typeNameById, query, groupBy, thumbnails]);
 
   const handleSaveMaterial = async (data: MaterialFormData, isEdit: boolean) => {
     if (isEdit && editingMaterial) {
@@ -607,7 +616,7 @@ export default function MaterialBrowser({
     <View>
       <InspectorRow label="Nombre" value={selectedMaterial.name} />
       <InspectorRow label="Categoría" value={getCategoryPath(selectedMaterial.categoryId, categories)} />
-      <InspectorRow label="Tipo" value={selectedMaterial.type?.name ?? 'Sin tipo'} />
+      <InspectorRow label="Tipo" value={resolveMaterialTypeName(selectedMaterial) ?? 'Sin tipo'} />
       <InspectorRow label="Versión" value={`v${selectedMaterial.lastVersion}`} />
       <InspectorRow label="Visibilidad" value={selectedMaterial.isPublic ? 'Comunidad' : 'Privado'} />
       <InspectorRow

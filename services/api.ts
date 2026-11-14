@@ -73,7 +73,9 @@ export async function saveRole(
 ): Promise<void> {
   const response = await apiFetch(`/api/${scope}${role.id ? `/${role.id}` : ''}`, {
     method: role.id ? 'PUT' : 'POST',
-    body: JSON.stringify(role),
+    body: JSON.stringify(scope === 'AppRole'
+      ? { name: role.name, description: role.description, canManageApplication: role.canManageApplication ?? false }
+      : { name: role.name, description: role.description, accessLevel: role.accessLevel ?? WorkspaceAccessLevel.Designer }),
   });
   if (!response.ok) throw new Error('No se pudo guardar el rol.');
 }
@@ -177,9 +179,7 @@ export interface ObjectModel {
   lastUpdate: string;
   lastVersion: number;
   creatorId: string;
-  creator: unknown | null;
   categoryId: string | null;
-  category: ObjectCategory | null;
   isPublic: boolean;
 }
 
@@ -187,7 +187,7 @@ export interface ObjectCategory {
   id: string;
   categoryName: string;
   parentCategoryId: string | null;
-  parentCategory: unknown | null;
+  parentCategory?: ObjectCategory | null;
 }
 export interface ObjectProperties {
   movingBehaviour?: 'counter' | 'cupboard' | 'free';
@@ -200,7 +200,6 @@ export interface ObjectVersion {
   budgetEntries?: import('./budget').ModelBudgetEntry[];
   variants?: import('./variants').ObjectVariant[];
   objectId: string;
-  object: unknown | null;
   version: number;
   fileURL: string;
   thumbnailURL?: string | null;
@@ -208,7 +207,6 @@ export interface ObjectVersion {
   sizeY: number;
   sizeZ: number;
   creatorId: string;
-  creator: unknown | null;
   objectProperties?: ObjectProperties | string;
 }
 
@@ -388,7 +386,6 @@ export async function createObjectVersion(
     objectProperties?: string;
     creatorId: string;
     budgetEntries?: import('./budget').ModelBudgetEntry[];
-  variants?: import('./variants').ObjectVariant[];
     materialParts?: import('./materialParts').MaterialPart[];
     thumbnailURL?: string;
   }
@@ -414,7 +411,6 @@ export async function updateObjectVersion(
     sizeZ?: number;
     objectProperties?: string;
     budgetEntries?: import('./budget').ModelBudgetEntry[];
-  variants?: import('./variants').ObjectVariant[];
     materialParts?: import('./materialParts').MaterialPart[];
   }
 ): Promise<void> {
@@ -500,7 +496,7 @@ export interface MaterialCategory {
   id: string;
   categoryName: string;
   parentCategoryId: string | null;
-  parentCategory: MaterialCategory | null;
+  parentCategory?: MaterialCategory | null;
 }
 
 export interface MaterialMeta {
@@ -516,17 +512,14 @@ export interface MaterialMeta {
   lastUpdate: string;
   lastVersion: number;
   creatorId: string;
-  creator: unknown | null;
   categoryId: string | null;
-  category: MaterialCategory | null;
   typeId: string | null;
-  type: MaterialType | null;
+  type?: MaterialType | null;
   isPublic: boolean;
 }
 
 export interface MaterialData {
   materialId: string;
-  material: MaterialMeta | null;
   version: number;
   fileURL: string;
   thumbnailURL?: string | null;
@@ -534,7 +527,6 @@ export interface MaterialData {
   scaleV: number;
   materialProperties: string;
   creatorId: string;
-  creator: unknown | null;
 }
 
 // ── Material Categories API ──
@@ -650,6 +642,7 @@ export async function createMaterial(body: {
   name: string;
   creatorId: string;
   categoryId?: string;
+  typeId?: string;
 }): Promise<MaterialMeta> {
   const response = await apiFetch('/api/Materials', {
     method: 'POST',
@@ -909,11 +902,8 @@ export interface Workspace {
   name: string;
   logoURL?: string | null;
   creatorId: string;
-  creator: unknown | null;
   createdAt: string;
   lastUpdate: string;
-  projects?: Project[] | null;
-  members?: WorkspaceMember[] | null;
 }
 
 export async function fetchAllWorkspaces(): Promise<Workspace[]> {
@@ -1048,7 +1038,7 @@ export async function fetchAllWorkspaceRoles(): Promise<WorkspaceRole[]> {
 }
 
 export async function createWorkspaceRole(body: {
-  accessLevel?: WorkspaceAccessLevel;
+  accessLevel: WorkspaceAccessLevel;
   name: string;
   description?: string;
 }): Promise<WorkspaceRole> {
@@ -1064,7 +1054,7 @@ export async function createWorkspaceRole(body: {
 
 export async function updateWorkspaceRole(
   id: string,
-  body: { name?: string; description?: string | null }
+  body: { name?: string; description?: string | null; accessLevel?: WorkspaceAccessLevel }
 ): Promise<void> {
   const response = await apiFetch(`/api/WorkspaceRole/${id}`, {
     method: 'PUT',
@@ -1091,26 +1081,29 @@ export interface Project {
   lastUpdate: string;
   lastVersion: number;
   workspaceId: string | null;
-  workspace: Workspace | null;
   creatorId: string;
-  creator: unknown | null;
 }
 
 export interface ProjectVersion {
   projectId: string;
-  project: Project | null;
   version: number;
   fileURL: string;
   thumbnailURL?: string | null;
   creatorId: string;
-  creator: unknown | null;
-  createdAt?: string;
 }
 
 export async function fetchAllProjects(): Promise<Project[]> {
   const response = await apiFetch('/api/Projects');
   if (!response.ok) {
     throw new Error(`Failed to fetch projects: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function fetchPersonalProjects(creatorId: string): Promise<Project[]> {
+  const response = await apiFetch(`/api/Projects/personal?creatorId=${encodeURIComponent(creatorId)}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch personal projects: ${response.status}`);
   }
   return response.json();
 }
