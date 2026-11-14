@@ -22,6 +22,7 @@ import { fetchModelMaterialTypes, fetchObjectVariants, fetchObjectVersion, Mater
 import { ObjectVariant, parseDefaultVariantsSegment, resolveActiveVariants } from '../../../services/variants';
 import ModelSlotsSection from './ModelSlotsSection';
 import ObjectVariantsSection from './ObjectVariantsSection';
+import ObjectVariantEditor from './ObjectVariantEditor';
 import FormPanel, { formStyles } from '../FormPanel';
 
 export type ObjectFormData = {
@@ -114,6 +115,8 @@ export default function ObjectEditor({
   const [partDrafts, setPartDrafts] = useState(() => materialPartDrafts(initial?.materialParts ?? []));
   const [tab, setTab] = useState<'general' | 'model' | 'parts' | 'costs' | 'variants' | 'materials'>('general');
   const [budgetSlots, setBudgetSlots] = useState<{ slot: number; displayName: string }[]>([]);
+  const [variantEditor, setVariantEditor] = useState<{ variant: ObjectVariant | null; version: number } | null>(null);
+  const [variantsReloadKey, setVariantsReloadKey] = useState(0);
   useEffect(() => {
     let active = true;
     setBudgetSlots([]);
@@ -456,7 +459,9 @@ export default function ObjectEditor({
         <ObjectVariantsSection
           objectId={objectId}
           disabled={inputsDisabled}
+          reloadKey={variantsReloadKey}
           onPreviewVariantsChange={onPreviewVariantsChange}
+          onEditVariant={(variant, version) => setVariantEditor({ variant, version })}
         />
       ) : (
         <Text style={formStyles.hint}>Guardá el módulo para configurar sus accesorios y variantes.</Text>
@@ -469,6 +474,22 @@ export default function ObjectEditor({
 
   return (
     <>
+      {variantEditor && objectId ? (
+        <ObjectVariantEditor
+          objectId={objectId}
+          version={variantEditor.version}
+          variant={variantEditor.variant}
+          baseParts={readMaterialPartDrafts(partDrafts).parts}
+          baseEntries={readBudgetEntryDrafts(budgetDrafts).entries}
+          slots={budgetSlots}
+          onPreviewUriChange={onPreviewUriChange}
+          onClose={() => setVariantEditor(null)}
+          onSaved={() => {
+            setVariantEditor(null);
+            setVariantsReloadKey((k) => k + 1);
+          }}
+        />
+      ) : (
       <FormPanel
         title={isEdit ? 'Editar módulo' : 'Nuevo módulo'}
         tabs={tabs}
@@ -480,6 +501,7 @@ export default function ObjectEditor({
       >
         {renderTab()}
       </FormPanel>
+      )}
 
       <Modal
         visible={pendingPublicValue !== null}
