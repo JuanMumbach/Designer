@@ -396,4 +396,30 @@ const resGlobalNone = variants.resolveActiveVariants(
 );
 assert.equal(resGlobalNone.length, 0);
 
+// 7. Active handle usages detection & targeted handle replacement
+const sceneInstances = [
+  {
+    variants: moduleAVariants,
+    objectProperties: { defaultVariants: modADefaults },
+    selectedVariants: { handles: 'modA-h-gold' },
+  },
+  {
+    variants: moduleBVariants,
+    objectProperties: { defaultVariants: { handles: 'modB-h-black' } },
+    selectedVariants: undefined,
+  },
+];
+const usages = variants.collectActiveHandleUsages(sceneInstances, null, availableHandles);
+assert.equal(usages.length, 2);
+assert.ok(usages.some((u) => u.key === 'tirador-dorado' && u.count === 1));
+assert.ok(usages.some((u) => u.key === 'recto-negro' && u.count === 1));
+
+const replaceGoldWithBlack = variants.resolveVariantSelectionForHandleKey(moduleAVariants, 'recto-negro');
+assert.equal(replaceGoldWithBlack.matched, true);
+assert.equal(replaceGoldWithBlack.variantId, 'modA-h-black');
+
+const replaceWithNone = variants.resolveVariantSelectionForHandleKey(moduleAVariants, variants.HANDLE_NONE_KEY);
+assert.equal(replaceWithNone.matched, true);
+assert.equal(replaceWithNone.variantId, null);
+
 console.log('All Object Variant & Accessory System tests passed successfully!');

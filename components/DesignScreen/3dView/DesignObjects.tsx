@@ -3,7 +3,7 @@ import { generateUUID } from 'three/src/math/MathUtils.js';
 import { ObjectMaterialType, ObjectProperties } from '../../../services/api';
 import { resolveInstanceOverrides } from '../../../services/designMaterialDefaults';
 import { MaterialSlotInfo } from '../../../services/materialSlots';
-import { isHandleVariantGroup } from '../../../services/variants';
+import { isHandleVariant, isHandleVariantGroup, parseVariantProperties } from '../../../services/variants';
 import { DesignObject3D } from './remote3dModel';
 import { Room3dProps } from './Room3d';
 
@@ -92,8 +92,14 @@ export interface DesignObject {
 export function createDesignObject(template: ObjectTemplate, position?: [number, number, number]): DesignObject {
     const initialSelectedVariants: Record<string, string | null> = {};
     if (template.objectProperties?.defaultVariants) {
+        const handleGroups = new Set<string>();
+        for (const v of template.variants ?? []) {
+            if (isHandleVariant(v)) {
+                handleGroups.add(parseVariantProperties(v.variantProperties).group);
+            }
+        }
         for (const [grp, varId] of Object.entries(template.objectProperties.defaultVariants)) {
-            if (!isHandleVariantGroup(grp)) {
+            if (!isHandleVariantGroup(grp) && !handleGroups.has(grp)) {
                 initialSelectedVariants[grp] = varId;
             }
         }

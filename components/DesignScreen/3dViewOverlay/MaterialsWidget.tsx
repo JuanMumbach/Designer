@@ -2,11 +2,11 @@ import { COLORS, GLASS, RADII } from "@/constants/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View, ViewProps } from "react-native";
 import { MaterialMeta } from "../../../services/api";
 import { DesignMaterialSlot } from "../../../services/designMaterialDefaults";
-import { HandleTypeOption } from "../../../services/variants";
+import { ActiveHandleUsage, HandleTypeOption } from "../../../services/variants";
 import { AppliedMaterial, GlobalMaterials, resolveGlobalMaterials } from "../3dView/DesignObjects";
 import GlassSurface from "./GlassSurface";
 
@@ -49,8 +49,10 @@ export default function MaterialsWidget({
   onRequestPicker,
   onResetSlot,
   handleOptions = [],
+  activeHandleUsages = [],
   defaultHandleType,
   onSelectDefaultHandleType,
+  onReplaceHandleType,
   hasHandleInstanceOverrides = false,
   onClearHandleOverrides,
   compact = false,
@@ -67,13 +69,23 @@ export default function MaterialsWidget({
   onRequestPicker: (slotKey: string) => void;
   onResetSlot: (slotKey: string) => void;
   handleOptions?: HandleTypeOption[];
+  activeHandleUsages?: ActiveHandleUsage[];
   defaultHandleType?: string | null;
   onSelectDefaultHandleType?: (handleType: string | null) => void;
+  onReplaceHandleType?: (sourceHandleKey: string, targetHandleKey: string) => void;
   hasHandleInstanceOverrides?: boolean;
   onClearHandleOverrides?: () => void;
   compact?: boolean;
 }) {
+  const [replacingHandleKey, setReplacingHandleKey] = useState<string | null>(null);
   const resolved = useMemo(() => resolveGlobalMaterials(globalMaterials), [globalMaterials]);
+
+  useEffect(() => {
+    if (!replacingHandleKey) return;
+    if (!activeHandleUsages.some((u) => u.key === replacingHandleKey)) {
+      setReplacingHandleKey(null);
+    }
+  }, [activeHandleUsages, replacingHandleKey]);
 
   const thumbUri = (slotKey: string): string | undefined => {
     const materialId = resolved[slotKey];
@@ -158,9 +170,15 @@ export default function MaterialsWidget({
     );
   };
 
-  const activeHandleLabel = defaultHandleType
-    ? handleOptions.find(o => o.key === defaultHandleType)?.label ?? defaultHandleType
-    : "Module default";
+  const activeHandleLabel = useMemo(() => {
+    if (activeHandleUsages.length > 1) {
+      return activeHandleUsages.map((u) => u.label).join(", ");
+    }
+    if (activeHandleUsages.length === 1) {
+      return activeHandleUsages[0].label;
+    }
+    return "No handles in design";
+  }, [activeHandleUsages]);
 
   return (
     <GlassSurface style={styles.widget}>
@@ -184,67 +202,96 @@ export default function MaterialsWidget({
                 {activeHandleLabel}
               </Text>
             </View>
-            {handleOptions.length > 0 && onSelectDefaultHandleType ? (
-              <View style={styles.handlesChips}>
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.handleChip,
-                    !defaultHandleType && styles.handleChipActive,
-                    pressed && styles.rowPressed,
-                  ]}
-                  onPress={() => onSelectDefaultHandleType(null)}
-                >
-                  <Text
-                    style={[
-                      styles.handleChipText,
-                      !defaultHandleType && styles.handleChipTextActive,
-                    ]}
-                    numberOfLines={1}
-                  >
-                    Default
-                  </Text>
-                </Pressable>
-                {handleOptions.map(opt => {
-                  const isSelected = defaultHandleType === opt.key;
-                  return (
-                    <Pressable
-                      key={opt.key}
-                      style={({ pressed }) => [
-                        styles.handleChip,
-                        isSelected && styles.handleChipActive,
-                        pressed && styles.rowPressed,
-                      ]}
-                      onPress={() => onSelectDefaultHandleType(opt.key)}
-                    >
-                      <Text
-                        style={[
-                          styles.handleChipText,
-                          isSelected && styles.handleChipTextActive,
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {opt.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
+            {activeHandleUsages.length > 0 && onReplaceHandleType ? (
+              <View style={styles.inUseContainer}>
+                <View style={styles.inUseList}>
+                  {activeHandleUsages.map((usage) => {
+                    const isReplacing = replacingHandleKey === usage.key;
+                    return (
+                      <View key={usage.key} style={styles.inUseItemWrap}>
+                        <Pressable
+                          style={({ pressed }) => [
+                            styles.inUseRow,
+                            isReplacing && styles.inUseRowActive,
+                            pressed && styles.rowPressed,
+                          ]}
+                          onPress={() =>
+                            setReplacingHandleKey((prev) =>
+                              prev === usage.key ? null : usage.key
+                            )
+                          }
+                        >
+                          <View style={styles.inUseInfo}>
+                            <Text style={styles.inUseLabel} numberOfLines={1}>
+                              {usage.label}
+                            </Text>
+                            <View style={styles.inUseCountBadge}>
+                              <Text style={styles.inUseCountText}>{usage.count}</Text>
+                            </View>
+                          </View>
+                          <View style={styles.inUseAction}>
+                            <Ionicons
+                              name="swap-horizontal-outline"
+                              size={13}
+                              color={isReplacing ? COLORS.primary : GLASS.textMuted}
+                            />
+                            <Text
+                              style={[
+                                styles.inUseActionText,
+                                isReplacing && styles.inUseActionTextActive,
+                              ]}
+                            >
+                              {isReplacing ? "Cancel" : "Replace"}
+                            </Text>
+                          </View>
+                        </Pressable>
+                        {isReplacing && (
+                          <View style={styles.replacePickerBox}>
+                            <Text style={styles.replacePromptText} numberOfLines={1}>
+                              Replace {usage.label} with:
+                            </Text>
+                            <View style={styles.handlesChips}>
+                              {handleOptions.map((opt) => {
+                                const isCurrent = opt.key === usage.key;
+                                return (
+                                  <Pressable
+                                    key={opt.key}
+                                    style={({ pressed }) => [
+                                      styles.handleChip,
+                                      isCurrent && styles.handleChipActive,
+                                      pressed && styles.rowPressed,
+                                    ]}
+                                    onPress={() => {
+                                      if (!isCurrent) {
+                                        onReplaceHandleType(usage.key, opt.key);
+                                      }
+                                      setReplacingHandleKey(null);
+                                    }}
+                                  >
+                                    <Text
+                                      style={[
+                                        styles.handleChipText,
+                                        isCurrent && styles.handleChipTextActive,
+                                      ]}
+                                      numberOfLines={1}
+                                    >
+                                      {opt.label}
+                                    </Text>
+                                  </Pressable>
+                                );
+                              })}
+                            </View>
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
               </View>
             ) : (
               <Text style={styles.handlesEmptyText}>
                 No handle variants found in modules
               </Text>
-            )}
-            {hasHandleInstanceOverrides && onClearHandleOverrides && (
-              <Pressable
-                style={({ pressed }) => [
-                  styles.clearOverridesButton,
-                  pressed && styles.rowPressed,
-                ]}
-                onPress={onClearHandleOverrides}
-              >
-                <Ionicons name="refresh-outline" size={12} color={COLORS.primary} />
-                <Text style={styles.clearOverridesText}>Clear module overrides</Text>
-              </Pressable>
             )}
           </View>
         </View>
@@ -417,6 +464,94 @@ const styles = StyleSheet.create({
     color: GLASS.textFaint,
     fontSize: 11,
     fontStyle: "italic",
+  },
+  subSectionLabel: {
+    color: GLASS.textMuted,
+    fontSize: 10,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  inUseContainer: {
+    gap: 5,
+  },
+  inUseList: {
+    gap: 4,
+  },
+  inUseItemWrap: {
+    gap: 4,
+  },
+  inUseRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    borderRadius: RADII.sm,
+    borderWidth: 1,
+    borderColor: GLASS.border,
+    backgroundColor: GLASS.bgInput,
+    gap: 6,
+  },
+  inUseRowActive: {
+    borderColor: COLORS.primary,
+    backgroundColor: "rgba(37, 99, 235, 0.12)",
+  },
+  inUseInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flex: 1,
+    minWidth: 0,
+  },
+  inUseLabel: {
+    color: GLASS.text,
+    fontSize: 11,
+    fontWeight: "600",
+    flexShrink: 1,
+  },
+  inUseCountBadge: {
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 999,
+    backgroundColor: GLASS.bgPressed,
+    borderWidth: 1,
+    borderColor: GLASS.borderStrong,
+  },
+  inUseCountText: {
+    color: GLASS.textMuted,
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  inUseAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
+  inUseActionText: {
+    color: GLASS.textMuted,
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  inUseActionTextActive: {
+    color: COLORS.primary,
+    fontWeight: "700",
+  },
+  replacePickerBox: {
+    padding: 7,
+    borderRadius: RADII.sm,
+    backgroundColor: GLASS.bgPressed,
+    borderWidth: 1,
+    borderColor: GLASS.borderStrong,
+    gap: 6,
+  },
+  replacePromptText: {
+    color: GLASS.textMuted,
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  defaultHandlesBlock: {
+    gap: 5,
   },
   handlesChips: {
     flexDirection: "row",

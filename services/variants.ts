@@ -30,6 +30,13 @@ export interface HandleTypeOption {
   isNone?: boolean;
 }
 
+export interface ActiveHandleUsage {
+  key: string;
+  label: string;
+  count: number;
+  isNone?: boolean;
+}
+
 export function normalizeHandleKey(value: string): string {
   return value
     .trim()
@@ -40,14 +47,38 @@ export function normalizeHandleKey(value: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
+const HANDLE_VARIANT_SUBSTRINGS = [
+  'handle',
+  'tirador',
+  'manija',
+  'herraje',
+  'pull',
+  'knob',
+  'pomo',
+  'agarre',
+  'perfil-j',
+  'j-pull',
+  'gola',
+];
+
 export function isHandleVariantGroup(group: string | undefined): boolean {
   if (!group) return false;
-  return HANDLE_VARIANT_GROUPS.has(group.trim().toLowerCase());
+  const trimmed = group.trim().toLowerCase();
+  if (HANDLE_VARIANT_GROUPS.has(trimmed)) return true;
+  const normalized = normalizeHandleKey(trimmed);
+  return HANDLE_VARIANT_SUBSTRINGS.some((sub) => normalized.includes(sub));
 }
 
 export function isHandleVariant(variant: ObjectVariant): boolean {
   const parsed = parseVariantProperties(variant.variantProperties);
-  return isHandleVariantGroup(parsed.group) || Boolean(parsed.handleType?.trim());
+  if (isHandleVariantGroup(parsed.group) || Boolean(parsed.handleType?.trim())) {
+    return true;
+  }
+  if (parsed.label && isHandleVariantGroup(parsed.label)) {
+    return true;
+  }
+  const normalizedName = normalizeHandleKey(variant.name || '');
+  return HANDLE_VARIANT_SUBSTRINGS.some((sub) => normalizedName.includes(sub));
 }
 
 export function getVariantHandleTypeKey(variant: ObjectVariant): string | null {
@@ -56,14 +87,14 @@ export function getVariantHandleTypeKey(variant: ObjectVariant): string | null {
     const k = normalizeHandleKey(parsed.handleType);
     if (k) return k;
   }
-  if (!isHandleVariantGroup(parsed.group)) return null;
+  if (!isHandleVariant(variant)) return null;
   const k = normalizeHandleKey(variant.name || variant.id);
   return k || null;
 }
 
 export function getVariantHandleTypeLabel(variant: ObjectVariant): string | null {
   const parsed = parseVariantProperties(variant.variantProperties);
-  if (!isHandleVariantGroup(parsed.group) && !parsed.handleType?.trim()) return null;
+  if (!isHandleVariant(variant)) return null;
   if (parsed.raw?.['handle-label']?.trim()) {
     return parsed.raw['handle-label'].trim();
   }
@@ -78,19 +109,41 @@ export function collectAvailableHandleTypes(
 
   for (const list of variantLists) {
     if (!list) continue;
+    const byGroup = new Map<string, ObjectVariant[]>();
     for (const v of list) {
       const parsed = parseVariantProperties(v.variantProperties);
-      if (!isHandleVariantGroup(parsed.group) && !parsed.handleType?.trim()) continue;
-      if (parsed.allowNone ?? true) {
-        anyAllowsNone = true;
+      const grp = parsed.group;
+      let grpList = byGroup.get(grp);
+      if (!grpList) {
+        grpList = [];
+        byGroup.set(grp, grpList);
       }
-      const key = getVariantHandleTypeKey(v);
-      if (!key) continue;
-      if (!map.has(key)) {
-        map.set(key, {
-          key,
-          label: getVariantHandleTypeLabel(v) || key,
-        });
+      grpList.push(v);
+    }
+
+    for (const [grp, grpVariants] of byGroup.entries()) {
+      const groupIsHandle =
+        isHandleVariantGroup(grp) || grpVariants.some((v) => isHandleVariant(v));
+      if (!groupIsHandle) continue;
+
+      for (const v of grpVariants) {
+        const parsed = parseVariantProperties(v.variantProperties);
+        if (parsed.allowNone ?? true) {
+          anyAllowsNone = true;
+        }
+        const key =
+          getVariantHandleTypeKey(v) || normalizeHandleKey(v.name || v.id);
+        if (!key) continue;
+        if (!map.has(key)) {
+          map.set(key, {
+            key,
+            label:
+              getVariantHandleTypeLabel(v) ||
+              v.name?.trim() ||
+              parsed.handleType?.trim() ||
+              v.id,
+          });
+        }
       }
     }
   }
@@ -104,6 +157,136 @@ export function collectAvailableHandleTypes(
     });
   }
   return options;
+}
+
+export function getHandleGroupVariantMap(
+  variants: ObjectVariant[] | undefined
+): Map<string, ObjectVariant[]> {
+  const result = new Map<string, ObjectVariant[]>();
+  if (!variants || variants.length === 0) return result;
+
+  const byGroup = new Map<string, ObjectVariant[]>();
+  for (const v of variants) {
+    const parsed = parseVariantProperties(v.variantProperties);
+    const grp = parsed.group;
+    let grpList = byGroup.get(grp);
+    if (!grpList) {
+      grpList = [];
+      byGroup.set(grp, grpList);
+    }
+    grpList.push(v);
+  }
+
+  for (const [grp, grpVariants] of byGroup.entries()) {
+    const isHandleGroup =
+      isHandleVariantGroup(grp) || grpVariants.some((v) => isHandleVariant(v));
+    if (isHandleGroup) {
+      result.set(grp, grpVariants);
+    }
+  }
+  return result;
+}
+
+export function resolveHandleKeyForVariantGroup(
+  group: string,
+  groupVariants: ObjectVariant[],
+  defaultVariants?: Record<string, string | null>,
+  selectedVariants?: Record<string, string | null>,
+  defaultHandleType?: string | null
+): { key: string; label: string; variant: ObjectVariant | null } {
+  const active = resolveActiveVariants(
+    groupVariants,
+    defaultVariants ? { [group]: defaultVariants[group] } : undefined,
+    selectedVariants && group in selectedVariants ? { [group]: selectedVariants[group] } : undefined,
+    defaultHandleType
+  );
+  const chosen = active[0] ?? null;
+  if (!chosen || !chosen.fileURL) {
+    return { key: HANDLE_NONE_KEY, label: 'Sin tirador', variant: chosen };
+  }
+  const key =
+    getVariantHandleTypeKey(chosen) || normalizeHandleKey(chosen.name || chosen.id);
+  const label =
+    getVariantHandleTypeLabel(chosen) || chosen.name?.trim() || chosen.id;
+  return { key, label, variant: chosen };
+}
+
+export function collectActiveHandleUsages(
+  instances: {
+    variants?: ObjectVariant[];
+    objectProperties?: ObjectProperties;
+    selectedVariants?: Record<string, string | null>;
+  }[],
+  defaultHandleType?: string | null,
+  handleOptions: HandleTypeOption[] = []
+): ActiveHandleUsage[] {
+  const usageMap = new Map<string, ActiveHandleUsage>();
+  const optionLabels = new Map(handleOptions.map((o) => [o.key, o.label]));
+
+  for (const inst of instances) {
+    const handleGroups = getHandleGroupVariantMap(inst.variants);
+    for (const [grp, grpVariants] of handleGroups.entries()) {
+      const resolved = resolveHandleKeyForVariantGroup(
+        grp,
+        grpVariants,
+        inst.objectProperties?.defaultVariants,
+        inst.selectedVariants,
+        defaultHandleType
+      );
+      const existing = usageMap.get(resolved.key);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        usageMap.set(resolved.key, {
+          key: resolved.key,
+          label: optionLabels.get(resolved.key) || resolved.label,
+          count: 1,
+          isNone: resolved.key === HANDLE_NONE_KEY,
+        });
+      }
+    }
+  }
+
+  return Array.from(usageMap.values());
+}
+
+export function resolveVariantSelectionForHandleKey(
+  groupVariants: ObjectVariant[],
+  targetHandleKey: string
+): { matched: boolean; variantId: string | null } {
+  const normalizedTarget =
+    targetHandleKey === HANDLE_NONE_KEY
+      ? HANDLE_NONE_KEY
+      : normalizeHandleKey(targetHandleKey);
+
+  if (normalizedTarget === HANDLE_NONE_KEY) {
+    const allowNone = groupVariants.every(
+      (v) => (parseVariantProperties(v.variantProperties).allowNone ?? true) !== false
+    );
+    const noneVar = groupVariants.find(
+      (v) =>
+        !v.fileURL ||
+        getVariantHandleTypeKey(v) === 'none' ||
+        getVariantHandleTypeKey(v) === 'sin-tirador'
+    );
+    if (noneVar) {
+      return { matched: true, variantId: noneVar.id };
+    }
+    if (allowNone) {
+      return { matched: true, variantId: null };
+    }
+    return { matched: false, variantId: null };
+  }
+
+  const matchingHandle = groupVariants.find(
+    (v) =>
+      (getVariantHandleTypeKey(v) || normalizeHandleKey(v.name || v.id)) ===
+      normalizedTarget
+  );
+  if (matchingHandle) {
+    return { matched: true, variantId: matchingHandle.id };
+  }
+  return { matched: false, variantId: null };
 }
 
 export interface MaterialPartOverride {
@@ -340,7 +523,9 @@ export function resolveActiveVariants(
         }
       } else {
         const matchingHandle = groupVariants.find(
-          (v) => getVariantHandleTypeKey(v) === normalizedDefaultHandle
+          (v) =>
+            (getVariantHandleTypeKey(v) || normalizeHandleKey(v.name || v.id)) ===
+            normalizedDefaultHandle
         );
         if (matchingHandle) {
           chosenId = matchingHandle.id;

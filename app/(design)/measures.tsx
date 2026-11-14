@@ -231,7 +231,7 @@ export default function MeasuresScreen() {
           <Dimension left={originX} top={wallTop - 38} width={wall.width * scale} label={`${formatMeasurement(wall.width)} mm`} />
           <View style={[styles.wallOutline, { left: originX, top: wallTop, width: wall.width * scale, height: room.height * scale }]} />
           {modules.length > 0 && <MeasurementModels modules={modules} wall={wall.view} scale={scale} originX={originX} originY={originY}
-            width={drawingWidth} height={drawingHeight} onStatus={handleModelStatus} captureRef={elevationCaptureRef} />}
+            width={drawingWidth} height={drawingHeight} onStatus={handleModelStatus} captureRef={elevationCaptureRef} defaultHandleType={designSnapshot?.defaultHandleType} />}
           <View style={[styles.verticalDimension, { left: originX + wall.width * scale + 24, top: wallTop, height: room.height * scale }]}>
             <View style={styles.verticalRule} /><View style={styles.topTick} /><View style={styles.bottomTick} />
             <Text style={styles.verticalText}>{formatMeasurement(room.height)} mm</Text>

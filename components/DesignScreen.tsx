@@ -6,6 +6,7 @@ import { fetchAllMaterialTypes, fetchMaterialVersion, fetchModelMaterialTypes, f
 import { useAuth } from "@/services/AuthContext";
 import { deserializeProjectState, loadProject, loadProjectFromCloud, ProjectStateDTO, saveProject, serializeProjectState } from "@/services/projectStorage";
 import { exportSceneAsGLB } from "@/services/sceneExport";
+import { useFocusEffect } from "@react-navigation/native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Platform, StyleSheet, Text, View } from "react-native";
 import { useCurrentProject } from "../services/currentProject";
@@ -15,14 +16,21 @@ import {
   createThumbnailCaptureApi,
   ThumbnailCaptureApi,
 } from "../services/thumbnailCapture";
-import { useObjectTemplates } from "../services/useFurnitureModels";
+import { parseObjectProperties, useObjectTemplates } from "../services/useFurnitureModels";
 import { useMaterials } from "../services/useMaterials";
 import { AppliedMaterial, createDesignObject, duplicateDesignObject, DesignObject, getInitialPosition, GlobalMaterials, MaterialOverrides, resolveGlobalMaterials } from "./DesignScreen/3dView/DesignObjects";
 import { Room3dProps } from "./DesignScreen/3dView/Room3d";
 import { ActiveMeasurementEdit, MeasurementSide } from "./DesignScreen/3dViewOverlay/EditMeasurementModal";
 import { emptyBudgetSettings, ModelBudgetEntry } from '../services/budget';
 import { MaterialPart } from '../services/materialParts';
-import { isHandleVariant, isHandleVariantGroup, parseVariantProperties } from '../services/variants';
+import {
+  getHandleGroupVariantMap,
+  isHandleVariant,
+  isHandleVariantGroup,
+  parseVariantProperties,
+  resolveHandleKeyForVariantGroup,
+  resolveVariantSelectionForHandleKey,
+} from '../services/variants';
 
 
 const initialRoom3d: Room3dProps = {
@@ -36,12 +44,55 @@ const initialRoom3d: Room3dProps = {
 export default function DesignScreen({ projectId }: { projectId?: string }) {
   const { backendUserId, selectedWorkspaceId } = useAuth();
   const { project, projectName, setProject, setProjectName, setDesignSnapshot, defaultHandleType, setDefaultHandleType, savedViews, setSavedViews, budgetSettings, setBudgetSettings, registerBudgetEditor, registerPartsEditor } = useCurrentProject();
-  const { objectTemplates, categories: objectCategories, isLoading: modelsLoading, error: modelsError } = useObjectTemplates(selectedWorkspaceId ?? undefined);
+  const { objectTemplates, categories: objectCategories, isLoading: modelsLoading, error: modelsError, refresh: refreshObjectTemplates } = useObjectTemplates(selectedWorkspaceId ?? undefined);
   const { materials, categories: materialCategories, isLoading: materialsLoading } = useMaterials(selectedWorkspaceId ?? undefined);
   const [room3d, setRoom3d] = useState<Room3dProps>(initialRoom3d);
   const [designObjects, setDesignObjects] = useState<DesignObject[]>([]);
   const [movingObject, setMovingObject] = useState<DesignObject | undefined>(undefined);
   const [globalMaterials, setGlobalMaterials] = useState<GlobalMaterials>({});
+
+  const hasFocusedOnceRef = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasFocusedOnceRef.current) {
+        hasFocusedOnceRef.current = true;
+        return;
+      }
+      void refreshObjectTemplates(true);
+    }, [refreshObjectTemplates])
+  );
+
+  useEffect(() => {
+    if (objectTemplates.length === 0) return;
+    setDesignObjects((prev) => {
+      let anyChanged = false;
+      const next = prev.map((obj) => {
+        const template =
+          objectTemplates.find((t) => t.id === obj.modelId && t.version === obj.version) ??
+          objectTemplates.find((t) => t.id === obj.modelId);
+        if (!template) return obj;
+        const nextVariants = template.variants ?? obj.variants;
+        const nextDefaultVariants =
+          template.objectProperties?.defaultVariants ?? obj.objectProperties?.defaultVariants;
+        if (
+          nextVariants === obj.variants &&
+          nextDefaultVariants === obj.objectProperties?.defaultVariants
+        ) {
+          return obj;
+        }
+        anyChanged = true;
+        return {
+          ...obj,
+          variants: nextVariants,
+          objectProperties:
+            nextDefaultVariants !== undefined
+              ? { ...(obj.objectProperties ?? {}), defaultVariants: nextDefaultVariants }
+              : obj.objectProperties,
+        };
+      });
+      return anyChanged ? next : prev;
+    });
+  }, [objectTemplates]);
   useEffect(() => {
     setDesignSnapshot({ room: room3d, objects: designObjects, globalMaterials, defaultHandleType });
   }, [room3d, designObjects, globalMaterials, defaultHandleType, setDesignSnapshot]);
@@ -157,11 +208,63 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
     projectLoadedRef.current = true;
     setRoom3d(room);
     const enrichedObjects = await Promise.all(objects.map(async (obj) => {
-      const template = objectTemplates.find(t => t.id === obj.modelId && t.version === obj.version);
-      if (template?.variants) return { ...obj, variants: template.variants };
+      const stripSeededHandleDefaults = (
+        target: DesignObject,
+        variantsList: import('../services/variants').ObjectVariant[] | undefined,
+        defaultVars: Record<string, string | null> | undefined
+      ): DesignObject => {
+        if (!target.selectedVariants || !defaultVars) return target;
+        const handleGroups = new Set<string>();
+        for (const g of Object.keys(target.selectedVariants)) {
+          if (isHandleVariantGroup(g)) handleGroups.add(g);
+        }
+        for (const v of variantsList ?? []) {
+          if (isHandleVariant(v)) {
+            handleGroups.add(parseVariantProperties(v.variantProperties).group);
+          }
+        }
+        if (handleGroups.size === 0) return target;
+        const nextSelected = { ...target.selectedVariants };
+        let changed = false;
+        for (const g of handleGroups) {
+          if (g in nextSelected && g in defaultVars && nextSelected[g] === defaultVars[g]) {
+            delete nextSelected[g];
+            changed = true;
+          }
+        }
+        if (!changed) return target;
+        return {
+          ...target,
+          selectedVariants: Object.keys(nextSelected).length > 0 ? nextSelected : undefined,
+        };
+      };
+
+      const template =
+        objectTemplates.find(t => t.id === obj.modelId && t.version === obj.version) ??
+        objectTemplates.find(t => t.id === obj.modelId);
+      if (template?.variants) {
+        const mergedProps = template.objectProperties?.defaultVariants
+          ? { ...(obj.objectProperties ?? {}), defaultVariants: template.objectProperties.defaultVariants }
+          : obj.objectProperties;
+        return stripSeededHandleDefaults(
+          { ...obj, variants: template.variants, objectProperties: mergedProps },
+          template.variants,
+          mergedProps?.defaultVariants
+        );
+      }
       try {
         const v = await fetchObjectVersion(obj.modelId, obj.version);
-        if (v?.variants) return { ...obj, variants: v.variants };
+        const parsedProps = parseObjectProperties(v?.objectProperties);
+        const mergedProps = parsedProps?.defaultVariants
+          ? { ...(obj.objectProperties ?? {}), defaultVariants: parsedProps.defaultVariants }
+          : obj.objectProperties;
+        if (v?.variants) {
+          return stripSeededHandleDefaults(
+            { ...obj, variants: v.variants, objectProperties: mergedProps },
+            v.variants,
+            mergedProps?.defaultVariants
+          );
+        }
       } catch {
         // preserve as-is
       }
@@ -495,8 +598,8 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
     setMovingObject(duplicated);
   };
 
-  const handleClearHandleOverrides = useCallback(() => {
-    setDesignObjects(prev => prev.map(obj => {
+  const clearHandleOverridesInObjects = useCallback(() => {
+    const clearOnObj = (obj: DesignObject): DesignObject => {
       if (!obj.selectedVariants) return obj;
       const handleGroups = new Set<string>();
       for (const g of Object.keys(obj.selectedVariants)) {
@@ -521,8 +624,53 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
         ...obj,
         selectedVariants: Object.keys(nextSelected).length > 0 ? nextSelected : undefined,
       };
-    }));
+    };
+    setDesignObjects(prev => prev.map(clearOnObj));
+    setMovingObject(prev => prev ? clearOnObj(prev) : prev);
   }, []);
+
+  const handleClearHandleOverrides = useCallback(() => {
+    clearHandleOverridesInObjects();
+  }, [clearHandleOverridesInObjects]);
+
+  const handleReplaceHandleType = useCallback((sourceHandleKey: string, targetHandleKey: string) => {
+    if (sourceHandleKey === targetHandleKey) return;
+
+    const replaceOnObj = (obj: DesignObject): DesignObject => {
+      const handleGroups = getHandleGroupVariantMap(obj.variants);
+      if (handleGroups.size === 0) return obj;
+
+      const nextSelected = { ...(obj.selectedVariants ?? {}) };
+      let changed = false;
+
+      for (const [grp, grpVariants] of handleGroups.entries()) {
+        const currentResolved = resolveHandleKeyForVariantGroup(
+          grp,
+          grpVariants,
+          obj.objectProperties?.defaultVariants,
+          obj.selectedVariants,
+          defaultHandleType
+        );
+        if (currentResolved.key !== sourceHandleKey) continue;
+
+        const targetSelection = resolveVariantSelectionForHandleKey(grpVariants, targetHandleKey);
+        if (!targetSelection.matched) continue;
+
+        nextSelected[grp] = targetSelection.variantId;
+        changed = true;
+      }
+
+      if (!changed) return obj;
+      return {
+        ...obj,
+        selectedVariants: nextSelected,
+      };
+    };
+
+    setDesignObjects(prev => prev.map(replaceOnObj));
+    setMovingObject(prev => prev ? replaceOnObj(prev) : prev);
+    setDefaultHandleType(prev => prev === sourceHandleKey ? targetHandleKey : prev);
+  }, [defaultHandleType, setDefaultHandleType]);
 
   const handleSlotsDiscovered = (id: string, slots: MaterialSlotInfo[]) => {
     const deduped = slots.filter((s, i, arr) => arr.findIndex(a => a.slot === s.slot) === i);
@@ -613,6 +761,7 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
         setGlobalMaterials={setGlobalMaterials}
         defaultHandleType={defaultHandleType}
         setDefaultHandleType={setDefaultHandleType}
+        onReplaceHandleType={handleReplaceHandleType}
         onClearHandleOverrides={handleClearHandleOverrides}
         materialDataById={materialDataById}
         designSlots={designMaterialsConfig.designMaterialSlots}

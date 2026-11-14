@@ -6,7 +6,13 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { MaterialCategory, MaterialMeta, MaterialType, ObjectCategory, ObjectMaterialType } from "../../services/api";
 import { SavedView } from "../../services/currentProject";
 import { DesignMaterialSlot } from "../../services/designMaterialDefaults";
-import { collectAvailableHandleTypes, isHandleVariant, isHandleVariantGroup, parseVariantProperties } from "../../services/variants";
+import {
+  collectActiveHandleUsages,
+  collectAvailableHandleTypes,
+  isHandleVariant,
+  isHandleVariantGroup,
+  parseVariantProperties,
+} from "../../services/variants";
 import { CameraStateSnapshot, ThumbnailCaptureApi } from "../../services/thumbnailCapture";
 import { AppliedMaterial, createDesignObject, DesignObject, getInitialPosition, GlobalMaterials, MaterialOverrides, ObjectTemplate } from "./3dView/DesignObjects";
 import { Room3dProps, WallIdentifier } from "./3dView/Room3d";
@@ -48,6 +54,7 @@ interface View3dOverlayProps {
   setGlobalMaterials: React.Dispatch<React.SetStateAction<GlobalMaterials>>;
   defaultHandleType: string | null;
   setDefaultHandleType: React.Dispatch<React.SetStateAction<string | null>>;
+  onReplaceHandleType?: (sourceHandleKey: string, targetHandleKey: string) => void;
   onClearHandleOverrides: () => void;
   materialDataById: Record<string, AppliedMaterial>;
   designSlots: DesignMaterialSlot[];
@@ -160,6 +167,7 @@ export default function View3dOverlay({
   setGlobalMaterials,
   defaultHandleType,
   setDefaultHandleType,
+  onReplaceHandleType,
   onClearHandleOverrides,
   materialDataById,
   designSlots,
@@ -575,6 +583,11 @@ export default function View3dOverlay({
     return collectAvailableHandleTypes(lists);
   }, [designObjects, objectTemplates]);
 
+  const activeHandleUsages = React.useMemo(
+    () => collectActiveHandleUsages(designObjects, defaultHandleType, handleOptions),
+    [designObjects, defaultHandleType, handleOptions]
+  );
+
   const hasHandleInstanceOverrides = React.useMemo(() => {
     return designObjects.some(obj => {
       if (!obj.selectedVariants) return false;
@@ -978,8 +991,10 @@ export default function View3dOverlay({
           onRequestPicker={openMaterialsPanel}
           onResetSlot={handleMaterialReset}
           handleOptions={handleOptions}
+          activeHandleUsages={activeHandleUsages}
           defaultHandleType={defaultHandleType}
           onSelectDefaultHandleType={setDefaultHandleType}
+          onReplaceHandleType={onReplaceHandleType}
           hasHandleInstanceOverrides={hasHandleInstanceOverrides}
           onClearHandleOverrides={onClearHandleOverrides}
           compact={!isDesktop}

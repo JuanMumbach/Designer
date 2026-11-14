@@ -60,14 +60,15 @@ function AdditiveDownload({ variant, onResolved }: {
   return null;
 }
 
-function ElevationModel({ module, wall, scale, originX, originY, drawingHeight, onStatus }: {
+function ElevationModel({ module, wall, scale, originX, originY, drawingHeight, onStatus, defaultHandleType }: {
   module: ModuleElevation; wall: WallView; scale: number; originX: number; originY: number; drawingHeight: number;
   onStatus: (id: string, status: 'ready' | 'unavailable') => void;
+  defaultHandleType?: string | null;
 }) {
   const { object } = module;
   const activeVariants = useMemo(
-    () => resolveActiveVariants(object.variants ?? [], object.objectProperties?.defaultVariants, object.selectedVariants),
-    [object.variants, object.objectProperties?.defaultVariants, object.selectedVariants]
+    () => resolveActiveVariants(object.variants ?? [], object.objectProperties?.defaultVariants, object.selectedVariants, defaultHandleType),
+    [object.variants, object.objectProperties?.defaultVariants, object.selectedVariants, defaultHandleType]
   );
   const { primaryModelUrl, additiveMeshes } = useMemo(
     () => resolveVariantMeshes(object.modelUrl, activeVariants),
@@ -188,10 +189,11 @@ export function encodeRgbaToPngBytes(width: number, height: number, data: Uint8A
   return encoded instanceof Uint8Array ? encoded : new Uint8Array(encoded);
 }
 
-export default function MeasurementModels({ modules, wall, scale, originX, originY, width, height, onStatus, captureRef }: {
+export default function MeasurementModels({ modules, wall, scale, originX, originY, width, height, onStatus, captureRef, defaultHandleType }: {
   modules: ModuleElevation[]; wall: WallView; scale: number; originX: number; originY: number; width: number; height: number;
   onStatus: (id: string, status: 'ready' | 'unavailable') => void;
   captureRef?: React.MutableRefObject<ElevationCaptureApi | null>;
+  defaultHandleType?: string | null;
 }) {
   const camera = useMemo(() => createElevationCamera(width, height), [width, height]);
   const onError = React.useCallback(() => {
@@ -203,7 +205,7 @@ export default function MeasurementModels({ modules, wall, scale, originX, origi
       gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }} style={styles.canvas}>
       <ElevationCaptureController captureRef={captureRef} />
       {modules.map(module => <ElevationModel key={`${module.object.id}:${module.object.modelUrl}`} module={module} wall={wall}
-        scale={scale} originX={originX} originY={originY} drawingHeight={height} onStatus={onStatus} />)}
+        scale={scale} originX={originX} originY={originY} drawingHeight={height} onStatus={onStatus} defaultHandleType={defaultHandleType} />)}
     </Canvas>
     </ModelBoundary>
   </View>;

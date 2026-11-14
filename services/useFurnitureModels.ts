@@ -15,7 +15,7 @@ import {
 } from './api';
 import { parseDefaultVariantsSegment } from './variants';
 
-function parseObjectProperties(raw: unknown): ObjectProperties | undefined {
+export function parseObjectProperties(raw: unknown): ObjectProperties | undefined {
   if (!raw) return undefined;
 
   if (typeof raw !== 'string') {
@@ -73,10 +73,10 @@ export function useObjectTemplates(workspaceId?: string) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (silent = false) => {
     if (!backendUserId) return;
     try {
-      setIsLoading(true);
+      if (!silent) setIsLoading(true);
       setError(null);
 
       const objectModels: ObjectModel[] = await fetchObjectCatalog(workspaceId, backendUserId);
@@ -118,7 +118,7 @@ export function useObjectTemplates(workspaceId?: string) {
     } catch (err) {
       setError(err as Error);
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   }, [workspaceId, backendUserId]);
 
