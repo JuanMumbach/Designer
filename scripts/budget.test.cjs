@@ -18,6 +18,7 @@ function loadTypeScript(relativePath, imports = {}) {
 
 const budget = loadTypeScript('services/budget.ts');
 const materialParts = loadTypeScript('services/materialParts.ts', { './budget': budget });
+const variants = loadTypeScript('services/variants.ts', { './budget': budget, './materialParts': materialParts });
 const materials = [{ id: 'mdf', name: 'MDF', costMultiplier: 1.2 }, { id: 'marble', name: 'Mármol', costMultiplier: 2 }];
 const entries = [
   { id: 'wood', name: 'MDF', basePrice: 100, materialSlot: 0 },
@@ -104,6 +105,7 @@ function testBudgetScreen(room, object) {
       '../../services/currentProject': { useCurrentProject: () => ({ project: { id: 'project', name: 'Kitchen' }, designSnapshot: { room, objects, globalMaterials: { mdf_primary: 'mdf', marble: 'marble' } }, budgetSettings: settings, canEditBudgetObjects: true }) },
       '../../services/budget': budget,
       '../../services/materialParts': materialParts,
+      '../../services/variants': variants,
       '../../services/designMaterialDefaults': { designMaterialsConfig: config, normalizeTypeName: (name) => name.trim().toLowerCase() },
     }).default;
     return renderToStaticMarkup(React.createElement(Screen));
@@ -161,6 +163,7 @@ function testCutsScreen(room, object) {
       '../../services/currentProject': { useCurrentProject: () => ({ project: { id: 'project', name: 'Kitchen' }, designSnapshot: { room, objects, globalMaterials: { mdf_primary: 'mdf' } }, budgetSettings: settings, canEditBudgetObjects: true, setBudgetSettings: () => {} }) },
       '../../services/budget': budget,
       '../../services/materialParts': materialParts,
+      '../../services/variants': variants,
       '../../services/designMaterialDefaults': { designMaterialsConfig: config, normalizeTypeName: (name) => name.trim().toLowerCase() },
     }).default;
     return renderToStaticMarkup(React.createElement(Screen));

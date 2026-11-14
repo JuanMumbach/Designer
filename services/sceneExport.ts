@@ -11,6 +11,7 @@ import { extractGlbParts, sanitizeNodeName } from '@/services/glbParts';
 import { fitScaleFromSize, measureModelSizeInParent } from '@/services/modelFit';
 import { normalizeTypeName, resolveMaterialValue } from '@/services/designMaterialDefaults';
 import { ObjectMaterialType } from '@/services/api';
+import { resolveActiveVariants, resolveVariantMeshes } from '@/services/variants';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { Alert, Platform } from 'react-native';
@@ -274,9 +275,11 @@ async function addFurnitureToScene(
 
   for (let i = 0; i < total; i++) {
     const obj = designObjects[i];
+    const activeVariants = resolveActiveVariants(obj.variants ?? [], obj.objectProperties?.defaultVariants, obj.selectedVariants);
+    const { primaryModelUrl, additiveMeshes } = resolveVariantMeshes(obj.modelUrl, activeVariants);
 
     try {
-      const { group: modelGroup, bytes } = await loadGLBFromUrl(obj.modelUrl);
+      const { group: modelGroup, bytes } = await loadGLBFromUrl(primaryModelUrl);
 
       const maps = buildSlotIndexMaps(extractGlbParts(bytes));
 
@@ -292,12 +295,25 @@ async function addFurnitureToScene(
       modelGroup.scale.set(0.01, 0.01, 0.01);
       container.add(modelGroup);
 
+      let targetParent: THREE.Group = container;
       const fitScale = fitScaleFromSize(measureModelSizeInParent(modelGroup), obj.dimensions);
       if (fitScale) {
         const fitGroup = new THREE.Group();
         fitGroup.scale.set(fitScale[0], fitScale[1], fitScale[2]);
         fitGroup.add(modelGroup);
         container.add(fitGroup);
+        targetParent = fitGroup;
+      }
+
+      for (const variant of additiveMeshes) {
+        try {
+          const { group: variantGroup } = await loadGLBFromUrl(variant.fileURL);
+          variantGroup.rotation.set(0, -Math.PI / 2, 0);
+          variantGroup.scale.set(0.01, 0.01, 0.01);
+          targetParent.add(variantGroup);
+        } catch (variantErr) {
+          console.warn(`Failed to export additive variant ${variant.name}:`, variantErr);
+        }
       }
 
       const slotTypes = slotTypesByModel[`${obj.modelId}:${obj.version}`] ?? null;

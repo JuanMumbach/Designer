@@ -192,11 +192,13 @@ export interface ObjectCategory {
 export interface ObjectProperties {
   movingBehaviour?: 'counter' | 'cupboard' | 'free';
   height?: number;
+  defaultVariants?: Record<string, string | null>;
 }
 
 export interface ObjectVersion {
   materialParts?: import('./materialParts').MaterialPart[];
   budgetEntries?: import('./budget').ModelBudgetEntry[];
+  variants?: import('./variants').ObjectVariant[];
   objectId: string;
   object: unknown | null;
   version: number;
@@ -207,7 +209,7 @@ export interface ObjectVersion {
   sizeZ: number;
   creatorId: string;
   creator: unknown | null;
-  objectProperties?: ObjectProperties;
+  objectProperties?: ObjectProperties | string;
 }
 
 export async function fetchAllObjectModels(): Promise<ObjectModel[]> {
@@ -386,6 +388,7 @@ export async function createObjectVersion(
     objectProperties?: string;
     creatorId: string;
     budgetEntries?: import('./budget').ModelBudgetEntry[];
+  variants?: import('./variants').ObjectVariant[];
     materialParts?: import('./materialParts').MaterialPart[];
     thumbnailURL?: string;
   }
@@ -411,6 +414,7 @@ export async function updateObjectVersion(
     sizeZ?: number;
     objectProperties?: string;
     budgetEntries?: import('./budget').ModelBudgetEntry[];
+  variants?: import('./variants').ObjectVariant[];
     materialParts?: import('./materialParts').MaterialPart[];
   }
 ): Promise<void> {
@@ -422,6 +426,71 @@ export async function updateObjectVersion(
     throw new Error(
       `Failed to update object version ${objectId}-${version}: ${response.status}`
     );
+  }
+}
+
+export async function fetchObjectVariants(objectId: string, version: number): Promise<import('./variants').ObjectVariant[]> {
+  const response = await apiFetch(`/api/ObjectVariants/${objectId}/${version}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch object variants: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function createObjectVariant(
+  objectId: string,
+  version: number,
+  body: {
+    name: string;
+    mode: 'additive' | 'replace';
+    fileUrl: string;
+    thumbnailURL?: string;
+    variantProperties: string;
+    materialPartsDelta?: import('./variants').MaterialPartsDelta;
+    budgetEntriesDelta?: import('./variants').BudgetEntriesDelta;
+    creatorId: string;
+  }
+): Promise<import('./variants').ObjectVariant> {
+  const response = await apiFetch(`/api/ObjectVariants/${objectId}/${version}`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || `Failed to create object variant: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function updateObjectVariant(
+  id: string,
+  body: {
+    name?: string;
+    mode?: 'additive' | 'replace';
+    fileUrl?: string;
+    thumbnailURL?: string;
+    variantProperties?: string;
+    materialPartsDelta?: import('./variants').MaterialPartsDelta;
+    budgetEntriesDelta?: import('./variants').BudgetEntriesDelta;
+  }
+): Promise<import('./variants').ObjectVariant> {
+  const response = await apiFetch(`/api/ObjectVariants/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || `Failed to update object variant: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function deleteObjectVariant(id: string): Promise<void> {
+  const response = await apiFetch(`/api/ObjectVariants/${id}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to delete object variant ${id}: ${response.status}`);
   }
 }
 

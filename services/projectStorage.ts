@@ -47,6 +47,7 @@ export interface ProjectInstance {
   materialOverrides?: MaterialOverrides;
   hidden?: boolean;
   backsplash?: import('@/components/DesignScreen/3dView/DesignObjects').CounterBacksplashConfig;
+  selectedVariants?: Record<string, string | null>;
 }
 
 export interface ProjectStateDTO {
@@ -147,6 +148,7 @@ export function serializeProjectState(
       ...(obj.materialOverrides ? { materialOverrides: obj.materialOverrides } : {}),
       ...(obj.hidden !== undefined ? { hidden: obj.hidden } : {}),
       ...(obj.backsplash ? { backsplash: obj.backsplash } : {}),
+      ...(obj.selectedVariants !== undefined ? { selectedVariants: obj.selectedVariants } : {}),
     })),
   };
 }
@@ -196,6 +198,7 @@ export async function deserializeProjectState(
       materialOverrides,
       hidden: inst.hidden,
       backsplash: inst.backsplash,
+      selectedVariants: inst.selectedVariants,
     };
   }));
 

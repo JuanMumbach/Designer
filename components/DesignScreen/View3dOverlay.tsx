@@ -30,7 +30,7 @@ interface View3dOverlayProps {
   room3dProps: Room3dProps;
   setRoom3d: React.Dispatch<React.SetStateAction<Room3dProps>>;
   onObjectAdded: (newObject: DesignObject) => void;
-  onObjectEdited: (id: string, updates: { name: string; position: [number, number, number]; rotation?: number; materialOverrides?: MaterialOverrides; dimensions?: [number, number, number] }) => void;
+  onObjectEdited: (id: string, updates: { name: string; position: [number, number, number]; rotation?: number; materialOverrides?: MaterialOverrides; dimensions?: [number, number, number]; selectedVariants?: Record<string, string | null> }) => void;
   onObjectDeleted: (id: string) => void;
   onObjectDuplicate?: (object: DesignObject) => void;
   movingObject?: DesignObject;
@@ -367,7 +367,7 @@ export default function View3dOverlay({
 
   const handleObjectEditAndClose = (
     id: string,
-    updates: { name: string; position: [number, number, number]; rotation?: number; materialOverrides?: MaterialOverrides; dimensions?: [number, number, number] }
+    updates: { name: string; position: [number, number, number]; rotation?: number; materialOverrides?: MaterialOverrides; dimensions?: [number, number, number]; selectedVariants?: Record<string, string | null> }
   ) => {
     onObjectEdited(id, updates);
     closeEditMenu();

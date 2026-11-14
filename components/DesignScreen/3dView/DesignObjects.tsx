@@ -18,6 +18,8 @@ export interface ObjectTemplate {
     variantOf?: string;
     categoryId?: string;
     objectProperties?: ObjectProperties;
+    variants?: import('../../../services/variants').ObjectVariant[];
+    selectedVariants?: Record<string, string | null>;
 }
 
 export interface AppliedMaterial {
@@ -78,6 +80,8 @@ export interface DesignObject {
     color: string;
     modelUrl: string;
     objectProperties?: ObjectProperties;
+    variants?: import('../../../services/variants').ObjectVariant[];
+    selectedVariants?: Record<string, string | null>;
     slots?: MaterialSlotInfo[];
     materialOverrides?: MaterialOverrides;
     hidden?: boolean;
@@ -96,6 +100,10 @@ export function createDesignObject(template: ObjectTemplate, position?: [number,
         color: getRandomColor(),
         modelUrl: template.modelUrl,
         objectProperties: template.objectProperties,
+        variants: template.variants,
+        selectedVariants: template.objectProperties?.defaultVariants
+            ? { ...template.objectProperties.defaultVariants }
+            : undefined,
         materialOverrides: {},
         hidden: false,
         backsplash: template.objectProperties?.movingBehaviour === 'counter' ? { enabled: true } : undefined,
@@ -119,6 +127,8 @@ export function duplicateDesignObject(
         color: object.color,
         modelUrl: object.modelUrl,
         objectProperties: object.objectProperties ? { ...object.objectProperties } : undefined,
+        variants: object.variants ? object.variants.map(v => ({ ...v })) : undefined,
+        selectedVariants: object.selectedVariants ? { ...object.selectedVariants } : undefined,
         slots: object.slots ? object.slots.map(s => ({ ...s })) : undefined,
         materialOverrides: object.materialOverrides ? { ...object.materialOverrides } : {},
         materialParts: object.materialParts ? object.materialParts.map(p => ({ ...p })) : undefined,

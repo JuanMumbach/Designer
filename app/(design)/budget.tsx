@@ -12,6 +12,7 @@ import { calculateDesignBudget, formatBudgetAmount, ModelBudgetEntry, resolveBud
 import { calculatePartsBudget, formatArea, MaterialPart } from '../../services/materialParts';
 import { useCurrentProject } from '../../services/currentProject';
 import { designMaterialsConfig, normalizeTypeName } from '../../services/designMaterialDefaults';
+import { resolveEffectiveModuleInventory } from '../../services/variants';
 
 interface Catalog {
   scope: string;
@@ -111,8 +112,10 @@ export default function BudgetScreen() {
   const rows = useMemo(() => (designSnapshot?.objects ?? []).map((object) => {
     const key = `${object.modelId}:${object.version}`;
     const slots = current?.slots[key] ?? [];
-    const entries = object.budgetEntries ?? current?.versions[key]?.budgetEntries;
-    const parts = object.materialParts ?? current?.versions[key]?.materialParts ?? [];
+    const effective = resolveEffectiveModuleInventory(current?.versions[key], object);
+    const entries = effective.entries;
+    const parts = effective.parts;
+    const activeVariants = effective.activeVariants;
     const result = calculatePartsBudget(parts, entries, current?.materials ?? [], (slot) => {
       const binding = slots.find((binding) => binding.slot === slot);
       const typeName = binding?.materialTypeName ?? '';
@@ -121,7 +124,7 @@ export default function BudgetScreen() {
       const globals = designSnapshot?.globalMaterials ?? {};
       return resolveBudgetMaterial(slot, object.materialOverrides, globals, defaultKey && globals[defaultKey] ? defaultKey : slotName);
     });
-    return { object, entries, slots, parts, result };
+    return { object, entries, slots, parts, result, activeVariants };
   }), [designSnapshot, current]);
   const summary = calculateDesignBudget(rows.map((row) => row.result), budgetSettings);
   const ready = !loading && !error && !!current && !!designSnapshot;
@@ -153,9 +156,9 @@ export default function BudgetScreen() {
         {loading && <ActivityIndicator accessibilityLabel="Cargando precios" color={COLORS.primary} />}
         {error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
         {designSnapshot && rows.length === 0 && <Text style={styles.notice}>No hay módulos en el diseño. Podés agregar costos adicionales abajo.</Text>}
-        {rows.map(({ object, entries, slots, parts, result }) => (
+        {rows.map(({ object, entries, slots, parts, result, activeVariants }) => (
           <View key={object.id} style={styles.card}>
-            <View style={styles.heading}><View><Text style={styles.moduleTitle}>{object.name}</Text><Text style={styles.muted}>Cantidad: 1 · Versión {object.version}{object.hidden ? ' · Oculto en vista 3D' : ''}</Text></View><Text style={styles.amount}>{formatBudgetAmount(ready ? result.total : undefined)}</Text></View>
+            <View style={styles.heading}><View><Text style={styles.moduleTitle}>{object.name}</Text><Text style={styles.muted}>Cantidad: 1 · Versión {object.version}{object.hidden ? ' · Oculto en vista 3D' : ''}</Text>{activeVariants.length > 0 && <Text style={styles.muted}>Variantes: {activeVariants.map((v) => v.name).join(', ')}</Text>}</View><Text style={styles.amount}>{formatBudgetAmount(ready ? result.total : undefined)}</Text></View>
             {parts.length > 0 && <Text style={styles.body}>{parts.reduce((sum, part) => sum + part.quantity, 0)} piezas · {formatArea(result.areaM2)} m² de material</Text>}
             {parts.length === 0 && <Text style={styles.muted}>Sin despiece: se usan los conceptos manuales del módulo.</Text>}
             {result.partCosts.map((cost) => <View key={cost.part.id} style={styles.line}><View style={styles.lineName}><Text style={styles.body}>{cost.part.name} · {cost.materialName ?? `Slot ${cost.part.materialSlot}`}</Text><Text style={styles.muted}>{cost.part.quantity} × {cost.part.widthMm} × {cost.part.heightMm} mm = {formatArea(cost.areaM2)} m² · {formatBudgetAmount(cost.pricePerSquareMeter)} / m²</Text>{cost.error && <Text style={styles.error}>{cost.error}</Text>}</View><Text style={styles.body}>{formatBudgetAmount(ready ? cost.amount : undefined)}</Text></View>)}

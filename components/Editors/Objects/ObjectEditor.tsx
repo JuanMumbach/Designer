@@ -20,6 +20,7 @@ import { uploadFileToFirebase } from '../../../services/firebaseSetup';
 import { useAuth } from '../../../services/AuthContext';
 import { fetchModelMaterialTypes, fetchObjectVersion, MaterialType, ObjectCategory } from '../../../services/api';
 import ModelSlotsSection from './ModelSlotsSection';
+import ObjectVariantsSection from './ObjectVariantsSection';
 import FormPanel, { formStyles } from '../FormPanel';
 
 export type ObjectFormData = {
@@ -108,7 +109,7 @@ export default function ObjectEditor({
   const [name, setName] = useState(initial?.name ?? '');
   const [budgetDrafts, setBudgetDrafts] = useState(() => budgetEntryDrafts(initial?.budgetEntries ?? []));
   const [partDrafts, setPartDrafts] = useState(() => materialPartDrafts(initial?.materialParts ?? []));
-  const [tab, setTab] = useState<'general' | 'model' | 'parts' | 'costs' | 'materials'>('general');
+  const [tab, setTab] = useState<'general' | 'model' | 'parts' | 'costs' | 'variants' | 'materials'>('general');
   const [budgetSlots, setBudgetSlots] = useState<{ slot: number; displayName: string }[]>([]);
   useEffect(() => {
     let active = true;
@@ -269,6 +270,7 @@ export default function ObjectEditor({
     { key: 'model', label: 'Modelo 3D' },
     { key: 'parts', label: 'Despiece' },
     { key: 'costs', label: 'Extras' },
+    { key: 'variants', label: 'Variantes' },
     { key: 'materials', label: 'Materiales' },
   ];
 
@@ -423,6 +425,13 @@ export default function ObjectEditor({
           <Text style={[formStyles.hint, styles.costsHint]}>Los materiales definidos en Despiece se calculan por m². Los conceptos vinculados a esos mismos slots se reemplazan para evitar duplicarlos. Los costos fijos siempre se suman.</Text>
           <BudgetEntriesEditor drafts={budgetDrafts} onChange={setBudgetDrafts} slots={budgetSlots} disabled={inputsDisabled} />
         </>
+      );
+    }
+    if (tab === 'variants') {
+      return isEdit && objectId ? (
+        <ObjectVariantsSection objectId={objectId} disabled={inputsDisabled} />
+      ) : (
+        <Text style={formStyles.hint}>Guardá el módulo para configurar sus accesorios y variantes.</Text>
       );
     }
     return isEdit && objectId

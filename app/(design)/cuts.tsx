@@ -11,6 +11,7 @@ import { resolveBudgetMaterial } from '../../services/budget';
 import { calculatePartsBudget, collectMaterialDemand } from '../../services/materialParts';
 import { useCurrentProject } from '../../services/currentProject';
 import { designMaterialsConfig, normalizeTypeName } from '../../services/designMaterialDefaults';
+import { resolveEffectiveModuleInventory } from '../../services/variants';
 
 interface Catalog {
   scope: string;
@@ -69,8 +70,9 @@ export default function CutsScreen() {
   const rows = useMemo(() => (designSnapshot?.objects ?? []).map((object) => {
     const key = `${object.modelId}:${object.version}`;
     const slots = current?.slots[key] ?? [];
-    const entries = object.budgetEntries ?? current?.versions[key]?.budgetEntries;
-    const parts = object.materialParts ?? current?.versions[key]?.materialParts ?? [];
+    const effective = resolveEffectiveModuleInventory(current?.versions[key], object);
+    const entries = effective.entries;
+    const parts = effective.parts;
     const result = calculatePartsBudget(parts, entries, current?.materials ?? [], (slot) => {
       const binding = slots.find((binding) => binding.slot === slot);
       const typeName = binding?.materialTypeName ?? '';

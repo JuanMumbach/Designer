@@ -13,6 +13,7 @@ import {
   ObjectModel,
   ObjectProperties,
 } from './api';
+import { parseDefaultVariantsSegment } from './variants';
 
 function parseObjectProperties(raw: unknown): ObjectProperties | undefined {
   if (!raw) return undefined;
@@ -24,14 +25,18 @@ function parseObjectProperties(raw: unknown): ObjectProperties | undefined {
       obj['moving-behaviour']
     ) as string | undefined;
     const h = obj.height as number | undefined;
+    const defVars = (obj.defaultVariants ?? obj['default-variants']) as Record<string, string | null> | undefined;
 
-    if (behaviour || h !== undefined) {
+    if (behaviour || h !== undefined || defVars) {
       const result: ObjectProperties = {};
       if (behaviour) {
         result.movingBehaviour = behaviour.toLowerCase() as 'counter' | 'cupboard' | 'free';
       }
       if (h !== undefined) {
         result.height = h;
+      }
+      if (defVars) {
+        result.defaultVariants = defVars;
       }
       return result;
     }
@@ -52,6 +57,8 @@ function parseObjectProperties(raw: unknown): ObjectProperties | undefined {
     } else if (key === 'height') {
       const parsed = parseFloat(value);
       if (!isNaN(parsed)) result.height = parsed;
+    } else if (key === 'default-variants' || key === 'defaultvariants') {
+      result.defaultVariants = parseDefaultVariantsSegment(value);
     }
   }
   return Object.keys(result).length > 0 ? result : undefined;
@@ -99,6 +106,7 @@ export function useObjectTemplates(workspaceId?: string) {
             height: version.sizeY,
             depth: version.sizeZ,
             categoryId: model.categoryId || undefined,
+            variants: version.variants,
             objectProperties: parseObjectProperties(version.objectProperties),
           });
         } catch (versionError) {

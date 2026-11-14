@@ -20,6 +20,7 @@ import { AppliedMaterial, DesignObject, GlobalMaterials, resolveGlobalMaterials 
 import ObjectMeasurements3D from './ObjectMeasurements3D';
 import { Room3dProps } from './Room3d';
 import { computeDragMove, MoveContext } from './moveBehaviours';
+import { ObjectVariant, resolveActiveVariants, resolveVariantMeshes } from '../../../services/variants';
 
 let globalIsDragging = false;
 
@@ -121,6 +122,85 @@ export function useDownload3dModel(remoteUrl: string, assetName: string = 'asset
     return { localUri: assetUri, isLoading, error };
 }
 
+function AdditiveVariantMesh({
+    variant,
+    modelScale,
+    gltfHandlers,
+    hideObject,
+    isSelected,
+}: {
+    variant: ObjectVariant;
+    modelScale?: number;
+    gltfHandlers: Record<string, any>;
+    hideObject?: boolean;
+    isSelected?: boolean;
+}) {
+    const { localUri, isLoading, error } = useDownload3dModel(variant.fileURL, variant.id);
+    const groupRef = useRef<THREE.Group | null>(null);
+    const edgeLinesRef = useRef<THREE.LineSegments[]>([]);
+
+    const handleGltfReady = useCallback((group: THREE.Group | null) => {
+        groupRef.current = group;
+    }, []);
+
+    useEffect(() => {
+        const group = groupRef.current;
+        if (!group) return;
+
+        const lines: THREE.LineSegments[] = [];
+        group.traverse((child) => {
+            if (child instanceof THREE.Mesh) {
+                const edgeGeometry = new THREE.EdgesGeometry(child.geometry, 30);
+                const line = new THREE.LineSegments(edgeGeometry, new THREE.LineBasicMaterial({ color: 'black' }));
+                line.position.copy(child.position);
+                line.rotation.copy(child.rotation);
+                line.scale.copy(child.scale);
+                line.visible = false;
+                child.parent?.add(line);
+                lines.push(line);
+            }
+        });
+        edgeLinesRef.current = lines;
+
+        return () => {
+            lines.forEach((line) => {
+                line.parent?.remove(line);
+                line.geometry.dispose();
+                (line.material as THREE.Material).dispose();
+            });
+            edgeLinesRef.current = [];
+        };
+    }, [localUri]);
+
+    useEffect(() => {
+        const group = groupRef.current;
+        if (!group) return;
+        group.traverse((child) => {
+            if (child instanceof THREE.Mesh) child.visible = !hideObject;
+        });
+        edgeLinesRef.current.forEach((line) => {
+            line.visible = !!hideObject || !!isSelected;
+            const material = line.material as THREE.LineBasicMaterial;
+            material.depthTest = !isSelected;
+            line.renderOrder = isSelected ? 999 : 0;
+        });
+    }, [hideObject, isSelected]);
+
+    if (isLoading || error || !localUri) return null;
+
+    return (
+        <Suspense fallback={null}>
+            <Gltf
+                ref={handleGltfReady}
+                src={localUri}
+                rotation={[0, -Math.PI / 2, 0]}
+                scale={modelScale || 1}
+                {...gltfHandlers}
+            />
+        </Suspense>
+    );
+}
+
 export function DesignObject3D({
     obj, position, origin, dimensions, modelScale, rotation, onObjectInteraction, onDeselect, isSelected, onObjectEdited, onObjectDeleted, onEditObject, onObjectDuplicate, room3d, magnetEnabled, allObjects, onDragStateChange, onSlotsDiscovered, interactionDisabled, instanceOverrides, globalMaterials, globalMaterialsRaw, materialDataById, slotTypesByModel, typeToDesignSlot, forcedHidden, activeMeasurementSide, onSelectMeasurement
 }: {
@@ -153,8 +233,15 @@ export function DesignObject3D({
     activeMeasurementSide?: import('../3dViewOverlay/EditMeasurementModal').MeasurementSide,
     onSelectMeasurement?: (side: import('../3dViewOverlay/EditMeasurementModal').MeasurementSide, currentValue: number) => void
 }) {
-    const url = obj.modelUrl;
-    const { localUri, isLoading, error } = useDownload3dModel(url, obj.id);
+    const activeVariants = React.useMemo(
+        () => resolveActiveVariants(obj.variants ?? [], obj.objectProperties?.defaultVariants, obj.selectedVariants),
+        [obj.variants, obj.objectProperties?.defaultVariants, obj.selectedVariants]
+    );
+    const { primaryModelUrl, additiveMeshes } = React.useMemo(
+        () => resolveVariantMeshes(obj.modelUrl, activeVariants),
+        [obj.modelUrl, activeVariants]
+    );
+    const { localUri, isLoading, error } = useDownload3dModel(primaryModelUrl, `${obj.id}:primary`);
     const [isDesktop, setIsDesktop] = useState(false);
 
     const [isDragging, setIsDragging] = useState(false);
@@ -777,6 +864,16 @@ export function DesignObject3D({
                              {...gltfHandlers}
                          />
                      </Suspense>
+                     {additiveMeshes.map((variant) => (
+                         <AdditiveVariantMesh
+                             key={variant.id}
+                             variant={variant}
+                             modelScale={modelScale}
+                             gltfHandlers={gltfHandlers}
+                             hideObject={hideObject}
+                             isSelected={isSelected}
+                         />
+                     ))}
                  </group>
 
                  {isTextureLoading && !hideObject && (

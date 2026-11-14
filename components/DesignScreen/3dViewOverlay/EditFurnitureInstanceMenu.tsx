@@ -9,6 +9,7 @@ import { DesignMaterialSlot, designSlotByKey, isMaterialRef, normalizeTypeName }
 import MaterialPicker from "./MaterialPicker";
 import { COLORS, GLASS, RADII } from "@/constants/theme";
 import GlassSurface from "./GlassSurface";
+import { parseVariantProperties } from "../../../services/variants";
 
 const SIZE_STEP = 0.05;
 const MIN_SIZE = 0.05;
@@ -42,7 +43,7 @@ export default function EditFurnitureInstanceMenu({
   containerStyle,
 }: {
   object: DesignObject;
-  onEditComplete: (id: string, updates: { name: string; position: [number, number, number]; materialOverrides?: MaterialOverrides; dimensions?: [number, number, number]; backsplash?: import("../3dView/DesignObjects").CounterBacksplashConfig }) => void;
+  onEditComplete: (id: string, updates: { name: string; position: [number, number, number]; materialOverrides?: MaterialOverrides; dimensions?: [number, number, number]; backsplash?: import("../3dView/DesignObjects").CounterBacksplashConfig; selectedVariants?: Record<string, string | null> }) => void;
   onDimensionPreview?: (id: string, dimensions: [number, number, number]) => void;
   onDelete?: (id: string) => void;
   onDuplicate?: (object: DesignObject) => void;
@@ -59,7 +60,28 @@ export default function EditFurnitureInstanceMenu({
   const [positionX, setPositionX] = useState(object.position?.[0]?.toFixed(2) ?? "0.00");
   const [positionY, setPositionY] = useState(object.position?.[1]?.toFixed(2) ?? "0.00");
   const [positionZ, setPositionZ] = useState(object.position?.[2]?.toFixed(2) ?? "0.00");
-  const [activeTab, setActiveTab] = useState<'transform' | 'materials'>('transform');
+  const [activeTab, setActiveTab] = useState<'transform' | 'materials' | 'variants'>('transform');
+  const [dirtyVariants, setDirtyVariants] = useState<Record<string, string | null>>(object.selectedVariants || {});
+
+  const variantGroups = useMemo(() => {
+    const map = new Map<string, { group: string; label: string; allowNone: boolean; variants: import("../../../services/variants").ObjectVariant[] }>();
+    for (const v of object.variants ?? []) {
+      const parsed = parseVariantProperties(v.variantProperties);
+      const groupKey = parsed.group;
+      let entry = map.get(groupKey);
+      if (!entry) {
+        entry = {
+          group: groupKey,
+          label: parsed.label || groupKey.charAt(0).toUpperCase() + groupKey.slice(1),
+          allowNone: parsed.allowNone ?? true,
+          variants: [],
+        };
+        map.set(groupKey, entry);
+      }
+      entry.variants.push(v);
+    }
+    return Array.from(map.values());
+  }, [object.variants]);
   const [dirtyOverrides, setDirtyOverrides] = useState<Record<number, string>>(object.materialOverrides || {});
   const [editingSlot, setEditingSlot] = useState<number | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -173,6 +195,7 @@ export default function EditFurnitureInstanceMenu({
       ],
       materialOverrides: dirtyOverrides,
       dimensions: [sizeWidthValue, sizeHeightValue, sizeDepthValue],
+      selectedVariants: dirtyVariants,
       backsplash: isCounter
         ? {
             enabled: backsplashEnabled,
@@ -361,6 +384,16 @@ export default function EditFurnitureInstanceMenu({
             Materiales
           </Text>
         </Pressable>
+        {variantGroups.length > 0 && (
+          <Pressable
+            style={[styles.tabBtn, activeTab === 'variants' && styles.tabBtnActive]}
+            onPress={() => setActiveTab('variants')}
+          >
+            <Text style={[styles.tabBtnText, activeTab === 'variants' && styles.tabBtnTextActive]}>
+              Variantes
+            </Text>
+          </Pressable>
+        )}
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
@@ -549,6 +582,74 @@ export default function EditFurnitureInstanceMenu({
             )}
 
           </>
+        ) : activeTab === 'variants' ? (
+          <View style={styles.variantsContainer}>
+            {variantGroups.map((group) => {
+              const currentVal = dirtyVariants[group.group];
+              return (
+                <View key={group.group} style={styles.variantGroupCard}>
+                  <View style={styles.variantGroupHeader}>
+                    <Text style={styles.variantGroupLabel}>{group.label}</Text>
+                    <Text style={styles.variantGroupId}>({group.group})</Text>
+                  </View>
+                  <View style={styles.variantChipRow}>
+                    {group.allowNone && (
+                      <Pressable
+                        style={[
+                          styles.variantChip,
+                          (currentVal === null || currentVal === undefined || currentVal === '') && styles.variantChipActive,
+                        ]}
+                        onPress={() =>
+                          setDirtyVariants((prev) => ({
+                            ...prev,
+                            [group.group]: null,
+                          }))
+                        }
+                      >
+                        <Text
+                          style={[
+                            styles.variantChipText,
+                            (currentVal === null || currentVal === undefined || currentVal === '') && styles.variantChipTextActive,
+                          ]}
+                        >
+                          Ninguno
+                        </Text>
+                      </Pressable>
+                    )}
+                    {group.variants.map((v) => {
+                      const isSelected = currentVal === v.id;
+                      return (
+                        <Pressable
+                          key={v.id}
+                          style={[styles.variantChip, isSelected && styles.variantChipActive]}
+                          onPress={() =>
+                            setDirtyVariants((prev) => ({
+                              ...prev,
+                              [group.group]: v.id,
+                            }))
+                          }
+                        >
+                          <Text style={[styles.variantChipText, isSelected && styles.variantChipTextActive]}>
+                            {v.name}
+                          </Text>
+                          <View
+                            style={[
+                              styles.variantModeBadge,
+                              v.mode === 'replace' ? styles.variantModeReplace : styles.variantModeAdditive,
+                            ]}
+                          >
+                            <Text style={styles.variantModeBadgeText}>
+                              {v.mode === 'replace' ? 'Reemplazo' : '+'}
+                            </Text>
+                          </View>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              );
+            })}
+          </View>
         ) : (
           <>
             {slotList.length > 0 ? (
@@ -1047,5 +1148,74 @@ const styles = StyleSheet.create({
   },
   itemPressed: {
     backgroundColor: GLASS.bgPressed,
+  },
+  variantsContainer: {
+    gap: 12,
+  },
+  variantGroupCard: {
+    backgroundColor: GLASS.bgStrong,
+    padding: 12,
+    borderRadius: RADII.md,
+    borderWidth: 1,
+    borderColor: GLASS.border,
+  },
+  variantGroupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  variantGroupLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: GLASS.text,
+  },
+  variantGroupId: {
+    fontSize: 11,
+    color: GLASS.textMuted,
+  },
+  variantChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  variantChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: RADII.sm,
+    borderWidth: 1,
+    borderColor: GLASS.border,
+    backgroundColor: GLASS.bgInput,
+  },
+  variantChipActive: {
+    borderColor: COLORS.primary,
+    backgroundColor: 'rgba(37, 99, 235, 0.15)',
+  },
+  variantChipText: {
+    fontSize: 12,
+    color: GLASS.text,
+  },
+  variantChipTextActive: {
+    color: COLORS.primary,
+    fontWeight: '700',
+  },
+  variantModeBadge: {
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: RADII.sm,
+  },
+  variantModeAdditive: {
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+  },
+  variantModeReplace: {
+    backgroundColor: 'rgba(245, 158, 11, 0.2)',
+  },
+  variantModeBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: GLASS.text,
   },
 });

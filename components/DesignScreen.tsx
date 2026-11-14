@@ -154,7 +154,18 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
     setIsProjectLoading(false);
     projectLoadedRef.current = true;
     setRoom3d(room);
-    setDesignObjects(objects);
+    const enrichedObjects = await Promise.all(objects.map(async (obj) => {
+      const template = objectTemplates.find(t => t.id === obj.modelId && t.version === obj.version);
+      if (template?.variants) return { ...obj, variants: template.variants };
+      try {
+        const v = await fetchObjectVersion(obj.modelId, obj.version);
+        if (v?.variants) return { ...obj, variants: v.variants };
+      } catch {
+        // preserve as-is
+      }
+      return obj;
+    }));
+    setDesignObjects(enrichedObjects);
     setGlobalMaterials(loadedGlobalMaterials ?? {});
     setBudgetSettings(loadedBudget);
     setSavedViews(loadedSavedViews);
@@ -454,7 +465,7 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
     setMovingObject(newObject);
   };
 
-  const handleObjectEdited = (id: string, updates: { name: string, position: [number, number, number], rotation?: number, materialOverrides?: MaterialOverrides, hidden?: boolean, dimensions?: [number, number, number] }) => {
+  const handleObjectEdited = (id: string, updates: { name: string, position: [number, number, number], rotation?: number, materialOverrides?: MaterialOverrides, hidden?: boolean, dimensions?: [number, number, number], selectedVariants?: Record<string, string | null> }) => {
     setDesignObjects(prev => prev.map(obj =>
       obj.id === id ? {
         ...obj,
@@ -464,6 +475,7 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
         ...(updates.materialOverrides !== undefined && { materialOverrides: updates.materialOverrides }),
         ...(updates.hidden !== undefined && { hidden: updates.hidden }),
         ...(updates.dimensions !== undefined && { dimensions: updates.dimensions }),
+        ...(updates.selectedVariants !== undefined && { selectedVariants: updates.selectedVariants }),
       } : obj
     ));
   };
