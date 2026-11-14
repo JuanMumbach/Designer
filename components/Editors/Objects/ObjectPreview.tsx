@@ -1,6 +1,6 @@
 import { Billboard, Box, Gltf, ScreenSizer } from '@react-three/drei/native';
 import { Canvas, useFrame } from '@react-three/fiber';
-import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import * as THREE from 'three';
 import PreviewEnvironment from '../PreviewScene';
@@ -16,6 +16,170 @@ import {
 } from '../../../services/materialSlots';
 import { extractGlbParts, readGlbBytes } from '../../../services/glbParts';
 import { AppliedMaterial } from '@/components/DesignScreen/3dView/DesignObjects';
+import { hashString, useDownload3dModel } from '@/components/DesignScreen/3dView/remote3dModel';
+import { ObjectVariant, resolveActiveVariants, resolveVariantMeshes } from '../../../services/variants';
+
+function PreviewAdditiveMesh({
+  variant,
+  slotTextures,
+  dimensions,
+}: {
+  variant: ObjectVariant;
+  slotTextures?: Record<number, AppliedMaterial>;
+  dimensions?: [number, number, number];
+}) {
+  const { localUri, isLoading, error } = useDownload3dModel(
+    variant.fileURL,
+    `preview:${variant.id}:${hashString(variant.fileURL)}`
+  );
+  const [processedUri, setProcessedUri] = useState<string | null>(null);
+  const objectUrlRef = useRef<string | null>(null);
+  const groupRef = useRef<THREE.Group | null>(null);
+  const meshOriginalsRef = useRef<WeakMap<THREE.Mesh, THREE.Material>>(new WeakMap());
+  const [groupVersion, setGroupVersion] = useState(0);
+  const [maps, setMaps] = useState<SlotIndexMaps | null>(null);
+  const [mapsReady, setMapsReady] = useState(false);
+  const applyVersionRef = useRef(0);
+
+  useEffect(() => {
+    if (!localUri) {
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+        objectUrlRef.current = null;
+      }
+      setProcessedUri(null);
+      return;
+    }
+
+    let cancelled = false;
+    const prepare = async () => {
+      let result = localUri;
+      if (Platform.OS === 'web' && localUri.startsWith('file://')) {
+        const resp = await fetch(localUri);
+        const blob = await resp.blob();
+        result = URL.createObjectURL(blob);
+      }
+      if (!cancelled) {
+        if (objectUrlRef.current && objectUrlRef.current !== result) {
+          URL.revokeObjectURL(objectUrlRef.current);
+        }
+        objectUrlRef.current = result.startsWith('blob:') ? result : null;
+        setProcessedUri(result);
+      }
+    };
+    prepare();
+    return () => {
+      cancelled = true;
+    };
+  }, [localUri]);
+
+  useEffect(() => {
+    if (!processedUri) return;
+    let cancelled = false;
+    setMapsReady(false);
+    (async () => {
+      try {
+        const bytes = await readGlbBytes(processedUri);
+        const built = buildSlotIndexMaps(extractGlbParts(bytes));
+        if (!cancelled) setMaps(built);
+      } catch (err) {
+        console.warn('Failed to parse additive preview GLB slots:', err);
+        if (!cancelled) setMaps(null);
+      } finally {
+        if (!cancelled) setMapsReady(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [processedUri]);
+
+  const handleGltfReady = useCallback((group: THREE.Group | null) => {
+    groupRef.current = group;
+    if (!group) return;
+    group.traverse((child) => {
+      if (child instanceof THREE.Mesh && child.material && !Array.isArray(child.material)) {
+        if (!meshOriginalsRef.current.has(child)) {
+          meshOriginalsRef.current.set(child, child.material.clone());
+        }
+      }
+    });
+    setGroupVersion((v) => v + 1);
+  }, []);
+
+  useEffect(() => {
+    const group = groupRef.current;
+    if (!group || !mapsReady) return;
+    applyVersionRef.current++;
+    const currentVersion = applyVersionRef.current;
+
+    const restore = (mesh: THREE.Mesh) => {
+      const orig = meshOriginalsRef.current.get(mesh);
+      if (orig && mesh.material !== orig) mesh.material = orig;
+    };
+
+    if (!maps || !slotTextures) {
+      group.traverse((child) => {
+        if (child instanceof THREE.Mesh) restore(child);
+      });
+      return;
+    }
+
+    const loader = new THREE.TextureLoader();
+    const dim = dimensions ?? [1, 1, 1];
+
+    group.traverse((child) => {
+      if (!(child instanceof THREE.Mesh) || !child.material) return;
+      const orig = meshOriginalsRef.current.get(child);
+      if (!orig) return;
+      const slot = resolveMeshSlot(child, maps);
+      if (slot === null) {
+        restore(child);
+        return;
+      }
+      const override = slotTextures[slot];
+      if (!override || !override.fileURL) {
+        restore(child);
+        return;
+      }
+      loader.load(
+        override.fileURL,
+        (texture) => {
+          if (currentVersion !== applyVersionRef.current) return;
+          texture.wrapS = THREE.RepeatWrapping;
+          texture.wrapT = THREE.RepeatWrapping;
+          if (
+            override.scaleU > 0 &&
+            override.scaleV > 0 &&
+            texture.image?.width &&
+            texture.image?.height
+          ) {
+            texture.repeat.set(
+              (override.scaleU * dim[0]) / texture.image.width,
+              (override.scaleV * dim[1]) / texture.image.height
+            );
+          }
+          const newMat = orig.clone() as THREE.MeshStandardMaterial;
+          newMat.map = texture;
+          newMat.needsUpdate = true;
+          child.material = newMat;
+        },
+        undefined,
+        () => {
+          if (currentVersion !== applyVersionRef.current) return;
+          restore(child);
+        }
+      );
+    });
+  }, [groupVersion, maps, mapsReady, slotTextures, dimensions]);
+
+  if (isLoading || error || !processedUri) return null;
+  return (
+    <Suspense fallback={null}>
+      <Gltf src={processedUri} scale={0.01} ref={handleGltfReady} />
+    </Suspense>
+  );
+}
 
 const RED = new THREE.Color('#ff2a2a');
 const uiPixelScale = 10;
@@ -165,12 +329,15 @@ function SlotFlash({
 }
 
 export default function ObjectPreview({
-  uri,
+  uri: baseUri,
   highlightSlot,
   captureApi,
   slotTextures,
   onReadyChange,
   dimensions,
+  variants,
+  defaultVariants,
+  selectedVariants,
 }: {
   uri: string | null;
   highlightSlot?: number | null;
@@ -178,10 +345,26 @@ export default function ObjectPreview({
   slotTextures?: Record<number, AppliedMaterial>;
   onReadyChange?: (ready: boolean) => void;
   dimensions?: [number, number, number];
+  variants?: ObjectVariant[];
+  defaultVariants?: Record<string, string | null>;
+  selectedVariants?: Record<string, string | null>;
 }) {
+  const activeVariants = useMemo(() => {
+    if (!variants || variants.length === 0) return [];
+    if (defaultVariants !== undefined || selectedVariants !== undefined) {
+      return resolveActiveVariants(variants, defaultVariants, selectedVariants);
+    }
+    return variants;
+  }, [variants, defaultVariants, selectedVariants]);
+  const { primaryModelUrl, additiveMeshes } = useMemo(
+    () => resolveVariantMeshes(baseUri ?? '', activeVariants),
+    [baseUri, activeVariants]
+  );
+  const uri = baseUri || primaryModelUrl ? primaryModelUrl : null;
   const [processedUri, setProcessedUri] = useState<string | null>(null);
   const objectUrlRef = useRef<string | null>(null);
   const gltfGroupRef = useRef<THREE.Group | null>(null);
+  const captureGroupRef = useRef<THREE.Group | null>(null);
   const [gltfLoaded, setGltfLoaded] = useState(false);
   const [mapsReady, setMapsReady] = useState(false);
   const [maps, setMaps] = useState<SlotIndexMaps | null>(null);
@@ -419,7 +602,7 @@ export default function ObjectPreview({
 
   const beforeCapture = useCallback((camera: THREE.Camera) => {
     flashResetRef.current?.();
-    const group = gltfGroupRef.current;
+    const group = captureGroupRef.current ?? gltfGroupRef.current;
     const persp = camera as THREE.PerspectiveCamera;
     if (!group || !persp) return;
 
@@ -456,24 +639,34 @@ export default function ObjectPreview({
         }}
       >
         <PreviewEnvironment>
-          {processedUri && (
-            <Suspense
-              fallback={
-                <group>
-                  <Box args={[0.5, 0.5, 0.5]}>
-                    <meshStandardMaterial color="#ffffff" />
-                  </Box>
-                  <LoadingSpinner3D position={[0, 0, 0]} />
-                </group>
-              }
-            >
-              <Gltf
-                src={processedUri}
-                scale={0.01}
-                ref={handleGltfReady}
+          <group ref={captureGroupRef}>
+            {processedUri && (
+              <Suspense
+                fallback={
+                  <group>
+                    <Box args={[0.5, 0.5, 0.5]}>
+                      <meshStandardMaterial color="#ffffff" />
+                    </Box>
+                    <LoadingSpinner3D position={[0, 0, 0]} />
+                  </group>
+                }
+              >
+                <Gltf
+                  src={processedUri}
+                  scale={0.01}
+                  ref={handleGltfReady}
+                />
+              </Suspense>
+            )}
+            {processedUri && additiveMeshes.map((variant) => (
+              <PreviewAdditiveMesh
+                key={`${variant.id}:${variant.fileURL}`}
+                variant={variant}
+                slotTextures={slotTextures}
+                dimensions={dimensions ?? modelDimensionsRef.current}
               />
-            </Suspense>
-          )}
+            ))}
+          </group>
           {processedUri && !captureReady && (
             <LoadingSpinner3D position={modelCenter} />
           )}
@@ -486,7 +679,7 @@ export default function ObjectPreview({
           {captureApi && (
             <ThumbnailCaptureHost
               captureApi={captureApi}
-              modelRef={gltfGroupRef}
+              modelRef={captureGroupRef}
               canCapture={canCapture}
               beforeCapture={beforeCapture}
             />

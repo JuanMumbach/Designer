@@ -6,7 +6,8 @@ import { encode as encodePng } from 'fast-png';
 import * as THREE from 'three';
 import type { ModuleElevation } from '../../../services/measurements';
 import { WallView } from '../../../services/measurements';
-import { useDownload3dModel } from '../3dView/remote3dModel';
+import { hashString, useDownload3dModel } from '../3dView/remote3dModel';
+import { ObjectVariant, resolveActiveVariants, resolveVariantMeshes } from '../../../services/variants';
 import { createElevationModel } from './elevationModel';
 import { createElevationCamera } from './elevationCamera';
 
@@ -33,11 +34,14 @@ class ModelBoundary extends React.Component<ModelBoundaryProps, { failed: boolea
   render() { return this.state.failed ? null : this.props.children; }
 }
 
-function LoadedModel({ uri, module, wall, onReady }: {
-  uri: string; module: ModuleElevation; wall: WallView; onReady: () => void;
+function LoadedModel({ uri, additiveUris, module, wall, onReady }: {
+  uri: string; additiveUris: string[]; module: ModuleElevation; wall: WallView; onReady: () => void;
 }) {
-  const { scene } = useGLTF(uri);
-  const model = useMemo(() => createElevationModel(scene, module.object, wall), [scene, module.object, wall]);
+  const gltfs = useGLTF([uri, ...additiveUris]);
+  const model = useMemo(
+    () => createElevationModel(gltfs[0].scene, module.object, wall, gltfs.slice(1).map(g => g.scene)),
+    [gltfs, module.object, wall]
+  );
   useEffect(() => {
     onReady();
     return model.dispose;
@@ -45,31 +49,64 @@ function LoadedModel({ uri, module, wall, onReady }: {
   return <primitive object={model.scene} dispose={null} />;
 }
 
+function AdditiveDownload({ variant, onResolved }: {
+  variant: ObjectVariant; onResolved: (id: string, uri: string | null) => void;
+}) {
+  const { localUri, isLoading, error } = useDownload3dModel(variant.fileURL, `${variant.id}:${hashString(variant.fileURL)}`);
+  useEffect(() => {
+    if (isLoading) return;
+    onResolved(variant.id, error ? null : localUri);
+  }, [variant.id, localUri, isLoading, error, onResolved]);
+  return null;
+}
+
 function ElevationModel({ module, wall, scale, originX, originY, drawingHeight, onStatus }: {
   module: ModuleElevation; wall: WallView; scale: number; originX: number; originY: number; drawingHeight: number;
   onStatus: (id: string, status: 'ready' | 'unavailable') => void;
 }) {
   const { object } = module;
-  const { localUri, isLoading, error } = useDownload3dModel(object.modelUrl, object.id);
+  const activeVariants = useMemo(
+    () => resolveActiveVariants(object.variants ?? [], object.objectProperties?.defaultVariants, object.selectedVariants),
+    [object.variants, object.objectProperties?.defaultVariants, object.selectedVariants]
+  );
+  const { primaryModelUrl, additiveMeshes } = useMemo(
+    () => resolveVariantMeshes(object.modelUrl, activeVariants),
+    [object.modelUrl, activeVariants]
+  );
+  const { localUri, isLoading, error } = useDownload3dModel(primaryModelUrl, `${object.id}:${hashString(primaryModelUrl)}`);
+  const [additiveUris, setAdditiveUris] = React.useState<Record<string, string | null>>({});
+  const handleAdditiveResolved = React.useCallback((id: string, uri: string | null) => {
+    setAdditiveUris(prev => (prev[id] === uri && id in prev ? prev : { ...prev, [id]: uri }));
+  }, []);
+  const additivesReady = additiveMeshes.every(v => v.id in additiveUris);
+  const resolvedAdditiveUris = useMemo(
+    () => additiveMeshes.map(v => additiveUris[v.id]).filter((u): u is string => !!u),
+    [additiveMeshes, additiveUris]
+  );
+  const variantKey = [primaryModelUrl, ...additiveMeshes.map(v => v.fileURL)].join('|');
   const statusKey = `${object.id}:${object.modelUrl}`;
   const onError = React.useCallback(() => onStatus(statusKey, 'unavailable'), [statusKey, onStatus]);
   const onReady = React.useCallback(() => onStatus(statusKey, 'ready'), [statusKey, onStatus]);
   useEffect(() => {
     if (error || (!isLoading && !localUri)) onError();
   }, [error, isLoading, localUri, onError]);
-  if (!localUri || isLoading || error) return null;
+  const downloads = additiveMeshes.map(v => <AdditiveDownload key={v.id} variant={v} onResolved={handleAdditiveResolved} />);
+  if (!localUri || isLoading || error || !additivesReady) return <>{downloads}</>;
   const centerX = object.position[0] + object.dimensions[0] / 2 * Math.cos(object.rotation) + object.dimensions[2] / 2 * Math.sin(object.rotation);
   const centerZ = object.position[2] - object.dimensions[0] / 2 * Math.sin(object.rotation) + object.dimensions[2] / 2 * Math.cos(object.rotation);
   const depth = wall === WallView.Front ? centerZ : wall === WallView.Left ? centerX : -centerX;
-  return <group position={[
-    originX + (module.left + module.width / 2) * scale,
-    drawingHeight - originY + (module.bottom + module.height / 2) * scale,
-    depth * scale,
-  ]} scale={scale}>
-    <ModelBoundary key={object.modelUrl} onError={onError}>
-      <Suspense fallback={null}><LoadedModel uri={localUri} module={module} wall={wall} onReady={onReady} /></Suspense>
-    </ModelBoundary>
-  </group>;
+  return <>
+    {downloads}
+    <group position={[
+      originX + (module.left + module.width / 2) * scale,
+      drawingHeight - originY + (module.bottom + module.height / 2) * scale,
+      depth * scale,
+    ]} scale={scale}>
+      <ModelBoundary key={variantKey} onError={onError}>
+        <Suspense fallback={null}><LoadedModel uri={localUri} additiveUris={resolvedAdditiveUris} module={module} wall={wall} onReady={onReady} /></Suspense>
+      </ModelBoundary>
+    </group>
+  </>;
 }
 
 function ElevationCaptureController({

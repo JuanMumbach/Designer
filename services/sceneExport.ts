@@ -305,18 +305,25 @@ async function addFurnitureToScene(
         targetParent = fitGroup;
       }
 
+      const slotTypes = slotTypesByModel[`${obj.modelId}:${obj.version}`] ?? null;
+
       for (const variant of additiveMeshes) {
         try {
-          const { group: variantGroup } = await loadGLBFromUrl(variant.fileURL);
+          const { group: variantGroup, bytes: variantBytes } = await loadGLBFromUrl(variant.fileURL);
           variantGroup.rotation.set(0, -Math.PI / 2, 0);
           variantGroup.scale.set(0.01, 0.01, 0.01);
           targetParent.add(variantGroup);
+          try {
+            const variantMaps = buildSlotIndexMaps(extractGlbParts(variantBytes));
+            await applyMaterialOverrides(variantGroup, obj.materialOverrides, materialDataById, variantMaps, globalMaterials, slotTypes, typeToDesignSlot, obj.dimensions);
+          } catch (materialErr) {
+            console.warn(`Failed to apply materials to additive variant ${variant.name}:`, materialErr);
+          }
         } catch (variantErr) {
           console.warn(`Failed to export additive variant ${variant.name}:`, variantErr);
         }
       }
 
-      const slotTypes = slotTypesByModel[`${obj.modelId}:${obj.version}`] ?? null;
       await applyMaterialOverrides(modelGroup, obj.materialOverrides, materialDataById, maps, globalMaterials, slotTypes, typeToDesignSlot, obj.dimensions);
 
       container.name = obj.name;

@@ -6,13 +6,16 @@ export function getElevationRotation(rotation: number, wall: WallView): number {
   return rotation + (wall === WallView.Left ? -Math.PI / 2 : wall === WallView.Right ? Math.PI / 2 : 0);
 }
 
-export function createElevationModel(source: THREE.Group, object: DesignObject, wall: WallView) {
-  const model = source.clone(true);
+export function createElevationModel(source: THREE.Group, object: DesignObject, wall: WallView, extras: THREE.Group[] = []) {
+  const primary = source.clone(true);
+  const model = new THREE.Group();
+  model.add(primary);
   model.rotation.y -= Math.PI / 2;
   model.updateMatrixWorld(true);
   const bounds = new THREE.Box3().setFromObject(model);
   const size = bounds.getSize(new THREE.Vector3());
   const center = bounds.getCenter(new THREE.Vector3());
+  extras.forEach(extra => model.add(extra.clone(true)));
   const geometries: THREE.EdgesGeometry[] = [];
   const faceMaterial = new THREE.MeshBasicMaterial({
     color: '#ffffff', side: THREE.DoubleSide, toneMapped: false, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1,

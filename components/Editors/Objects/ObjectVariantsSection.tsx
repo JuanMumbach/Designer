@@ -30,6 +30,7 @@ import {
   ObjectVariant,
   parseDefaultVariantsSegment,
   parseVariantProperties,
+  resolveActiveVariants,
   serializeDefaultVariantsSegment,
   serializeVariantProperties,
 } from '../../../services/variants';
@@ -37,6 +38,7 @@ import {
 interface ObjectVariantsSectionProps {
   objectId: string;
   disabled?: boolean;
+  onPreviewVariantsChange?: (variants: ObjectVariant[]) => void;
 }
 
 interface VariantGroupItem {
@@ -49,11 +51,13 @@ interface VariantGroupItem {
 export default function ObjectVariantsSection({
   objectId,
   disabled,
+  onPreviewVariantsChange,
 }: ObjectVariantsSectionProps) {
   const { backendUserId } = useAuth();
   const [version, setVersion] = useState<number | null>(null);
   const [versionProperties, setVersionProperties] = useState<string>('');
   const [variants, setVariants] = useState<ObjectVariant[]>([]);
+  const [selectedVariants, setSelectedVariants] = useState<Record<string, string | null>>({});
   const [loading, setLoading] = useState(false);
 
   const [modalVisible, setModalVisible] = useState(false);
@@ -105,7 +109,23 @@ export default function ObjectVariantsSection({
     loadData();
   }, [loadData]);
 
-  const defaultVariants = parseDefaultVariantsSegment(versionProperties);
+  const defaultVariants = React.useMemo(
+    () => parseDefaultVariantsSegment(versionProperties),
+    [versionProperties]
+  );
+
+  const activePreviewVariants = React.useMemo(
+    () => resolveActiveVariants(variants, defaultVariants, selectedVariants),
+    [variants, defaultVariants, selectedVariants]
+  );
+
+  useEffect(() => {
+    onPreviewVariantsChange?.(activePreviewVariants);
+  }, [activePreviewVariants, onPreviewVariantsChange]);
+
+  const handleSelectPreviewVariant = (groupName: string, variantId: string | null) => {
+    setSelectedVariants((prev) => ({ ...prev, [groupName]: variantId }));
+  };
 
   const groups: VariantGroupItem[] = React.useMemo(() => {
     const map = new Map<string, VariantGroupItem>();
@@ -328,6 +348,10 @@ export default function ObjectVariantsSection({
       ) : (
         groups.map((group) => {
           const currentDefault = defaultVariants[group.group] ?? null;
+          const activeInGroup =
+            activePreviewVariants.find(
+              (v) => (parseVariantProperties(v.variantProperties).group || 'default') === group.group
+            )?.id ?? null;
           return (
             <View key={group.group} style={styles.groupCard}>
               <View style={styles.groupHeader}>
@@ -372,52 +396,108 @@ export default function ObjectVariantsSection({
                 </View>
               </View>
 
-              <View style={styles.variantList}>
-                {group.variants.map((v) => (
-                  <View key={v.id} style={styles.variantItem}>
-                    <View style={styles.variantItemHeader}>
-                      <View style={styles.variantTitleRow}>
-                        <Text style={styles.variantName}>{v.name}</Text>
-                        <View
+              <View style={styles.defaultRow}>
+                <Text style={styles.defaultLabel}>Vista previa:</Text>
+                <View style={styles.defaultChips}>
+                  {group.allowNone && (
+                    <Pressable
+                      style={[styles.defaultChip, activeInGroup === null && styles.defaultChipActive]}
+                      onPress={() => handleSelectPreviewVariant(group.group, null)}
+                    >
+                      <Text
+                        style={[
+                          styles.defaultChipText,
+                          activeInGroup === null && styles.defaultChipTextActive,
+                        ]}
+                      >
+                        Ninguno
+                      </Text>
+                    </Pressable>
+                  )}
+                  {group.variants.map((v) => {
+                    const isPreviewed = activeInGroup === v.id;
+                    return (
+                      <Pressable
+                        key={v.id}
+                        style={[styles.defaultChip, isPreviewed && styles.defaultChipActive]}
+                        onPress={() => handleSelectPreviewVariant(group.group, v.id)}
+                      >
+                        <Text
                           style={[
-                            styles.modeBadge,
-                            v.mode === 'replace' ? styles.modeBadgeReplace : styles.modeBadgeAdditive,
+                            styles.defaultChipText,
+                            isPreviewed && styles.defaultChipTextActive,
                           ]}
                         >
-                          <Text style={styles.modeBadgeText}>
-                            {v.mode === 'replace' ? 'Reemplazo' : '+ Aditiva'}
-                          </Text>
-                        </View>
-                        {defaultVariants[group.group] === v.id && (
-                          <View style={styles.defaultBadge}>
-                            <Text style={styles.defaultBadgeText}>Predeterminada</Text>
+                          {v.name}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+
+              <View style={styles.variantList}>
+                {group.variants.map((v) => {
+                  const isPreviewed = activeInGroup === v.id;
+                  return (
+                    <View key={v.id} style={styles.variantItem}>
+                      <View style={styles.variantItemHeader}>
+                        <View style={styles.variantTitleRow}>
+                          <Text style={styles.variantName}>{v.name}</Text>
+                          <View
+                            style={[
+                              styles.modeBadge,
+                              v.mode === 'replace' ? styles.modeBadgeReplace : styles.modeBadgeAdditive,
+                            ]}
+                          >
+                            <Text style={styles.modeBadgeText}>
+                              {v.mode === 'replace' ? 'Reemplazo' : '+ Aditiva'}
+                            </Text>
                           </View>
-                        )}
+                          {defaultVariants[group.group] === v.id && (
+                            <View style={styles.defaultBadge}>
+                              <Text style={styles.defaultBadgeText}>Predeterminada</Text>
+                            </View>
+                          )}
+                        </View>
+                        <View style={styles.variantActions}>
+                          <Pressable
+                            style={styles.actionBtn}
+                            onPress={() =>
+                              handleSelectPreviewVariant(
+                                group.group,
+                                isPreviewed && group.allowNone ? null : v.id
+                              )
+                            }
+                          >
+                            <Text style={styles.actionBtnText}>
+                              {isPreviewed ? 'Viendo' : 'Vista previa'}
+                            </Text>
+                          </Pressable>
+                          <Pressable
+                            style={styles.actionBtn}
+                            disabled={disabled}
+                            onPress={() => handleOpenEdit(v)}
+                          >
+                            <Text style={styles.actionBtnText}>Editar</Text>
+                          </Pressable>
+                          <Pressable
+                            style={styles.actionBtn}
+                            disabled={disabled}
+                            onPress={() => handleDeleteVariant(v)}
+                          >
+                            <Text style={styles.deleteBtnText}>Eliminar</Text>
+                          </Pressable>
+                        </View>
                       </View>
-                      <View style={styles.variantActions}>
-                        <Pressable
-                          style={styles.actionBtn}
-                          disabled={disabled}
-                          onPress={() => handleOpenEdit(v)}
-                        >
-                          <Text style={styles.actionBtnText}>Editar</Text>
-                        </Pressable>
-                        <Pressable
-                          style={styles.actionBtn}
-                          disabled={disabled}
-                          onPress={() => handleDeleteVariant(v)}
-                        >
-                          <Text style={styles.deleteBtnText}>Eliminar</Text>
-                        </Pressable>
-                      </View>
+                      {!!v.fileURL && (
+                        <Text style={styles.fileUrlText} numberOfLines={1}>
+                          Modelo: {v.fileURL.split('/').pop()?.split('?')[0] || v.fileURL}
+                        </Text>
+                      )}
                     </View>
-                    {!!v.fileURL && (
-                      <Text style={styles.fileUrlText} numberOfLines={1}>
-                        Modelo: {v.fileURL.split('/').pop()?.split('?')[0] || v.fileURL}
-                      </Text>
-                    )}
-                  </View>
-                ))}
+                  );
+                })}
               </View>
             </View>
           );

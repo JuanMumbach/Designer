@@ -24,6 +24,14 @@ import { ObjectVariant, resolveActiveVariants, resolveVariantMeshes } from '../.
 
 let globalIsDragging = false;
 
+export function hashString(value: string): string {
+    let hash = 5381;
+    for (let i = 0; i < value.length; i++) {
+        hash = ((hash << 5) + hash + value.charCodeAt(i)) | 0;
+    }
+    return (hash >>> 0).toString(36);
+}
+
 const uiPixelScale = 10;
 
 function createWhitePlaceholderMaterial(baseMaterial: THREE.Material): THREE.Material {
@@ -90,14 +98,18 @@ export function useDownload3dModel(remoteUrl: string, assetName: string = 'asset
             setIsLoading(true);
             setError(null);
 
-            if (Platform.OS === 'web') {
+            if (Platform.OS === 'web' || remoteUrl.startsWith('file://') || remoteUrl.startsWith('blob:')) {
                 setAssetUri(remoteUrl);
                 setIsLoading(false);
                 return;
             }
 
             try {
-                const filename = assetName + remoteUrl.substring(remoteUrl.lastIndexOf('.'));
+                const safeAssetName = assetName.replace(/[^a-zA-Z0-9._-]/g, '_');
+                const cleanUrl = remoteUrl.split('?')[0];
+                const dotIndex = cleanUrl.lastIndexOf('.');
+                const ext = dotIndex !== -1 ? cleanUrl.substring(dotIndex) : '.glb';
+                const filename = safeAssetName + ext;
                 const localPath = FileSystem.documentDirectory + filename;
 
                 const fileInfo = await FileSystem.getInfoAsync(localPath);
@@ -122,26 +134,205 @@ export function useDownload3dModel(remoteUrl: string, assetName: string = 'asset
     return { localUri: assetUri, isLoading, error };
 }
 
+export function resolveSlotMaterial({
+    slot,
+    slotName,
+    materialOverrides,
+    instanceOverrides,
+    globalMaterials,
+    globalMaterialsRaw,
+    resolvedGlobalIds,
+    materialDataById,
+    objectSlotTypes,
+    typeToDesignSlot,
+}: {
+    slot: number;
+    slotName: string;
+    materialOverrides?: Record<number, string>;
+    instanceOverrides?: Record<number, AppliedMaterial>;
+    globalMaterials?: Record<string, AppliedMaterial>;
+    globalMaterialsRaw?: GlobalMaterials;
+    resolvedGlobalIds: Record<string, string>;
+    materialDataById?: Record<string, AppliedMaterial>;
+    objectSlotTypes?: ObjectMaterialType[] | null;
+    typeToDesignSlot?: Record<string, string>;
+}): { targetMaterialId?: string; override?: AppliedMaterial } {
+    const slotType = objectSlotTypes?.find(t => t.slot === slot);
+    const typeName = slotType?.materialTypeName || slotType?.materialTypeId || '';
+    const designKey = typeName && typeToDesignSlot ? typeToDesignSlot[normalizeTypeName(typeName)] : undefined;
+
+    let targetMaterialId: string | undefined;
+    const rawOverride = materialOverrides?.[slot];
+    if (rawOverride) {
+        targetMaterialId = resolveMaterialValue(rawOverride, globalMaterialsRaw ?? {});
+    }
+    if (!targetMaterialId) {
+        if (designKey && resolvedGlobalIds[designKey]) {
+            targetMaterialId = resolvedGlobalIds[designKey];
+        } else if (resolvedGlobalIds[slotName]) {
+            targetMaterialId = resolvedGlobalIds[slotName];
+        }
+    }
+
+    let override: AppliedMaterial | undefined = instanceOverrides?.[slot];
+    if (!override && globalMaterials) {
+        if (designKey && globalMaterials[designKey]) {
+            override = globalMaterials[designKey];
+        } else if (globalMaterials[slotName]) {
+            override = globalMaterials[slotName];
+        }
+    }
+    if (!override && targetMaterialId && materialDataById?.[targetMaterialId]) {
+        override = materialDataById[targetMaterialId];
+    }
+    return { targetMaterialId, override };
+}
+
 function AdditiveVariantMesh({
     variant,
     modelScale,
     gltfHandlers,
     hideObject,
     isSelected,
+    dimensions,
+    materialOverrides,
+    instanceOverrides,
+    globalMaterials,
+    globalMaterialsRaw,
+    materialDataById,
+    objectSlotTypes,
+    typeToDesignSlot,
 }: {
     variant: ObjectVariant;
     modelScale?: number;
     gltfHandlers: Record<string, any>;
     hideObject?: boolean;
     isSelected?: boolean;
+    dimensions: [number, number, number];
+    materialOverrides?: Record<number, string>;
+    instanceOverrides?: Record<number, AppliedMaterial>;
+    globalMaterials?: Record<string, AppliedMaterial>;
+    globalMaterialsRaw?: GlobalMaterials;
+    materialDataById?: Record<string, AppliedMaterial>;
+    objectSlotTypes?: ObjectMaterialType[] | null;
+    typeToDesignSlot?: Record<string, string>;
 }) {
-    const { localUri, isLoading, error } = useDownload3dModel(variant.fileURL, variant.id);
+    const { localUri, isLoading, error } = useDownload3dModel(variant.fileURL, `${variant.id}:${hashString(variant.fileURL)}`);
     const groupRef = useRef<THREE.Group | null>(null);
     const edgeLinesRef = useRef<THREE.LineSegments[]>([]);
+    const meshOriginalsRef = useRef<WeakMap<THREE.Mesh, THREE.Material>>(new WeakMap());
+    const [groupVersion, setGroupVersion] = useState(0);
+    const [slotMaps, setSlotMaps] = useState<SlotIndexMaps | null>(null);
+    const [slotMapsReady, setSlotMapsReady] = useState(false);
+    const applyVersionRef = useRef(0);
 
     const handleGltfReady = useCallback((group: THREE.Group | null) => {
         groupRef.current = group;
+        if (!group) return;
+        group.traverse((child) => {
+            if (child instanceof THREE.Mesh && child.material && !Array.isArray(child.material)) {
+                if (!meshOriginalsRef.current.has(child)) {
+                    meshOriginalsRef.current.set(child, child.material.clone());
+                }
+            }
+        });
+        setGroupVersion(v => v + 1);
     }, []);
+
+    useEffect(() => {
+        if (!localUri) return;
+        let cancelled = false;
+        setSlotMapsReady(false);
+        (async () => {
+            try {
+                const bytes = await readGlbBytes(localUri);
+                const maps = buildSlotIndexMaps(extractGlbParts(bytes));
+                if (!cancelled) setSlotMaps(maps);
+            } catch (err) {
+                console.warn('Failed to parse additive variant material slots:', err);
+                if (!cancelled) setSlotMaps(null);
+            } finally {
+                if (!cancelled) setSlotMapsReady(true);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [localUri]);
+
+    useEffect(() => {
+        const group = groupRef.current;
+        if (!group || !slotMapsReady) return;
+        applyVersionRef.current++;
+        const currentVersion = applyVersionRef.current;
+
+        const restore = (mesh: THREE.Mesh) => {
+            const orig = meshOriginalsRef.current.get(mesh);
+            if (orig && mesh.material !== orig) mesh.material = orig;
+        };
+
+        if (!slotMaps) {
+            group.traverse((child) => {
+                if (child instanceof THREE.Mesh) restore(child);
+            });
+            return;
+        }
+
+        const resolvedGlobalIds = globalMaterialsRaw ? resolveGlobalMaterials(globalMaterialsRaw) : {};
+        const loader = new THREE.TextureLoader();
+
+        group.traverse((child) => {
+            if (!(child instanceof THREE.Mesh) || !child.material) return;
+            const orig = meshOriginalsRef.current.get(child);
+            if (!orig) return;
+            const slot = resolveMeshSlot(child, slotMaps);
+            if (slot === null) {
+                restore(child);
+                return;
+            }
+            const slotName = orig.name || sanitizeNodeName(child.name);
+            const { override } = resolveSlotMaterial({
+                slot,
+                slotName,
+                materialOverrides,
+                instanceOverrides,
+                globalMaterials,
+                globalMaterialsRaw,
+                resolvedGlobalIds,
+                materialDataById,
+                objectSlotTypes,
+                typeToDesignSlot,
+            });
+            if (!override || !override.fileURL) {
+                restore(child);
+                return;
+            }
+            const fileURL = override.fileURL;
+            loader.load(
+                fileURL,
+                (texture) => {
+                    if (currentVersion !== applyVersionRef.current) return;
+                    texture.wrapS = THREE.RepeatWrapping;
+                    texture.wrapT = THREE.RepeatWrapping;
+                    if (override.scaleU > 0 && override.scaleV > 0 && texture.image?.width && texture.image?.height) {
+                        texture.repeat.set(
+                            (override.scaleU * dimensions[0]) / texture.image.width,
+                            (override.scaleV * dimensions[1]) / texture.image.height
+                        );
+                    }
+                    const newMat = orig.clone() as THREE.MeshStandardMaterial;
+                    newMat.map = texture;
+                    newMat.needsUpdate = true;
+                    child.material = newMat;
+                },
+                undefined,
+                () => {
+                    if (currentVersion !== applyVersionRef.current) return;
+                    restore(child);
+                }
+            );
+        });
+    }, [groupVersion, slotMaps, slotMapsReady, materialOverrides, instanceOverrides, globalMaterials, globalMaterialsRaw, materialDataById, objectSlotTypes, typeToDesignSlot, dimensions]);
 
     useEffect(() => {
         const group = groupRef.current;
@@ -170,7 +361,7 @@ function AdditiveVariantMesh({
             });
             edgeLinesRef.current = [];
         };
-    }, [localUri]);
+    }, [localUri, groupVersion]);
 
     useEffect(() => {
         const group = groupRef.current;
@@ -184,7 +375,7 @@ function AdditiveVariantMesh({
             material.depthTest = !isSelected;
             line.renderOrder = isSelected ? 999 : 0;
         });
-    }, [hideObject, isSelected]);
+    }, [hideObject, isSelected, groupVersion]);
 
     if (isLoading || error || !localUri) return null;
 
@@ -241,7 +432,13 @@ export function DesignObject3D({
         () => resolveVariantMeshes(obj.modelUrl, activeVariants),
         [obj.modelUrl, activeVariants]
     );
-    const { localUri, isLoading, error } = useDownload3dModel(primaryModelUrl, `${obj.id}:primary`);
+    const primaryVariantKey = React.useMemo(() => {
+        const replaceVariant = [...activeVariants].reverse().find(v => v.mode === 'replace' && v.fileURL);
+        return replaceVariant
+            ? `${obj.id}:replace:${replaceVariant.id}:${hashString(primaryModelUrl)}`
+            : `${obj.id}:primary:${hashString(primaryModelUrl)}`;
+    }, [activeVariants, obj.id, primaryModelUrl]);
+    const { localUri, isLoading, error } = useDownload3dModel(primaryModelUrl, primaryVariantKey);
     const [isDesktop, setIsDesktop] = useState(false);
 
     const [isDragging, setIsDragging] = useState(false);
@@ -345,7 +542,7 @@ export function DesignObject3D({
         });
         edgeLinesRef.current = [];
       };
-    }, [groupReady]);
+    }, [groupReady, gltfVersion]);
 
     useEffect(() => {
       if (prevIsSelectedRef.current && !isSelected) {
@@ -367,11 +564,12 @@ export function DesignObject3D({
         material.depthTest = !isSelected;
         line.renderOrder = isSelected ? 999 : 0;
       });
-    }, [obj.hidden, groupReady, forcedHidden, isSelected]);
+    }, [obj.hidden, groupReady, gltfVersion, forcedHidden, isSelected]);
 
     useEffect(() => {
       if (!localUri) return;
       let cancelled = false;
+      setSlotMapsReady(false);
       (async () => {
         try {
           const bytes = await readGlbBytes(localUri);
@@ -415,7 +613,7 @@ export function DesignObject3D({
         slotsDiscoveredRef.current = true;
         onSlotsDiscoveredRef.current?.(obj.id, slots);
       }
-    }, [groupReady, slotMapsReady, obj.id]);
+    }, [groupReady, gltfVersion, slotMapsReady, obj.id]);
 
     const modelKey = `${obj.modelId}:${obj.version}`;
     const objectSlotTypes = slotTypesByModel ? slotTypesByModel[modelKey] ?? null : undefined;
@@ -472,39 +670,18 @@ export function DesignObject3D({
             return;
           }
 
-          let targetMaterialId: string | undefined;
-          const rawOverride = obj.materialOverrides?.[slot];
-          if (rawOverride) {
-            targetMaterialId = resolveMaterialValue(rawOverride, globalMaterialsRaw ?? {});
-          }
-          if (!targetMaterialId) {
-            const slotType = objectSlotTypes?.find(t => t.slot === slot);
-            const typeName = slotType?.materialTypeName || slotType?.materialTypeId || '';
-            const designKey = typeName && typeToDesignSlot ? typeToDesignSlot[normalizeTypeName(typeName)] : undefined;
-            if (designKey && resolvedGlobalIds[designKey]) {
-              targetMaterialId = resolvedGlobalIds[designKey];
-            } else if (resolvedGlobalIds[slotName]) {
-              targetMaterialId = resolvedGlobalIds[slotName];
-            }
-          }
-
-          let override: AppliedMaterial | undefined;
-          if (instanceOverrides && instanceOverrides[slot]) {
-            override = instanceOverrides[slot];
-          }
-          if (!override && globalMaterials) {
-            const slotType = objectSlotTypes?.find(t => t.slot === slot);
-            const typeName = slotType?.materialTypeName || slotType?.materialTypeId || '';
-            const designKey = typeName && typeToDesignSlot ? typeToDesignSlot[normalizeTypeName(typeName)] : undefined;
-            if (designKey && globalMaterials[designKey]) {
-              override = globalMaterials[designKey];
-            } else if (globalMaterials[slotName]) {
-              override = globalMaterials[slotName];
-            }
-          }
-          if (!override && targetMaterialId && materialDataById?.[targetMaterialId]) {
-            override = materialDataById[targetMaterialId];
-          }
+          const { targetMaterialId, override } = resolveSlotMaterial({
+            slot,
+            slotName,
+            materialOverrides: obj.materialOverrides,
+            instanceOverrides,
+            globalMaterials,
+            globalMaterialsRaw,
+            resolvedGlobalIds,
+            materialDataById,
+            objectSlotTypes,
+            typeToDesignSlot,
+          });
 
           if (targetMaterialId && (!override || !override.fileURL)) {
             waitingForMaterialData = true;
@@ -566,7 +743,7 @@ export function DesignObject3D({
       } else {
         setTexturesResolved(false);
       }
-    }, [instanceOverrides, globalMaterials, globalMaterialsRaw, materialDataById, obj.materialOverrides, obj.modelId, localUri, dimensions, slotMapsReady, groupReady, objectSlotTypes, slotTypesByModel, typeToDesignSlot]);
+    }, [instanceOverrides, globalMaterials, globalMaterialsRaw, materialDataById, obj.materialOverrides, obj.modelId, localUri, dimensions, slotMapsReady, groupReady, gltfVersion, objectSlotTypes, slotTypesByModel, typeToDesignSlot]);
 
     useEffect(() => {
         if (Platform.OS === 'web') {
@@ -872,6 +1049,14 @@ export function DesignObject3D({
                              gltfHandlers={gltfHandlers}
                              hideObject={hideObject}
                              isSelected={isSelected}
+                             dimensions={dimensions}
+                             materialOverrides={obj.materialOverrides}
+                             instanceOverrides={instanceOverrides}
+                             globalMaterials={globalMaterials}
+                             globalMaterialsRaw={globalMaterialsRaw}
+                             materialDataById={materialDataById}
+                             objectSlotTypes={objectSlotTypes}
+                             typeToDesignSlot={typeToDesignSlot}
                          />
                      ))}
                  </group>

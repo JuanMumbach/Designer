@@ -44,6 +44,7 @@ import { AppliedMaterial } from '@/components/DesignScreen/3dView/DesignObjects'
 import { COLORS } from '@/constants/theme';
 import { ModelBudgetEntry } from '../../../services/budget';
 import { MaterialPart, materialPartsArea } from '../../../services/materialParts';
+import { ObjectVariant } from '../../../services/variants';
 
 const VIEW_MODE_KEY = '@catalogue:objectsViewMode';
 const UNCATEGORIZED_KEY = '__none__';
@@ -121,6 +122,7 @@ export default function ObjectBrowser({
 
   // ── Preview URI state (set by ObjectEditor callback) ──
   const [previewUri, setPreviewUri] = useState<string | null>(null);
+  const [previewVariants, setPreviewVariants] = useState<ObjectVariant[]>([]);
   const [highlightSlot, setHighlightSlot] = useState<number | null>(null);
   const [pendingSlotAssignment, setPendingSlotAssignment] =
     useState<SlotAssignmentRequest | null>(null);
@@ -360,6 +362,7 @@ export default function ObjectBrowser({
     setEditingObjectVersion(null);
     setShowCreator(false);
     setPreviewUri(null);
+    setPreviewVariants([]);
     onRefresh();
   };
 
@@ -442,6 +445,7 @@ export default function ObjectBrowser({
     setEditingDataFailed(false);
     setShowCreator(false);
     setPreviewUri(null);
+    setPreviewVariants([]);
   };
 
   const isActive = !!editingObject || showCreator || !!pendingSlotAssignment;
@@ -564,6 +568,7 @@ export default function ObjectBrowser({
         onDelete={editingObject ? handleDeleteObject : undefined}
         onClose={closeEditor}
         onPreviewUriChange={(uri) => setPreviewUri(uri)}
+        onPreviewVariantsChange={setPreviewVariants}
       />
     );
   };
@@ -572,6 +577,7 @@ export default function ObjectBrowser({
     <View style={styles.previewColumn}>
       <ObjectPreview
         uri={previewUri}
+        variants={previewVariants}
         highlightSlot={highlightSlot}
         captureApi={captureApi}
         slotTextures={slotTextures ?? undefined}

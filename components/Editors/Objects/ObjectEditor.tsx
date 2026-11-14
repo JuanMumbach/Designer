@@ -18,7 +18,8 @@ import Toggle from '../../Toggle';
 import { COLORS } from '../../../constants/theme';
 import { uploadFileToFirebase } from '../../../services/firebaseSetup';
 import { useAuth } from '../../../services/AuthContext';
-import { fetchModelMaterialTypes, fetchObjectVersion, MaterialType, ObjectCategory } from '../../../services/api';
+import { fetchModelMaterialTypes, fetchObjectVariants, fetchObjectVersion, MaterialType, ObjectCategory } from '../../../services/api';
+import { ObjectVariant, parseDefaultVariantsSegment, resolveActiveVariants } from '../../../services/variants';
 import ModelSlotsSection from './ModelSlotsSection';
 import ObjectVariantsSection from './ObjectVariantsSection';
 import FormPanel, { formStyles } from '../FormPanel';
@@ -84,6 +85,7 @@ interface ObjectEditorProps {
   isEdit: boolean;
   disabled?: boolean;
   onPreviewUriChange?: (uri: string | null) => void;
+  onPreviewVariantsChange?: (variants: ObjectVariant[]) => void;
   materialTypes?: MaterialType[];
   objectId?: string;
   onHighlightSlot?: (slot: number | null) => void;
@@ -99,6 +101,7 @@ export default function ObjectEditor({
   isEdit,
   disabled,
   onPreviewUriChange,
+  onPreviewVariantsChange,
   materialTypes,
   objectId,
   onHighlightSlot,
@@ -114,10 +117,31 @@ export default function ObjectEditor({
   useEffect(() => {
     let active = true;
     setBudgetSlots([]);
-    if (objectId) fetchObjectVersion(objectId).then((version) => fetchModelMaterialTypes(objectId, version.version))
-      .then((slots) => { if (active) setBudgetSlots(slots); }).catch(() => {});
+    if (!objectId) {
+      onPreviewVariantsChange?.([]);
+      return () => { active = false; };
+    }
+    fetchObjectVersion(objectId)
+      .then(async (version) => {
+        const [slots, variants] = await Promise.all([
+          fetchModelMaterialTypes(objectId, version.version).catch(() => []),
+          version.variants
+            ? Promise.resolve(version.variants)
+            : fetchObjectVariants(objectId, version.version).catch(() => []),
+        ]);
+        if (!active) return;
+        setBudgetSlots(slots);
+        const defaultVariants =
+          typeof version.objectProperties === 'object' && version.objectProperties !== null
+            ? version.objectProperties.defaultVariants
+            : typeof version.objectProperties === 'string'
+              ? parseDefaultVariantsSegment(version.objectProperties)
+              : undefined;
+        onPreviewVariantsChange?.(resolveActiveVariants(variants, defaultVariants));
+      })
+      .catch(() => {});
     return () => { active = false; };
-  }, [objectId]);
+  }, [objectId, onPreviewVariantsChange]);
   const [categoryId, setCategoryId] = useState(initial?.categoryId ?? '');
   const [fileURL, setFileURL] = useState(initial?.fileURL ?? '');
   const [sizeX, setSizeX] = useState(initial?.sizeX ?? '1');
@@ -429,7 +453,11 @@ export default function ObjectEditor({
     }
     if (tab === 'variants') {
       return isEdit && objectId ? (
-        <ObjectVariantsSection objectId={objectId} disabled={inputsDisabled} />
+        <ObjectVariantsSection
+          objectId={objectId}
+          disabled={inputsDisabled}
+          onPreviewVariantsChange={onPreviewVariantsChange}
+        />
       ) : (
         <Text style={formStyles.hint}>Guardá el módulo para configurar sus accesorios y variantes.</Text>
       );
