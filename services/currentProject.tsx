@@ -26,6 +26,7 @@ export interface DesignSnapshot {
   room: Room3dProps;
   objects: DesignObject[];
   globalMaterials?: Record<string, string>;
+  defaultHandleType?: string | null;
 }
 
 interface CurrentProjectContextValue {
@@ -35,6 +36,8 @@ interface CurrentProjectContextValue {
   setProjectName: (name: string) => void;
   designSnapshot: DesignSnapshot | null;
   setDesignSnapshot: (snapshot: DesignSnapshot) => void;
+  defaultHandleType: string | null;
+  setDefaultHandleType: React.Dispatch<React.SetStateAction<string | null>>;
   savedViews: SavedView[];
   setSavedViews: React.Dispatch<React.SetStateAction<SavedView[]>>;
   budgetSettings: BudgetSettings;
@@ -53,6 +56,8 @@ const CurrentProjectContext = createContext<CurrentProjectContextValue>({
   setProjectName: () => {},
   designSnapshot: null,
   setDesignSnapshot: () => {},
+  defaultHandleType: null,
+  setDefaultHandleType: () => {},
   savedViews: [],
   setSavedViews: () => {},
   budgetSettings: emptyBudgetSettings(),
@@ -68,6 +73,7 @@ export function CurrentProjectProvider({ children }: { children: React.ReactNode
   const [project, setProjectState] = useState<Project | null>(null);
   const [projectName, setProjectName] = useState<string>('');
   const [designSnapshot, setDesignSnapshot] = useState<DesignSnapshot | null>(null);
+  const [defaultHandleType, setDefaultHandleType] = useState<string | null>(null);
   const [savedViews, setSavedViews] = useState<SavedView[]>([]);
   const [budgetSettings, setBudgetSettings] = useState<BudgetSettings>(emptyBudgetSettings);
   const editorRef = useRef<((id: string, entries: ModelBudgetEntry[] | undefined) => void) | null>(null);
@@ -90,7 +96,7 @@ export function CurrentProjectProvider({ children }: { children: React.ReactNode
   const updateMaterialParts = useCallback((id: string, parts: MaterialPart[] | undefined) => partsEditorRef.current?.(id, parts), []);
 
   return (
-    <CurrentProjectContext.Provider value={{ project, setProject, projectName, setProjectName, designSnapshot, setDesignSnapshot, savedViews, setSavedViews, budgetSettings, setBudgetSettings, registerBudgetEditor, updateBudgetEntries, canEditBudgetObjects, registerPartsEditor, updateMaterialParts }}>
+    <CurrentProjectContext.Provider value={{ project, setProject, projectName, setProjectName, designSnapshot, setDesignSnapshot, defaultHandleType, setDefaultHandleType, savedViews, setSavedViews, budgetSettings, setBudgetSettings, registerBudgetEditor, updateBudgetEntries, canEditBudgetObjects, registerPartsEditor, updateMaterialParts }}>
       {children}
     </CurrentProjectContext.Provider>
   );

@@ -3,6 +3,7 @@ import { generateUUID } from 'three/src/math/MathUtils.js';
 import { ObjectMaterialType, ObjectProperties } from '../../../services/api';
 import { resolveInstanceOverrides } from '../../../services/designMaterialDefaults';
 import { MaterialSlotInfo } from '../../../services/materialSlots';
+import { isHandleVariantGroup } from '../../../services/variants';
 import { DesignObject3D } from './remote3dModel';
 import { Room3dProps } from './Room3d';
 
@@ -89,6 +90,14 @@ export interface DesignObject {
 }
 
 export function createDesignObject(template: ObjectTemplate, position?: [number, number, number]): DesignObject {
+    const initialSelectedVariants: Record<string, string | null> = {};
+    if (template.objectProperties?.defaultVariants) {
+        for (const [grp, varId] of Object.entries(template.objectProperties.defaultVariants)) {
+            if (!isHandleVariantGroup(grp)) {
+                initialSelectedVariants[grp] = varId;
+            }
+        }
+    }
     return {
         id: generateUUID(),
         modelId: template.id,
@@ -101,8 +110,8 @@ export function createDesignObject(template: ObjectTemplate, position?: [number,
         modelUrl: template.modelUrl,
         objectProperties: template.objectProperties,
         variants: template.variants,
-        selectedVariants: template.objectProperties?.defaultVariants
-            ? { ...template.objectProperties.defaultVariants }
+        selectedVariants: Object.keys(initialSelectedVariants).length > 0
+            ? initialSelectedVariants
             : undefined,
         materialOverrides: {},
         hidden: false,
@@ -353,7 +362,8 @@ export default function DesignObjectsRenderer({
   wallCulling,
   activeMeasurementSide,
   onSelectMeasurement,
-  onDeselect
+  onDeselect,
+  defaultHandleType
 }: {
   objects: DesignObject[],
   origin: [number, number, number],
@@ -376,7 +386,8 @@ export default function DesignObjectsRenderer({
   wallCulling?: WallCulling,
   activeMeasurementSide?: import('../3dViewOverlay/EditMeasurementModal').MeasurementSide,
   onSelectMeasurement?: (object: DesignObject, side: import('../3dViewOverlay/EditMeasurementModal').MeasurementSide, currentValue: number) => void,
-  onDeselect?: () => void
+  onDeselect?: () => void,
+  defaultHandleType?: string | null
 }) {
 
     return (
@@ -414,6 +425,7 @@ export default function DesignObjectsRenderer({
                              forcedHidden={isAttachedToCulledWall(obj, room3d, wallCulling)}
                              activeMeasurementSide={obj.id === movingObjectId ? activeMeasurementSide : undefined}
                              onSelectMeasurement={onSelectMeasurement ? (side, val) => onSelectMeasurement(obj, side, val) : undefined}
+                             defaultHandleType={defaultHandleType}
                          />
                      )
             })}
@@ -474,7 +486,8 @@ function DesignObjectWithMaterials({
   forcedHidden,
   activeMeasurementSide,
   onSelectMeasurement,
-  onDeselect
+  onDeselect,
+  defaultHandleType
 }: {
   obj: DesignObject,
   position: [number, number, number],
@@ -503,7 +516,8 @@ function DesignObjectWithMaterials({
   forcedHidden?: boolean,
   activeMeasurementSide?: import('../3dViewOverlay/EditMeasurementModal').MeasurementSide,
   onSelectMeasurement?: (side: import('../3dViewOverlay/EditMeasurementModal').MeasurementSide, currentValue: number) => void,
-  onDeselect?: () => void
+  onDeselect?: () => void,
+  defaultHandleType?: string | null
 }) {
   const instanceOverrides = useMemo<Record<number, AppliedMaterial>>(() => {
     const overrides = obj.materialOverrides ?? {};
@@ -540,6 +554,7 @@ function DesignObjectWithMaterials({
       forcedHidden={forcedHidden}
       activeMeasurementSide={activeMeasurementSide}
       onSelectMeasurement={onSelectMeasurement}
+      defaultHandleType={defaultHandleType}
     />
   );
 }

@@ -9,7 +9,12 @@ import { DesignMaterialSlot, designSlotByKey, isMaterialRef, normalizeTypeName }
 import MaterialPicker from "./MaterialPicker";
 import { COLORS, GLASS, RADII } from "@/constants/theme";
 import GlassSurface from "./GlassSurface";
-import { parseVariantProperties } from "../../../services/variants";
+import {
+  isHandleVariant,
+  isHandleVariantGroup,
+  parseVariantProperties,
+  resolveActiveVariants,
+} from "../../../services/variants";
 
 const SIZE_STEP = 0.05;
 const MIN_SIZE = 0.05;
@@ -40,6 +45,7 @@ export default function EditFurnitureInstanceMenu({
   designSlots,
   slotTypesByModel,
   typeToDesignSlot,
+  defaultHandleType,
   containerStyle,
 }: {
   object: DesignObject;
@@ -54,6 +60,7 @@ export default function EditFurnitureInstanceMenu({
   designSlots: DesignMaterialSlot[];
   slotTypesByModel: Record<string, ObjectMaterialType[]>;
   typeToDesignSlot: Record<string, string>;
+  defaultHandleType?: string | null;
   containerStyle?: StyleProp<ViewStyle>;
 }) {
   const [name, onChangeName] = useState(object.name);
@@ -64,7 +71,7 @@ export default function EditFurnitureInstanceMenu({
   const [dirtyVariants, setDirtyVariants] = useState<Record<string, string | null>>(object.selectedVariants || {});
 
   const variantGroups = useMemo(() => {
-    const map = new Map<string, { group: string; label: string; allowNone: boolean; variants: import("../../../services/variants").ObjectVariant[] }>();
+    const map = new Map<string, { group: string; label: string; allowNone: boolean; isHandleGroup: boolean; variants: import("../../../services/variants").ObjectVariant[] }>();
     for (const v of object.variants ?? []) {
       const parsed = parseVariantProperties(v.variantProperties);
       const groupKey = parsed.group;
@@ -74,9 +81,13 @@ export default function EditFurnitureInstanceMenu({
           group: groupKey,
           label: parsed.label || groupKey.charAt(0).toUpperCase() + groupKey.slice(1),
           allowNone: parsed.allowNone ?? true,
+          isHandleGroup: isHandleVariantGroup(groupKey),
           variants: [],
         };
         map.set(groupKey, entry);
+      }
+      if (isHandleVariant(v)) {
+        entry.isHandleGroup = true;
       }
       entry.variants.push(v);
     }
@@ -585,19 +596,78 @@ export default function EditFurnitureInstanceMenu({
         ) : activeTab === 'variants' ? (
           <View style={styles.variantsContainer}>
             {variantGroups.map((group) => {
+              const hasExplicitOverride = group.group in dirtyVariants && dirtyVariants[group.group] !== undefined;
               const currentVal = dirtyVariants[group.group];
+              const inheritedResolved = resolveActiveVariants(
+                group.variants,
+                object.objectProperties?.defaultVariants,
+                undefined,
+                defaultHandleType
+              );
+              const inheritedVariantName = inheritedResolved[0]?.name ?? "Ninguno";
+              const isNoneSelected = group.isHandleGroup
+                ? hasExplicitOverride && (currentVal === null || currentVal === '')
+                : currentVal === null || currentVal === undefined || currentVal === '';
+
               return (
                 <View key={group.group} style={styles.variantGroupCard}>
                   <View style={styles.variantGroupHeader}>
-                    <Text style={styles.variantGroupLabel}>{group.label}</Text>
-                    <Text style={styles.variantGroupId}>({group.group})</Text>
+                    <View style={styles.variantGroupTitleWrap}>
+                      <Text style={styles.variantGroupLabel}>{group.label}</Text>
+                      <Text style={styles.variantGroupId}>({group.group})</Text>
+                    </View>
+                    {group.isHandleGroup && hasExplicitOverride && (
+                      <Pressable
+                        style={({ pressed }) => [styles.variantResetButton, pressed && styles.itemPressed]}
+                        onPress={() =>
+                          setDirtyVariants((prev) => {
+                            const next = { ...prev };
+                            delete next[group.group];
+                            return next;
+                          })
+                        }
+                      >
+                        <Text style={styles.variantResetLabel}>Reset</Text>
+                      </Pressable>
+                    )}
                   </View>
+                  {group.isHandleGroup && (
+                    <Text style={styles.variantInheritanceHint} numberOfLines={1}>
+                      {hasExplicitOverride
+                        ? `Custom override (Design default: ${inheritedVariantName})`
+                        : `Inherited: Use design default (${inheritedVariantName})`}
+                    </Text>
+                  )}
                   <View style={styles.variantChipRow}>
+                    {group.isHandleGroup && (
+                      <Pressable
+                        style={[
+                          styles.variantChip,
+                          !hasExplicitOverride && styles.variantChipActive,
+                        ]}
+                        onPress={() =>
+                          setDirtyVariants((prev) => {
+                            const next = { ...prev };
+                            delete next[group.group];
+                            return next;
+                          })
+                        }
+                      >
+                        <Text
+                          style={[
+                            styles.variantChipText,
+                            !hasExplicitOverride && styles.variantChipTextActive,
+                          ]}
+                        >
+                          Use design default
+                        </Text>
+                      </Pressable>
+                    )}
                     {group.allowNone && (
                       <Pressable
                         style={[
                           styles.variantChip,
-                          (currentVal === null || currentVal === undefined || currentVal === '') && styles.variantChipActive,
+                          isNoneSelected && styles.variantChipActive,
                         ]}
                         onPress={() =>
                           setDirtyVariants((prev) => ({
@@ -609,7 +679,7 @@ export default function EditFurnitureInstanceMenu({
                         <Text
                           style={[
                             styles.variantChipText,
-                            (currentVal === null || currentVal === undefined || currentVal === '') && styles.variantChipTextActive,
+                            isNoneSelected && styles.variantChipTextActive,
                           ]}
                         >
                           Ninguno
@@ -617,7 +687,9 @@ export default function EditFurnitureInstanceMenu({
                       </Pressable>
                     )}
                     {group.variants.map((v) => {
-                      const isSelected = currentVal === v.id;
+                      const isSelected = hasExplicitOverride
+                        ? currentVal === v.id
+                        : !group.isHandleGroup && inheritedResolved[0]?.id === v.id;
                       return (
                         <Pressable
                           key={v.id}
@@ -1162,8 +1234,33 @@ const styles = StyleSheet.create({
   variantGroupHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     gap: 6,
+    marginBottom: 4,
+  },
+  variantGroupTitleWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+  },
+  variantInheritanceHint: {
+    fontSize: 11,
+    color: GLASS.textMuted,
     marginBottom: 8,
+  },
+  variantResetButton: {
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: RADII.sm,
+    backgroundColor: GLASS.bgPressed,
+    borderWidth: 1,
+    borderColor: GLASS.borderStrong,
+  },
+  variantResetLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: GLASS.text,
   },
   variantGroupLabel: {
     fontSize: 13,

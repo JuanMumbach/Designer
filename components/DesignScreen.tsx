@@ -22,6 +22,7 @@ import { Room3dProps } from "./DesignScreen/3dView/Room3d";
 import { ActiveMeasurementEdit, MeasurementSide } from "./DesignScreen/3dViewOverlay/EditMeasurementModal";
 import { emptyBudgetSettings, ModelBudgetEntry } from '../services/budget';
 import { MaterialPart } from '../services/materialParts';
+import { isHandleVariant, isHandleVariantGroup, parseVariantProperties } from '../services/variants';
 
 
 const initialRoom3d: Room3dProps = {
@@ -34,7 +35,7 @@ const initialRoom3d: Room3dProps = {
 
 export default function DesignScreen({ projectId }: { projectId?: string }) {
   const { backendUserId, selectedWorkspaceId } = useAuth();
-  const { project, projectName, setProject, setProjectName, setDesignSnapshot, savedViews, setSavedViews, budgetSettings, setBudgetSettings, registerBudgetEditor, registerPartsEditor } = useCurrentProject();
+  const { project, projectName, setProject, setProjectName, setDesignSnapshot, defaultHandleType, setDefaultHandleType, savedViews, setSavedViews, budgetSettings, setBudgetSettings, registerBudgetEditor, registerPartsEditor } = useCurrentProject();
   const { objectTemplates, categories: objectCategories, isLoading: modelsLoading, error: modelsError } = useObjectTemplates(selectedWorkspaceId ?? undefined);
   const { materials, categories: materialCategories, isLoading: materialsLoading } = useMaterials(selectedWorkspaceId ?? undefined);
   const [room3d, setRoom3d] = useState<Room3dProps>(initialRoom3d);
@@ -42,8 +43,8 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
   const [movingObject, setMovingObject] = useState<DesignObject | undefined>(undefined);
   const [globalMaterials, setGlobalMaterials] = useState<GlobalMaterials>({});
   useEffect(() => {
-    setDesignSnapshot({ room: room3d, objects: designObjects, globalMaterials });
-  }, [room3d, designObjects, globalMaterials, setDesignSnapshot]);
+    setDesignSnapshot({ room: room3d, objects: designObjects, globalMaterials, defaultHandleType });
+  }, [room3d, designObjects, globalMaterials, defaultHandleType, setDesignSnapshot]);
   const [materialDataById, setMaterialDataById] = useState<Record<string, AppliedMaterial>>({});
   const materialDataByIdRef = useRef(materialDataById);
   materialDataByIdRef.current = materialDataById;
@@ -111,13 +112,14 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
     setBudgetSettings(emptyBudgetSettings());
     setSavedViews([]);
     setGlobalMaterials({});
+    setDefaultHandleType(null);
     setDesignObjects([]);
     setProject(null);
     projectLoadGenerationRef.current += 1;
     setIsProjectLoading(false);
     projectLoadedRef.current = false;
     defaultSceneInitializedRef.current = false;
-  }, [projectId, setBudgetSettings, setSavedViews, setProject, setProjectName]);
+  }, [projectId, setBudgetSettings, setSavedViews, setProject, setProjectName, setDefaultHandleType]);
 
   const captureApi = useMemo<ThumbnailCaptureApi>(
     () => createThumbnailCaptureApi(),
@@ -127,7 +129,7 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
   const handleExport3d = async () => {
     setIsExporting(true);
     try {
-      await exportSceneAsGLB(room3d, designObjects, materialDataById, globalMaterials, slotTypesByModel, typeToDesignSlot);
+      await exportSceneAsGLB(room3d, designObjects, materialDataById, globalMaterials, slotTypesByModel, typeToDesignSlot, undefined, defaultHandleType);
     } catch (err) {
       console.error('Export failed:', err);
     } finally {
@@ -136,7 +138,7 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
   };
 
   const handleSaveProject = async () => {
-    const serializedState = serializeProjectState(room3d, designObjects, globalMaterials, budgetSettings, savedViews);
+    const serializedState = serializeProjectState(room3d, designObjects, globalMaterials, budgetSettings, savedViews, defaultHandleType);
     const safeName = (projectName || project?.name || 'my_designer_project').trim().replace(/[^a-zA-Z0-9_-]/g, '_');
     await saveProject(serializedState, `${safeName || 'my_designer_project'}.json`);
   };
@@ -149,7 +151,7 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
       return storedVersion.fileURL;
     };
 
-    const { room, objects, globalMaterials: loadedGlobalMaterials, budgetSettings: loadedBudget, savedViews: loadedSavedViews } = await deserializeProjectState(projectData, getModelUrl);
+    const { room, objects, globalMaterials: loadedGlobalMaterials, defaultHandleType: loadedDefaultHandle, budgetSettings: loadedBudget, savedViews: loadedSavedViews } = await deserializeProjectState(projectData, getModelUrl);
     if (generation !== projectLoadGenerationRef.current) return;
     setIsProjectLoading(false);
     projectLoadedRef.current = true;
@@ -167,10 +169,11 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
     }));
     setDesignObjects(enrichedObjects);
     setGlobalMaterials(loadedGlobalMaterials ?? {});
+    setDefaultHandleType(loadedDefaultHandle);
     setBudgetSettings(loadedBudget);
     setSavedViews(loadedSavedViews);
     setMovingObject(undefined);
-  }, [objectTemplates, setBudgetSettings, setSavedViews]);
+  }, [objectTemplates, setBudgetSettings, setSavedViews, setDefaultHandleType]);
 
   const confirmReplaceScene = (action: () => void) => {
     if (designObjects.length === 0) {
@@ -399,6 +402,7 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
     setBudgetSettings(emptyBudgetSettings());
     setSavedViews([]);
     setGlobalMaterials({});
+    setDefaultHandleType(null);
     setProject(null);
     try {
       const project = await fetchProject(id);
@@ -424,7 +428,7 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
     } finally {
       if (generation === projectLoadGenerationRef.current) setIsProjectLoading(false);
     }
-  }, [applyProjectData, setProject, setBudgetSettings, setSavedViews]);
+  }, [applyProjectData, setProject, setBudgetSettings, setSavedViews, setDefaultHandleType]);
 
   useEffect(() => {
     if (!projectId) return;
@@ -491,6 +495,35 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
     setMovingObject(duplicated);
   };
 
+  const handleClearHandleOverrides = useCallback(() => {
+    setDesignObjects(prev => prev.map(obj => {
+      if (!obj.selectedVariants) return obj;
+      const handleGroups = new Set<string>();
+      for (const g of Object.keys(obj.selectedVariants)) {
+        if (isHandleVariantGroup(g)) handleGroups.add(g);
+      }
+      for (const v of obj.variants ?? []) {
+        if (isHandleVariant(v)) {
+          handleGroups.add(parseVariantProperties(v.variantProperties).group);
+        }
+      }
+      if (handleGroups.size === 0) return obj;
+      const nextSelected = { ...obj.selectedVariants };
+      let changed = false;
+      for (const g of handleGroups) {
+        if (g in nextSelected) {
+          delete nextSelected[g];
+          changed = true;
+        }
+      }
+      if (!changed) return obj;
+      return {
+        ...obj,
+        selectedVariants: Object.keys(nextSelected).length > 0 ? nextSelected : undefined,
+      };
+    }));
+  }, []);
+
   const handleSlotsDiscovered = (id: string, slots: MaterialSlotInfo[]) => {
     const deduped = slots.filter((s, i, arr) => arr.findIndex(a => a.slot === s.slot) === i);
     setDesignObjects(prev => prev.map(obj => {
@@ -554,6 +587,7 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
         activeMeasurementSide={activeMeasurementEdit?.side}
         onSelectMeasurement={handleSelectMeasurement}
         isFraming={isFraming}
+        defaultHandleType={defaultHandleType}
       />
       <View3dOverlay
         objectTemplates={objectTemplates}
@@ -577,6 +611,9 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
         materialTypes={materialTypes}
         globalMaterials={globalMaterials}
         setGlobalMaterials={setGlobalMaterials}
+        defaultHandleType={defaultHandleType}
+        setDefaultHandleType={setDefaultHandleType}
+        onClearHandleOverrides={handleClearHandleOverrides}
         materialDataById={materialDataById}
         designSlots={designMaterialsConfig.designMaterialSlots}
         slotTypesByModel={slotTypesByModel}
@@ -601,7 +638,7 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
       {isProjectPickerVisible && (
         <View style={styles.pickerOverlay}>
           <ProjectPicker
-            projectState={serializeProjectState(room3d, designObjects, globalMaterials, budgetSettings, savedViews)}
+            projectState={serializeProjectState(room3d, designObjects, globalMaterials, budgetSettings, savedViews, defaultHandleType)}
             creatorId={backendUserId}
             initialProjectName={projectName || project?.name || ''}
             initialProjectId={project?.id ?? null}

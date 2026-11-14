@@ -4,11 +4,106 @@ import { ObjectProperties, ObjectVersion } from './api';
 
 export type VariantMode = 'additive' | 'replace';
 
+export const HANDLE_VARIANT_GROUPS = new Set([
+  'handles',
+  'handle',
+  'tiradores',
+  'tirador',
+  'manijas',
+  'manija',
+  'pulls',
+  'pull',
+]);
+export const HANDLE_NONE_KEY = '__none__';
+
 export interface VariantProperties {
   group: string;
   label?: string;
   allowNone?: boolean;
+  handleType?: string;
   raw?: Record<string, string>;
+}
+
+export interface HandleTypeOption {
+  key: string;
+  label: string;
+  isNone?: boolean;
+}
+
+export function normalizeHandleKey(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+export function isHandleVariantGroup(group: string | undefined): boolean {
+  if (!group) return false;
+  return HANDLE_VARIANT_GROUPS.has(group.trim().toLowerCase());
+}
+
+export function isHandleVariant(variant: ObjectVariant): boolean {
+  const parsed = parseVariantProperties(variant.variantProperties);
+  return isHandleVariantGroup(parsed.group) || Boolean(parsed.handleType?.trim());
+}
+
+export function getVariantHandleTypeKey(variant: ObjectVariant): string | null {
+  const parsed = parseVariantProperties(variant.variantProperties);
+  if (parsed.handleType?.trim()) {
+    const k = normalizeHandleKey(parsed.handleType);
+    if (k) return k;
+  }
+  if (!isHandleVariantGroup(parsed.group)) return null;
+  const k = normalizeHandleKey(variant.name || variant.id);
+  return k || null;
+}
+
+export function getVariantHandleTypeLabel(variant: ObjectVariant): string | null {
+  const parsed = parseVariantProperties(variant.variantProperties);
+  if (!isHandleVariantGroup(parsed.group) && !parsed.handleType?.trim()) return null;
+  if (parsed.raw?.['handle-label']?.trim()) {
+    return parsed.raw['handle-label'].trim();
+  }
+  return variant.name?.trim() || parsed.handleType?.trim() || variant.id;
+}
+
+export function collectAvailableHandleTypes(
+  variantLists: (ObjectVariant[] | undefined)[]
+): HandleTypeOption[] {
+  const map = new Map<string, HandleTypeOption>();
+  let anyAllowsNone = false;
+
+  for (const list of variantLists) {
+    if (!list) continue;
+    for (const v of list) {
+      const parsed = parseVariantProperties(v.variantProperties);
+      if (!isHandleVariantGroup(parsed.group) && !parsed.handleType?.trim()) continue;
+      if (parsed.allowNone ?? true) {
+        anyAllowsNone = true;
+      }
+      const key = getVariantHandleTypeKey(v);
+      if (!key) continue;
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          label: getVariantHandleTypeLabel(v) || key,
+        });
+      }
+    }
+  }
+
+  const options = Array.from(map.values());
+  if (anyAllowsNone && options.length > 0 && !map.has(HANDLE_NONE_KEY)) {
+    options.unshift({
+      key: HANDLE_NONE_KEY,
+      label: 'Sin tirador',
+      isNone: true,
+    });
+  }
+  return options;
 }
 
 export interface MaterialPartOverride {
@@ -69,7 +164,9 @@ export function parseVariantProperties(raw: unknown): VariantProperties {
     const group = typeof obj.group === 'string' && obj.group.trim() ? obj.group.trim().toLowerCase() : 'general';
     const label = typeof obj.label === 'string' ? obj.label.trim() : undefined;
     const allowNone = typeof obj.allowNone === 'boolean' ? obj.allowNone : undefined;
-    return { group, label, allowNone };
+    const rawHandle = obj.handleType ?? obj['handle-type'] ?? obj['handle_type'];
+    const handleType = typeof rawHandle === 'string' && rawHandle.trim() ? rawHandle.trim() : undefined;
+    return { group, label, allowNone, handleType };
   }
 
   if (typeof raw !== 'string') return { group: 'general' };
@@ -87,6 +184,7 @@ export function parseVariantProperties(raw: unknown): VariantProperties {
   let group = 'general';
   let label: string | undefined;
   let allowNone: boolean | undefined;
+  let handleType: string | undefined;
   const otherProps: Record<string, string> = {};
 
   const segments = trimmedRaw.split(';');
@@ -104,6 +202,8 @@ export function parseVariantProperties(raw: unknown): VariantProperties {
       label = value;
     } else if (key === 'allow-none' || key === 'allownone') {
       allowNone = value.toLowerCase() === 'true';
+    } else if (key === 'handle-type' || key === 'handletype' || key === 'handle_type') {
+      if (value) handleType = value;
     } else {
       otherProps[key] = value;
     }
@@ -113,6 +213,7 @@ export function parseVariantProperties(raw: unknown): VariantProperties {
     group,
     label,
     allowNone,
+    handleType,
     raw: Object.keys(otherProps).length > 0 ? otherProps : undefined,
   };
 }
@@ -125,9 +226,20 @@ export function serializeVariantProperties(props: VariantProperties): string {
   if (props.allowNone !== undefined) {
     segments.push(`allow-none:${props.allowNone}`);
   }
+  if (props.handleType?.trim()) {
+    segments.push(`handle-type:${normalizeHandleKey(props.handleType)}`);
+  }
   if (props.raw) {
     for (const [k, v] of Object.entries(props.raw)) {
-      if (k !== 'group' && k !== 'label' && k !== 'allow-none' && v) {
+      if (
+        k !== 'group' &&
+        k !== 'label' &&
+        k !== 'allow-none' &&
+        k !== 'handle-type' &&
+        k !== 'handletype' &&
+        k !== 'handle_type' &&
+        v
+      ) {
         segments.push(`${k}:${v}`);
       }
     }
@@ -176,7 +288,8 @@ export function serializeDefaultVariantsSegment(map: Record<string, string | nul
 export function resolveActiveVariants(
   variants: ObjectVariant[] | undefined,
   defaultVariants?: Record<string, string | null>,
-  selectedVariants?: Record<string, string | null>
+  selectedVariants?: Record<string, string | null>,
+  defaultHandleType?: string | null
 ): ObjectVariant[] {
   if (!variants || variants.length === 0) return [];
 
@@ -194,17 +307,54 @@ export function resolveActiveVariants(
 
   const active: ObjectVariant[] = [];
   const sortedGroups = Array.from(byGroup.keys()).sort();
+  const normalizedDefaultHandle =
+    defaultHandleType && defaultHandleType !== HANDLE_NONE_KEY
+      ? normalizeHandleKey(defaultHandleType)
+      : defaultHandleType === HANDLE_NONE_KEY
+        ? HANDLE_NONE_KEY
+        : null;
 
   for (const group of sortedGroups) {
     const groupVariants = byGroup.get(group)!;
+    const isHandleGroup =
+      isHandleVariantGroup(group) || groupVariants.some((v) => isHandleVariant(v));
     let chosenId: string | null | undefined;
+    let resolvedViaDesignDefault = false;
 
-    if (selectedVariants && group in selectedVariants) {
+    if (selectedVariants && group in selectedVariants && selectedVariants[group] !== undefined) {
       chosenId = selectedVariants[group];
-    } else if (defaultVariants && group in defaultVariants) {
-      chosenId = defaultVariants[group];
-    } else {
-      chosenId = groupVariants[0]?.id;
+    } else if (isHandleGroup && normalizedDefaultHandle) {
+      if (normalizedDefaultHandle === HANDLE_NONE_KEY) {
+        const allowNone = groupVariants.every(
+          (v) => (parseVariantProperties(v.variantProperties).allowNone ?? true) !== false
+        );
+        const noneVar = groupVariants.find(
+          (v) => !v.fileURL || getVariantHandleTypeKey(v) === 'none' || getVariantHandleTypeKey(v) === 'sin-tirador'
+        );
+        if (noneVar) {
+          chosenId = noneVar.id;
+          resolvedViaDesignDefault = true;
+        } else if (allowNone) {
+          chosenId = null;
+          resolvedViaDesignDefault = true;
+        }
+      } else {
+        const matchingHandle = groupVariants.find(
+          (v) => getVariantHandleTypeKey(v) === normalizedDefaultHandle
+        );
+        if (matchingHandle) {
+          chosenId = matchingHandle.id;
+          resolvedViaDesignDefault = true;
+        }
+      }
+    }
+
+    if (!resolvedViaDesignDefault && !(selectedVariants && group in selectedVariants && selectedVariants[group] !== undefined)) {
+      if (defaultVariants && group in defaultVariants) {
+        chosenId = defaultVariants[group];
+      } else {
+        chosenId = groupVariants[0]?.id;
+      }
     }
 
     if (chosenId) {
@@ -369,7 +519,8 @@ export function resolveEffectiveModuleInventory(
     variants?: ObjectVariant[];
     selectedVariants?: Record<string, string | null>;
     objectProperties?: ObjectProperties;
-  }
+  },
+  defaultHandleType?: string | null
 ): {
   parts: MaterialPart[];
   entries: ModelBudgetEntry[];
@@ -380,7 +531,12 @@ export function resolveEffectiveModuleInventory(
     ? version.objectProperties.defaultVariants
     : undefined;
   const defaultVariants = instance.objectProperties?.defaultVariants ?? versionDefaults;
-  const activeVariants = resolveActiveVariants(availableVariants, defaultVariants, instance.selectedVariants);
+  const activeVariants = resolveActiveVariants(
+    availableVariants,
+    defaultVariants,
+    instance.selectedVariants,
+    defaultHandleType
+  );
 
   let parts: MaterialPart[];
   if (instance.materialParts !== undefined) {

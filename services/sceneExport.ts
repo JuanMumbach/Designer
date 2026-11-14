@@ -268,14 +268,20 @@ async function addFurnitureToScene(
   globalMaterials: GlobalMaterials,
   slotTypesByModel: Record<string, ObjectMaterialType[]>,
   typeToDesignSlot: Record<string, string>,
-  onProgress?: (current: number, total: number) => void
+  onProgress?: (current: number, total: number) => void,
+  defaultHandleType?: string | null
 ) {
   const origin: [number, number, number] = [-(room3d.width) / 2, 0, 0];
   const total = designObjects.length;
 
   for (let i = 0; i < total; i++) {
     const obj = designObjects[i];
-    const activeVariants = resolveActiveVariants(obj.variants ?? [], obj.objectProperties?.defaultVariants, obj.selectedVariants);
+    const activeVariants = resolveActiveVariants(
+      obj.variants ?? [],
+      obj.objectProperties?.defaultVariants,
+      obj.selectedVariants,
+      defaultHandleType
+    );
     const { primaryModelUrl, additiveMeshes } = resolveVariantMeshes(obj.modelUrl, activeVariants);
 
     try {
@@ -396,11 +402,12 @@ async function buildExportScene(
   globalMaterials: GlobalMaterials,
   slotTypesByModel: Record<string, ObjectMaterialType[]>,
   typeToDesignSlot: Record<string, string>,
-  onProgress?: (current: number, total: number) => void
+  onProgress?: (current: number, total: number) => void,
+  defaultHandleType?: string | null
 ): Promise<THREE.Scene> {
   const scene = new THREE.Scene();
   await addRoomToScene(scene, room3d, designObjects, materialDataById, globalMaterials);
-  await addFurnitureToScene(scene, designObjects, room3d, materialDataById, globalMaterials, slotTypesByModel, typeToDesignSlot, onProgress);
+  await addFurnitureToScene(scene, designObjects, room3d, materialDataById, globalMaterials, slotTypesByModel, typeToDesignSlot, onProgress, defaultHandleType);
   return scene;
 }
 
@@ -411,9 +418,10 @@ export async function exportSceneAsGLB(
   globalMaterials: GlobalMaterials = {},
   slotTypesByModel: Record<string, ObjectMaterialType[]> = {},
   typeToDesignSlot: Record<string, string> = {},
-  onProgress?: (current: number, total: number) => void
+  onProgress?: (current: number, total: number) => void,
+  defaultHandleType?: string | null
 ): Promise<void> {
-  const scene = await buildExportScene(room3d, designObjects, materialDataById, globalMaterials, slotTypesByModel, typeToDesignSlot, onProgress);
+  const scene = await buildExportScene(room3d, designObjects, materialDataById, globalMaterials, slotTypesByModel, typeToDesignSlot, onProgress, defaultHandleType);
 
   return new Promise<void>((resolve, reject) => {
     const exporter = new GLTFExporter();

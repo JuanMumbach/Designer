@@ -56,6 +56,7 @@ export interface ProjectStateDTO {
   room: ProjectRoom;
   instances: ProjectInstance[];
   globalMaterials?: GlobalMaterials;
+  defaultHandleType?: string | null;
   savedViews?: SavedView[];
 }
 
@@ -115,7 +116,8 @@ export function serializeProjectState(
   designObjects: DesignObject[],
   globalMaterials?: GlobalMaterials,
   budgetSettings?: BudgetSettings,
-  savedViews?: SavedView[]
+  savedViews?: SavedView[],
+  defaultHandleType?: string | null
 ): ProjectStateDTO {
   return {
     ...(budgetSettings ? { budgetSettings } : {}),
@@ -132,6 +134,7 @@ export function serializeProjectState(
       ...(room3d.walls ? { walls: room3d.walls } : {}),
     },
     ...(globalMaterials ? { globalMaterials } : {}),
+    ...(defaultHandleType !== undefined && defaultHandleType !== null ? { defaultHandleType } : {}),
     ...(savedViews && savedViews.length > 0 ? { savedViews } : {}),
     instances: designObjects.map((obj) => ({
       ...(obj.materialParts !== undefined ? { materialParts: obj.materialParts } : {}),
@@ -160,6 +163,7 @@ export async function deserializeProjectState(
   room: Room3dProps;
   objects: DesignObject[];
   globalMaterials?: GlobalMaterials;
+  defaultHandleType: string | null;
   budgetSettings: BudgetSettings;
   savedViews: SavedView[];
 }> {
@@ -214,6 +218,7 @@ export async function deserializeProjectState(
     },
     objects,
     globalMaterials: dto.globalMaterials,
+    defaultHandleType: typeof dto.defaultHandleType === 'string' && dto.defaultHandleType.trim() ? dto.defaultHandleType.trim() : null,
     savedViews: dto.savedViews ?? [],
   };
 }

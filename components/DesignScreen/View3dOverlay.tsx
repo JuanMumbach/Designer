@@ -6,6 +6,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { MaterialCategory, MaterialMeta, MaterialType, ObjectCategory, ObjectMaterialType } from "../../services/api";
 import { SavedView } from "../../services/currentProject";
 import { DesignMaterialSlot } from "../../services/designMaterialDefaults";
+import { collectAvailableHandleTypes, isHandleVariant, isHandleVariantGroup, parseVariantProperties } from "../../services/variants";
 import { CameraStateSnapshot, ThumbnailCaptureApi } from "../../services/thumbnailCapture";
 import { AppliedMaterial, createDesignObject, DesignObject, getInitialPosition, GlobalMaterials, MaterialOverrides, ObjectTemplate } from "./3dView/DesignObjects";
 import { Room3dProps, WallIdentifier } from "./3dView/Room3d";
@@ -45,6 +46,9 @@ interface View3dOverlayProps {
   materialTypes?: MaterialType[];
   globalMaterials: GlobalMaterials;
   setGlobalMaterials: React.Dispatch<React.SetStateAction<GlobalMaterials>>;
+  defaultHandleType: string | null;
+  setDefaultHandleType: React.Dispatch<React.SetStateAction<string | null>>;
+  onClearHandleOverrides: () => void;
   materialDataById: Record<string, AppliedMaterial>;
   designSlots: DesignMaterialSlot[];
   slotTypesByModel: Record<string, ObjectMaterialType[]>;
@@ -154,6 +158,9 @@ export default function View3dOverlay({
   materialTypes,
   globalMaterials,
   setGlobalMaterials,
+  defaultHandleType,
+  setDefaultHandleType,
+  onClearHandleOverrides,
   materialDataById,
   designSlots,
   slotTypesByModel,
@@ -673,6 +680,30 @@ export default function View3dOverlay({
   const widePanelStyle = [styles.widePanel, { maxHeight: desktopPanelMaxHeight }];
   const sheetPanelStyle = [styles.sheetPanel, { maxHeight: sheetMaxHeight - 56 }];
 
+  const handleOptions = React.useMemo(() => {
+    const lists = [
+      ...designObjects.map(o => o.variants),
+      ...objectTemplates.map(t => t.variants),
+    ];
+    return collectAvailableHandleTypes(lists);
+  }, [designObjects, objectTemplates]);
+
+  const hasHandleInstanceOverrides = React.useMemo(() => {
+    return designObjects.some(obj => {
+      if (!obj.selectedVariants) return false;
+      for (const g of Object.keys(obj.selectedVariants)) {
+        if (obj.selectedVariants[g] !== undefined && isHandleVariantGroup(g)) return true;
+      }
+      for (const v of obj.variants ?? []) {
+        if (isHandleVariant(v)) {
+          const g = parseVariantProperties(v.variantProperties).group;
+          if (obj.selectedVariants[g] !== undefined) return true;
+        }
+      }
+      return false;
+    });
+  }, [designObjects]);
+
   const measurementTargetObj = activeMeasurementEdit
     ? designObjects.find(o => o.id === activeMeasurementEdit.objectId)
     : undefined;
@@ -743,6 +774,7 @@ export default function View3dOverlay({
         designSlots={designSlots}
         slotTypesByModel={slotTypesByModel}
         typeToDesignSlot={typeToDesignSlot}
+        defaultHandleType={defaultHandleType}
         containerStyle={sheetPanelStyle}
       />
     ));
@@ -839,6 +871,7 @@ export default function View3dOverlay({
                 designSlots={designSlots}
                 slotTypesByModel={slotTypesByModel}
                 typeToDesignSlot={typeToDesignSlot}
+                defaultHandleType={defaultHandleType}
                 containerStyle={widePanelStyle}
               />
             ))
@@ -944,6 +977,11 @@ export default function View3dOverlay({
           onCardDismiss={() => setActiveMaterialCardId(null)}
           onRequestPicker={openMaterialsPanel}
           onResetSlot={handleMaterialReset}
+          handleOptions={handleOptions}
+          defaultHandleType={defaultHandleType}
+          onSelectDefaultHandleType={setDefaultHandleType}
+          hasHandleInstanceOverrides={hasHandleInstanceOverrides}
+          onClearHandleOverrides={onClearHandleOverrides}
           compact={!isDesktop}
         />
         {isDesktop && isGlobalMaterialsVisible && materialsPanel}

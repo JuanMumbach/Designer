@@ -124,6 +124,7 @@ function SceneContent({
   onWallContextMenu,
   isFraming,
   controlsRef,
+  defaultHandleType,
 }: {
   room3d: Room3dProps,
   designObjects: DesignObject[],
@@ -149,6 +150,7 @@ function SceneContent({
   isFraming?: boolean,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   controlsRef: React.RefObject<any>,
+  defaultHandleType?: string | null,
 }) {
   const wallCulling = useWallCulling(room3d);
   let roomOrigin = RoomOrigin({ room3d });
@@ -189,6 +191,7 @@ function SceneContent({
         wallCulling={wallCulling}
         activeMeasurementSide={isFraming ? undefined : activeMeasurementSide}
         onSelectMeasurement={isFraming ? undefined : onSelectMeasurement}
+        defaultHandleType={defaultHandleType}
       />
       <OrbitControls
         ref={controlsRef}
@@ -222,6 +225,7 @@ export default function Design3dView({
   onSelectMeasurement,
   onWallContextMenu,
   isFraming,
+  defaultHandleType,
 }: {
   room3d: Room3dProps,
   designObjects: DesignObject[],
@@ -245,6 +249,7 @@ export default function Design3dView({
   onSelectMeasurement?: (object: DesignObject, side: import('./3dViewOverlay/EditMeasurementModal').MeasurementSide, currentValue: number) => void,
   onWallContextMenu?: (wallId: import('./3dView/Room3d').WallIdentifier, event: any) => void,
   isFraming?: boolean,
+  defaultHandleType?: string | null,
 }) {
   const isDragging = useRef(0);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -307,6 +312,7 @@ export default function Design3dView({
         onSelectMeasurement={onSelectMeasurement}
         isFraming={isFraming}
         controlsRef={controlsRef}
+        defaultHandleType={defaultHandleType}
       />
       {captureApi && (
         <ThumbnailCaptureHost

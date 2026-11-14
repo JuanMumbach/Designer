@@ -281,4 +281,119 @@ const calculatedBudget = budget.calculateModuleBudget(
 // Total budget should be 30 + 10 + 15 + 80 = 135
 assert.equal(calculatedBudget.total, 135);
 
+console.log('Testing Handle Type Normalization & Identification...');
+assert.equal(variants.normalizeHandleKey('  Tirador Recto Negro  '), 'tirador-recto-negro');
+assert.equal(variants.normalizeHandleKey('J-Pull Metálico'), 'j-pull-metalico');
+assert.equal(variants.isHandleVariantGroup('handles'), true);
+assert.equal(variants.isHandleVariantGroup('Tiradores'), true);
+assert.equal(variants.isHandleVariantGroup('legs'), false);
+
+const taggedHandleProps = variants.serializeVariantProperties({
+  group: 'handles',
+  label: 'Tiradores',
+  allowNone: true,
+  handleType: 'Recto Negro',
+});
+assert.ok(taggedHandleProps.includes('handle-type:recto-negro'));
+const parsedTaggedHandle = variants.parseVariantProperties(taggedHandleProps);
+assert.equal(parsedTaggedHandle.handleType, 'recto-negro');
+
+const moduleAVariants = [
+  {
+    id: 'modA-h-black',
+    objectId: 'mod-a',
+    version: 1,
+    name: 'Tirador Recto Negro 60cm',
+    mode: 'additive',
+    fileURL: 'https://storage/modA-black.glb',
+    variantProperties: 'group:handles;label:Tiradores;allow-none:true;handle-type:recto-negro',
+  },
+  {
+    id: 'modA-h-gold',
+    objectId: 'mod-a',
+    version: 1,
+    name: 'Tirador Dorado',
+    mode: 'additive',
+    fileURL: 'https://storage/modA-gold.glb',
+    variantProperties: 'group:handles;label:Tiradores;allow-none:true',
+  },
+];
+
+const moduleBVariants = [
+  {
+    id: 'modB-h-black',
+    objectId: 'mod-b',
+    version: 1,
+    name: 'Tirador Recto Negro 80cm',
+    mode: 'additive',
+    fileURL: 'https://storage/modB-black.glb',
+    variantProperties: 'group:handles;label:Tiradores;allow-none:true;handle-type:recto-negro',
+  },
+];
+
+assert.equal(variants.getVariantHandleTypeKey(moduleAVariants[0]), 'recto-negro');
+assert.equal(variants.getVariantHandleTypeKey(moduleBVariants[0]), 'recto-negro');
+assert.equal(variants.getVariantHandleTypeKey(moduleAVariants[1]), 'tirador-dorado');
+
+const availableHandles = variants.collectAvailableHandleTypes([moduleAVariants, moduleBVariants]);
+assert.ok(availableHandles.some((o) => o.key === variants.HANDLE_NONE_KEY));
+assert.ok(availableHandles.some((o) => o.key === 'recto-negro'));
+assert.ok(availableHandles.some((o) => o.key === 'tirador-dorado'));
+
+console.log('Testing Reactive Design-Wide Handle Switching & Resolution Precedence...');
+const modADefaults = { handles: 'modA-h-gold' };
+
+// 1. No override, no design defaultHandleType -> falls back to module default ('modA-h-gold')
+const resFallback = variants.resolveActiveVariants(moduleAVariants, modADefaults, undefined, null);
+assert.equal(resFallback.length, 1);
+assert.equal(resFallback[0].id, 'modA-h-gold');
+
+// 2. Design defaultHandleType set to 'recto-negro', no instance override -> resolves to 'modA-h-black'
+const resDesignDefault = variants.resolveActiveVariants(
+  moduleAVariants,
+  modADefaults,
+  undefined,
+  'recto-negro'
+);
+assert.equal(resDesignDefault.length, 1);
+assert.equal(resDesignDefault[0].id, 'modA-h-black');
+
+// 3. Design defaultHandleType set to 'tirador-dorado' on Module B (which doesn't have 'tirador-dorado') -> falls back to Module B default
+const resUnmatchedDesignDefault = variants.resolveActiveVariants(
+  moduleBVariants,
+  { handles: 'modB-h-black' },
+  undefined,
+  'tirador-dorado'
+);
+assert.equal(resUnmatchedDesignDefault.length, 1);
+assert.equal(resUnmatchedDesignDefault[0].id, 'modB-h-black');
+
+// 4. Explicit instance override takes precedence over design defaultHandleType
+const resExplicitOverride = variants.resolveActiveVariants(
+  moduleAVariants,
+  modADefaults,
+  { handles: 'modA-h-gold' },
+  'recto-negro'
+);
+assert.equal(resExplicitOverride.length, 1);
+assert.equal(resExplicitOverride[0].id, 'modA-h-gold');
+
+// 5. Explicit instance 'None' override (null) takes precedence over design defaultHandleType
+const resExplicitNone = variants.resolveActiveVariants(
+  moduleAVariants,
+  modADefaults,
+  { handles: null },
+  'recto-negro'
+);
+assert.equal(resExplicitNone.length, 0);
+
+// 6. Design defaultHandleType set to HANDLE_NONE_KEY removes handles when not overridden
+const resGlobalNone = variants.resolveActiveVariants(
+  moduleAVariants,
+  modADefaults,
+  undefined,
+  variants.HANDLE_NONE_KEY
+);
+assert.equal(resGlobalNone.length, 0);
+
 console.log('All Object Variant & Accessory System tests passed successfully!');

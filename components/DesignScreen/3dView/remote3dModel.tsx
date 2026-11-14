@@ -393,7 +393,7 @@ function AdditiveVariantMesh({
 }
 
 export function DesignObject3D({
-    obj, position, origin, dimensions, modelScale, rotation, onObjectInteraction, onDeselect, isSelected, onObjectEdited, onObjectDeleted, onEditObject, onObjectDuplicate, room3d, magnetEnabled, allObjects, onDragStateChange, onSlotsDiscovered, interactionDisabled, instanceOverrides, globalMaterials, globalMaterialsRaw, materialDataById, slotTypesByModel, typeToDesignSlot, forcedHidden, activeMeasurementSide, onSelectMeasurement
+    obj, position, origin, dimensions, modelScale, rotation, onObjectInteraction, onDeselect, isSelected, onObjectEdited, onObjectDeleted, onEditObject, onObjectDuplicate, room3d, magnetEnabled, allObjects, onDragStateChange, onSlotsDiscovered, interactionDisabled, instanceOverrides, globalMaterials, globalMaterialsRaw, materialDataById, slotTypesByModel, typeToDesignSlot, forcedHidden, activeMeasurementSide, onSelectMeasurement, defaultHandleType
 }: {
     obj: DesignObject,
     position: [number, number, number],
@@ -422,11 +422,12 @@ export function DesignObject3D({
     typeToDesignSlot?: Record<string, string>,
     forcedHidden?: boolean,
     activeMeasurementSide?: import('../3dViewOverlay/EditMeasurementModal').MeasurementSide,
-    onSelectMeasurement?: (side: import('../3dViewOverlay/EditMeasurementModal').MeasurementSide, currentValue: number) => void
+    onSelectMeasurement?: (side: import('../3dViewOverlay/EditMeasurementModal').MeasurementSide, currentValue: number) => void,
+    defaultHandleType?: string | null
 }) {
     const activeVariants = React.useMemo(
-        () => resolveActiveVariants(obj.variants ?? [], obj.objectProperties?.defaultVariants, obj.selectedVariants),
-        [obj.variants, obj.objectProperties?.defaultVariants, obj.selectedVariants]
+        () => resolveActiveVariants(obj.variants ?? [], obj.objectProperties?.defaultVariants, obj.selectedVariants, defaultHandleType),
+        [obj.variants, obj.objectProperties?.defaultVariants, obj.selectedVariants, defaultHandleType]
     );
     const { primaryModelUrl, additiveMeshes } = React.useMemo(
         () => resolveVariantMeshes(obj.modelUrl, activeVariants),

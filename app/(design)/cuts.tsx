@@ -70,7 +70,11 @@ export default function CutsScreen() {
   const rows = useMemo(() => (designSnapshot?.objects ?? []).map((object) => {
     const key = `${object.modelId}:${object.version}`;
     const slots = current?.slots[key] ?? [];
-    const effective = resolveEffectiveModuleInventory(current?.versions[key], object);
+    const effective = resolveEffectiveModuleInventory(
+      current?.versions[key],
+      object,
+      designSnapshot?.defaultHandleType
+    );
     const entries = effective.entries;
     const parts = effective.parts;
     const result = calculatePartsBudget(parts, entries, current?.materials ?? [], (slot) => {
