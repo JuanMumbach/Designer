@@ -17,13 +17,31 @@ export interface ObjectDistances {
 
 const EPSILON = 0.1;
 
+function hasVerticalOverlap(objA: DesignObject, objB: DesignObject): boolean {
+  const bottomA = objA.position[1];
+  const topA = bottomA + objA.dimensions[1];
+  const bottomB = objB.position[1];
+  const topB = bottomB + objB.dimensions[1];
+  return Math.min(topA, topB) - Math.max(bottomA, bottomB) > 0.001;
+}
+
+function isSameHorizontalRow(object: DesignObject, candidate: DesignObject): boolean {
+  const objBehaviour = object.objectProperties?.movingBehaviour;
+  const candBehaviour = candidate.objectProperties?.movingBehaviour;
+  if (objBehaviour && candBehaviour && objBehaviour === candBehaviour) {
+    if (objBehaviour === 'counter' || objBehaviour === 'cupboard') {
+      return true;
+    }
+  }
+  return hasVerticalOverlap(object, candidate);
+}
+
 export function calculateObjectMeasurements(
   object: DesignObject,
   allObjects: DesignObject[],
   room3d: Room3dProps
 ): ObjectDistances {
-  const { objectProperties = {}, position, dimensions, rotation = 0 } = object;
-  const movingBehaviour = objectProperties.movingBehaviour;
+  const { position, dimensions, rotation = 0 } = object;
   const [objX, objY, objZ] = position;
   const [objWidth] = dimensions;
 
@@ -37,104 +55,124 @@ export function calculateObjectMeasurements(
   let rightReferenceEdge: number | null = null;
 
   if (isBackWall) {
-    const sameKind = allObjects
+    const sameRow = allObjects
       .filter(
         o =>
           o.id !== object.id &&
-          o.objectProperties?.movingBehaviour === movingBehaviour &&
+          !o.hidden &&
           Math.abs((o.rotation || 0) - rotation) < EPSILON &&
-          Math.abs(o.position[2] - objZ) < EPSILON
+          Math.abs(o.position[2] - objZ) < EPSILON &&
+          isSameHorizontalRow(object, o)
       )
       .sort((a, b) => a.position[0] - b.position[0]);
 
     const objLeft = objX;
     const objRight = objX + objWidth;
 
-    const leftCandidates = sameKind.filter(o => o.position[0] + o.dimensions[0] <= objLeft + 0.001);
+    const leftCandidates = sameRow
+      .filter(o => o.position[0] + o.dimensions[0] <= objLeft + 0.001)
+      .sort((a, b) => (a.position[0] + a.dimensions[0]) - (b.position[0] + b.dimensions[0]));
     if (leftCandidates.length > 0) {
       const nearestLeft = leftCandidates[leftCandidates.length - 1];
       leftReferenceEdge = nearestLeft.position[0] + nearestLeft.dimensions[0];
-      leftDistance = objLeft - leftReferenceEdge;
-    } else if (room3d.leftWall) {
+      leftDistance = Math.max(0, objLeft - leftReferenceEdge);
+    } else if (room3d.leftWall || sameRow.length === 0 || objLeft >= 0) {
       leftReferenceEdge = 0;
-      leftDistance = objLeft;
+      leftDistance = Math.max(0, objLeft);
     }
 
-    const rightCandidates = sameKind.filter(o => o.position[0] >= objRight - 0.001);
+    const rightCandidates = sameRow
+      .filter(o => o.position[0] >= objRight - 0.001)
+      .sort((a, b) => a.position[0] - b.position[0]);
     if (rightCandidates.length > 0) {
       const nearestRight = rightCandidates[0];
       rightReferenceEdge = nearestRight.position[0];
-      rightDistance = rightReferenceEdge - objRight;
-    } else if (room3d.rightWall) {
+      rightDistance = Math.max(0, rightReferenceEdge - objRight);
+    } else if (room3d.rightWall || sameRow.length === 0 || objRight <= room3d.width) {
       rightReferenceEdge = room3d.width;
-      rightDistance = room3d.width - objRight;
+      rightDistance = Math.max(0, room3d.width - objRight);
     }
   } else if (isLeftWall) {
-    const sameKind = allObjects
+    const sameRow = allObjects
       .filter(
         o =>
           o.id !== object.id &&
-          o.objectProperties?.movingBehaviour === movingBehaviour &&
+          !o.hidden &&
           Math.abs((o.rotation || 0) - rotation) < EPSILON &&
-          Math.abs(o.position[0] - objX) < EPSILON
+          Math.abs(o.position[0] - objX) < EPSILON &&
+          isSameHorizontalRow(object, o)
       )
       .sort((a, b) => a.position[2] - b.position[2]);
 
     const objFront = objZ;
     const objBack = objZ - objWidth;
 
-    const frontCandidates = sameKind.filter(o => o.position[2] - o.dimensions[0] >= objFront - 0.001);
+    const frontCandidates = sameRow
+      .filter(o => o.position[2] - o.dimensions[0] >= objFront - 0.001)
+      .sort((a, b) => (a.position[2] - a.dimensions[0]) - (b.position[2] - b.dimensions[0]));
     if (frontCandidates.length > 0) {
       const nearestFront = frontCandidates[0];
       leftReferenceEdge = nearestFront.position[2] - nearestFront.dimensions[0];
-      leftDistance = leftReferenceEdge - objFront;
+      leftDistance = Math.max(0, leftReferenceEdge - objFront);
     } else {
       leftReferenceEdge = room3d.depth;
-      leftDistance = room3d.depth - objFront;
+      leftDistance = Math.max(0, room3d.depth - objFront);
     }
 
-    const backCandidates = sameKind.filter(o => o.position[2] <= objBack + 0.001);
+    const backCandidates = sameRow
+      .filter(o => o.position[2] <= objBack + 0.001)
+      .sort((a, b) => a.position[2] - b.position[2]);
     if (backCandidates.length > 0) {
       const nearestBack = backCandidates[backCandidates.length - 1];
       rightReferenceEdge = nearestBack.position[2];
-      rightDistance = objBack - rightReferenceEdge;
+      rightDistance = Math.max(0, objBack - rightReferenceEdge);
     } else {
       rightReferenceEdge = 0;
-      rightDistance = objBack;
+      rightDistance = Math.max(0, objBack);
     }
   } else if (isRightWall) {
-    const sameKind = allObjects
+    const sameRow = allObjects
       .filter(
         o =>
           o.id !== object.id &&
-          o.objectProperties?.movingBehaviour === movingBehaviour &&
+          !o.hidden &&
           Math.abs((o.rotation || 0) - rotation) < EPSILON &&
-          Math.abs(o.position[0] - objX) < EPSILON
+          Math.abs(o.position[0] - objX) < EPSILON &&
+          isSameHorizontalRow(object, o)
       )
       .sort((a, b) => a.position[2] - b.position[2]);
 
     const objFront = objZ + objWidth;
     const objBack = objZ;
 
-    const backCandidates = sameKind.filter(o => o.position[2] + o.dimensions[0] <= objBack + 0.001);
+    const backCandidates = sameRow
+      .filter(o => o.position[2] + o.dimensions[0] <= objBack + 0.001)
+      .sort((a, b) => (a.position[2] + a.dimensions[0]) - (b.position[2] + b.dimensions[0]));
     if (backCandidates.length > 0) {
       const nearestBack = backCandidates[backCandidates.length - 1];
       leftReferenceEdge = nearestBack.position[2] + nearestBack.dimensions[0];
-      leftDistance = objBack - leftReferenceEdge;
+      leftDistance = Math.max(0, objBack - leftReferenceEdge);
     } else {
       leftReferenceEdge = 0;
-      leftDistance = objBack;
+      leftDistance = Math.max(0, objBack);
     }
 
-    const frontCandidates = sameKind.filter(o => o.position[2] >= objFront - 0.001);
+    const frontCandidates = sameRow
+      .filter(o => o.position[2] >= objFront - 0.001)
+      .sort((a, b) => a.position[2] - b.position[2]);
     if (frontCandidates.length > 0) {
       const nearestFront = frontCandidates[0];
       rightReferenceEdge = nearestFront.position[2];
-      rightDistance = rightReferenceEdge - objFront;
+      rightDistance = Math.max(0, rightReferenceEdge - objFront);
     } else {
       rightReferenceEdge = room3d.depth;
-      rightDistance = room3d.depth - objFront;
+      rightDistance = Math.max(0, room3d.depth - objFront);
     }
+  } else {
+    leftReferenceEdge = 0;
+    leftDistance = Math.max(0, objX);
+    rightReferenceEdge = room3d.width;
+    rightDistance = Math.max(0, room3d.width - (objX + objWidth));
   }
 
   let floorDistance: number | null = null;
@@ -206,7 +244,14 @@ export function computeNewPositionFromMeasurement(
     return [objX, objY, clampedZ];
   }
 
-  return [objX, objY, objZ];
+  let targetX = objX;
+  if (side === 'left' && distances.leftReferenceEdge !== null) {
+    targetX = distances.leftReferenceEdge + clampedDistance;
+  } else if (side === 'right' && distances.rightReferenceEdge !== null) {
+    targetX = distances.rightReferenceEdge - clampedDistance - objWidth;
+  }
+  const clampedX = Math.max(0, Math.min(room3d.width - objWidth, targetX));
+  return [clampedX, objY, objZ];
 }
 
 function InteractiveMeasurementBadge({
@@ -250,6 +295,9 @@ function InteractiveMeasurementBadge({
           onPointerDown={(e) => {
             e.stopPropagation();
           }}
+          onPointerUp={(e) => {
+            e.stopPropagation();
+          }}
           onPointerOver={(e) => {
             e.stopPropagation();
             setHovered(true);
@@ -280,6 +328,13 @@ function InteractiveMeasurementBadge({
           material-depthWrite={false}
           material-transparent={true}
           renderOrder={999}
+          onClick={handleTrigger}
+          onPointerDown={(e) => {
+            e.stopPropagation();
+          }}
+          onPointerUp={(e) => {
+            e.stopPropagation();
+          }}
         >
           {label}
         </Text>

@@ -303,7 +303,7 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
     }
   };
 
-  const referencedMaterialIds = useMemo(() => {
+  const referencedMaterialIdsKey = useMemo(() => {
     const ids = new Set<string>();
     for (const obj of designObjects) {
       for (const materialId of Object.values(obj.materialOverrides ?? {})) {
@@ -339,8 +339,13 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
         }
       }
     }
-    return [...ids];
+    return [...ids].sort().join(',');
   }, [designObjects, globalMaterials, room3d]);
+
+  const referencedMaterialIds = useMemo(
+    () => (referencedMaterialIdsKey ? referencedMaterialIdsKey.split(',') : []),
+    [referencedMaterialIdsKey]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -420,13 +425,18 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
     };
   }, []);
 
-  const modelKeys = useMemo(() => {
+  const modelKeysString = useMemo(() => {
     const keys = new Set<string>();
     for (const obj of designObjects) {
       if (obj.modelId) keys.add(`${obj.modelId}:${obj.version}`);
     }
-    return [...keys];
+    return [...keys].sort().join(',');
   }, [designObjects]);
+
+  const modelKeys = useMemo(
+    () => (modelKeysString ? modelKeysString.split(',') : []),
+    [modelKeysString]
+  );
 
   useEffect(() => {
     if (modelKeys.length === 0) return;
@@ -585,6 +595,16 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
         ...(updates.selectedVariants !== undefined && { selectedVariants: updates.selectedVariants }),
       } : obj
     ));
+    setMovingObject(prev => prev && prev.id === id ? {
+      ...prev,
+      name: updates.name,
+      position: updates.position,
+      ...(updates.rotation !== undefined && { rotation: updates.rotation }),
+      ...(updates.materialOverrides !== undefined && { materialOverrides: updates.materialOverrides }),
+      ...(updates.hidden !== undefined && { hidden: updates.hidden }),
+      ...(updates.dimensions !== undefined && { dimensions: updates.dimensions }),
+      ...(updates.selectedVariants !== undefined && { selectedVariants: updates.selectedVariants }),
+    } : prev);
   };
 
   const handleObjectDeleted = (id: string) => {

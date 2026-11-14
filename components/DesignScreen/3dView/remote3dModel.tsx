@@ -332,7 +332,7 @@ function AdditiveVariantMesh({
                 }
             );
         });
-    }, [groupVersion, slotMaps, slotMapsReady, materialOverrides, instanceOverrides, globalMaterials, globalMaterialsRaw, materialDataById, objectSlotTypes, typeToDesignSlot, dimensions]);
+    }, [groupVersion, slotMaps, slotMapsReady, materialOverrides, instanceOverrides, globalMaterials, globalMaterialsRaw, materialDataById, objectSlotTypes, typeToDesignSlot, dimensions[0], dimensions[1], dimensions[2]]);
 
     useEffect(() => {
         const group = groupRef.current;
@@ -382,6 +382,7 @@ function AdditiveVariantMesh({
     return (
         <Suspense fallback={null}>
             <Gltf
+                key={localUri}
                 ref={handleGltfReady}
                 src={localUri}
                 rotation={[0, -Math.PI / 2, 0]}
@@ -744,7 +745,38 @@ export function DesignObject3D({
       } else {
         setTexturesResolved(false);
       }
-    }, [instanceOverrides, globalMaterials, globalMaterialsRaw, materialDataById, obj.materialOverrides, obj.modelId, localUri, dimensions, slotMapsReady, groupReady, gltfVersion, objectSlotTypes, slotTypesByModel, typeToDesignSlot]);
+    }, [instanceOverrides, globalMaterials, globalMaterialsRaw, materialDataById, obj.materialOverrides, obj.modelId, localUri, dimensions[0], dimensions[1], dimensions[2], slotMapsReady, groupReady, gltfVersion, objectSlotTypes, slotTypesByModel, typeToDesignSlot]);
+
+    const isDraggingRef = useRef(false);
+    const onDragStateChangeRef = useRef(onDragStateChange);
+    onDragStateChangeRef.current = onDragStateChange;
+
+    const [dragPreview, setDragPreview] = useState<{
+        position: [number, number, number];
+        rotation: number;
+    } | null>(null);
+    const dragPreviewRef = useRef<{
+        position: [number, number, number];
+        rotation: number;
+    } | null>(null);
+
+    const commitDragMove = useCallback(() => {
+        if (!isDraggingRef.current) return;
+        isDraggingRef.current = false;
+        const finalMove = dragPreviewRef.current;
+        dragPreviewRef.current = null;
+        setDragPreview(null);
+        setIsDragging(false);
+        globalIsDragging = false;
+        onDragStateChangeRef.current?.(false);
+        if (finalMove && onObjectEdited) {
+            onObjectEdited(obj.id, {
+                name: obj.name,
+                position: finalMove.position,
+                rotation: finalMove.rotation,
+            });
+        }
+    }, [obj.id, obj.name, onObjectEdited]);
 
     useEffect(() => {
         if (Platform.OS === 'web') {
@@ -753,7 +785,9 @@ export function DesignObject3D({
             }
 
             const handleGlobalMouseUp = () => {
-                if (isDragging) {setIsDragging(false);globalIsDragging = false;}
+                if (isDraggingRef.current) {
+                    commitDragMove();
+                }
             };
             window.addEventListener('pointerup', handleGlobalMouseUp);
             window.addEventListener('pointercancel', handleGlobalMouseUp);
@@ -762,7 +796,7 @@ export function DesignObject3D({
                 window.removeEventListener('pointercancel', handleGlobalMouseUp);
             };
         }
-    }, [isDragging]);
+    }, [commitDragMove]);
 
     const longPressTimer = useRef<any>(null);
     const longPressTriggered = useRef(false);
@@ -788,16 +822,23 @@ export function DesignObject3D({
         setOptionsOpen(true);
     }, [handleInteraction]);
 
+    const effectivePosition = dragPreview ? dragPreview.position : position;
+    const effectiveRotation = dragPreview ? dragPreview.rotation : (rotation || 0);
+    const effectiveObj = React.useMemo(
+        () => (dragPreview ? { ...obj, position: dragPreview.position, rotation: dragPreview.rotation } : obj),
+        [obj, dragPreview]
+    );
+
     const boxPosition: [number, number, number] = [
-        origin[0] + position[0] + dimensions[0] / 2,
-        origin[1] + position[1] + dimensions[1] / 2,
-        origin[2] + position[2] + dimensions[2] / 2
+        origin[0] + effectivePosition[0] + dimensions[0] / 2,
+        origin[1] + effectivePosition[1] + dimensions[1] / 2,
+        origin[2] + effectivePosition[2] + dimensions[2] / 2
     ];
 
     const modelPosition: [number, number, number] = [
-        origin[0] + position[0],
-        origin[1] + position[1],
-        origin[2] + position[2]
+        origin[0] + effectivePosition[0],
+        origin[1] + effectivePosition[1],
+        origin[2] + effectivePosition[2]
     ];
 
     const handlePointerDown = (e: any) => {
@@ -862,7 +903,7 @@ export function DesignObject3D({
             objectId: obj.id,
             origin,
             initialPosition: [...initialPosition.current],
-            objectRotation: rotation || 0,
+            objectRotation: effectiveRotation,
             objectDimensions: dimensions,
             objectProperties: obj.objectProperties,
             room3d,
@@ -877,11 +918,12 @@ export function DesignObject3D({
             initialPosition.current = [result.newX, result.newY, result.newZ];
         }
 
-        onObjectEdited(obj.id, {
-            name: obj.name,
-            position: [result.newX, result.newY, result.newZ],
+        const nextMove = {
+            position: [result.newX, result.newY, result.newZ] as [number, number, number],
             rotation: result.newRot,
-        });
+        };
+        dragPreviewRef.current = nextMove;
+        setDragPreview(nextMove);
     };
 
     const handleCardPress = (e: any) => {
@@ -1001,7 +1043,7 @@ export function DesignObject3D({
         );
     }
 
-    const currentAngle = rotation || 0;
+    const currentAngle = effectiveRotation;
     const movingBehaviour = obj.objectProperties?.movingBehaviour;
     const isFreeMode = movingBehaviour !== 'counter' && movingBehaviour !== 'cupboard';
 
@@ -1031,10 +1073,11 @@ export function DesignObject3D({
  
      return (
          <group>
-             <group position={modelPosition} rotation={[0, rotation || 0, 0]}>
+             <group position={modelPosition} rotation={[0, effectiveRotation, 0]}>
                  <group scale={fitScale}>
                      <Suspense fallback={null}>
                          <Gltf
+                             key={localUri}
                              ref={handleGltfReady}
                              src={localUri}
                              rotation={[0, -Math.PI / 2, 0]}
@@ -1073,6 +1116,14 @@ export function DesignObject3D({
                              scale={0.75 * uiPixelScale}
                              onPointerDown={(e) => {
                                  e.stopPropagation();
+                                 if (isDraggingRef.current) return;
+                                 const startMove = {
+                                     position: [...position] as [number, number, number],
+                                     rotation: rotation || 0,
+                                 };
+                                 isDraggingRef.current = true;
+                                 dragPreviewRef.current = startMove;
+                                 setDragPreview(startMove);
                                  setIsDragging(true);
                                  globalIsDragging = true;
                                  dragStartPoint.current.copy(e.point);
@@ -1080,7 +1131,7 @@ export function DesignObject3D({
                                  if (onDragStateChange) onDragStateChange(true);
                              }}
                          >
-                             <sprite scale={[1, 1, 1]}>
+                             <sprite scale={[1, 1, 1]} renderOrder={995}>
                                  <spriteMaterial
                                      map={dragIconTexture}
                                      color="white"
@@ -1097,6 +1148,9 @@ export function DesignObject3D({
                                     e.stopPropagation();
                                     setOptionsOpen(true);
                                 }}
+                                onPointerDown={(e) => {
+                                    e.stopPropagation();
+                                }}
                                 onContextMenu={(e: any) => {
                                     if (e.nativeEvent?.preventDefault) e.nativeEvent.preventDefault();
                                     if (e.preventDefault) e.preventDefault();
@@ -1104,7 +1158,7 @@ export function DesignObject3D({
                                     setOptionsOpen(true);
                                 }}
                             >
-                                <sprite scale={[1, 1, 1]}>
+                                <sprite scale={[1, 1, 1]} renderOrder={995}>
                                     <spriteMaterial
                                         map={menuIconTexture}
                                         color="#111827"
@@ -1123,7 +1177,7 @@ export function DesignObject3D({
                                     <sprite
                                         position={[0, 0, 0]}
                                         scale={[2.2, 2.6, 1]}
-                                        renderOrder={1}
+                                        renderOrder={996}
                                     >
                                         <spriteMaterial
                                             map={menuPanelTexture}
@@ -1134,6 +1188,7 @@ export function DesignObject3D({
                                     </sprite>
                                     <mesh
                                         position={[0, 0, 0.05]}
+                                        renderOrder={997}
                                         onClick={handleCardPress}
                                         onPointerDown={(e) => {
                                             e.stopPropagation();
@@ -1150,7 +1205,7 @@ export function DesignObject3D({
                                     <group position={[-0.55, -0.75, 0]}>
                                         <sprite
                                             scale={[0.28, 0.28, 0.28]}
-                                            renderOrder={2}
+                                            renderOrder={997}
                                         >
                                             <spriteMaterial
                                                 map={editIconTexture}
@@ -1165,7 +1220,7 @@ export function DesignObject3D({
                                             color="#111827"
                                             anchorX="left"
                                             anchorY="middle"
-                                            renderOrder={3}
+                                            renderOrder={998}
                                             material-depthTest={false}
                                             material-transparent={true}
                                         >
@@ -1175,7 +1230,7 @@ export function DesignObject3D({
                                     <group position={[-0.55, -0.25, 0]}>
                                         <sprite
                                             scale={[0.28, 0.28, 0.28]}
-                                            renderOrder={2}
+                                            renderOrder={997}
                                         >
                                             <spriteMaterial
                                                 map={duplicateIconTexture}
@@ -1190,7 +1245,7 @@ export function DesignObject3D({
                                             color="#111827"
                                             anchorX="left"
                                             anchorY="middle"
-                                            renderOrder={3}
+                                            renderOrder={998}
                                             material-depthTest={false}
                                             material-transparent={true}
                                         >
@@ -1200,7 +1255,7 @@ export function DesignObject3D({
                                     <group position={[-0.55, 0.25, 0]}>
                                         <sprite
                                             scale={[0.28, 0.28, 0.28]}
-                                            renderOrder={2}
+                                            renderOrder={997}
                                         >
                                             <spriteMaterial
                                                 map={eyeIconTexture}
@@ -1215,7 +1270,7 @@ export function DesignObject3D({
                                             color="#111827"
                                             anchorX="left"
                                             anchorY="middle"
-                                            renderOrder={3}
+                                            renderOrder={998}
                                             material-depthTest={false}
                                             material-transparent={true}
                                         >
@@ -1225,7 +1280,7 @@ export function DesignObject3D({
                                     <group position={[-0.55, 0.75, 0]}>
                                         <sprite
                                             scale={[0.28, 0.28, 0.28]}
-                                            renderOrder={2}
+                                            renderOrder={997}
                                         >
                                             <spriteMaterial
                                                 map={deleteIconTexture}
@@ -1240,7 +1295,7 @@ export function DesignObject3D({
                                             color="#dc2626"
                                             anchorX="left"
                                             anchorY="middle"
-                                            renderOrder={3}
+                                            renderOrder={998}
                                             material-depthTest={false}
                                             material-transparent={true}
                                         >
@@ -1253,7 +1308,7 @@ export function DesignObject3D({
                         
                         {/* Measurements - show when object is selected */}
                          <ObjectMeasurements3D
-                             object={obj}
+                             object={effectiveObj}
                              allObjects={allObjects}
                              room3d={room3d}
                              origin={origin}
@@ -1272,9 +1327,7 @@ export function DesignObject3D({
                     onPointerMove={handleDragMove}
                     onPointerUp={(e) => {
                         e.stopPropagation();
-                        setIsDragging(false);
-                        globalIsDragging = false;
-                        if (onDragStateChange) onDragStateChange(false);
+                        commitDragMove();
                     }}
                 >
                     <planeGeometry args={[1000, 1000]} />

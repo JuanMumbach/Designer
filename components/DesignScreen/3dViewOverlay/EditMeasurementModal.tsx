@@ -13,7 +13,9 @@ export interface ActiveMeasurementEdit {
 }
 
 function parseMeasure(value: string): number {
-  return Number(String(value).trim().replace(',', '.'));
+  const cleaned = String(value).trim().replace(',', '.');
+  if (!cleaned) return NaN;
+  return Number(cleaned);
 }
 
 function formatMeasure(value: number): string {

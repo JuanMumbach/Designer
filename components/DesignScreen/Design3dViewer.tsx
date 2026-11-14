@@ -1,5 +1,5 @@
 import { OrbitControls } from '@react-three/drei/native';
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Canvas, events, useFrame, useThree, type RootStore } from "@react-three/fiber";
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import DesignObjectsRenderer, { AppliedMaterial, DesignObject, GlobalMaterials } from "./3dView/DesignObjects";
@@ -11,6 +11,35 @@ import {
   ThumbnailCaptureApi,
   ThumbnailCaptureHost,
 } from "../../services/thumbnailCapture";
+
+function getEffectiveRenderOrder(object: THREE.Object3D): number {
+  let current: THREE.Object3D | null = object;
+  let maxOrder = 0;
+  while (current) {
+    if (current.renderOrder > maxOrder) {
+      maxOrder = current.renderOrder;
+    }
+    current = current.parent;
+  }
+  return maxOrder;
+}
+
+function createLayeredEvents(store: RootStore) {
+  const defaultEvents = events(store);
+  return {
+    ...defaultEvents,
+    filter: (intersections: THREE.Intersection[]) => {
+      return [...intersections].sort((a, b) => {
+        const orderA = getEffectiveRenderOrder(a.object);
+        const orderB = getEffectiveRenderOrder(b.object);
+        if (orderA !== orderB) {
+          return orderB - orderA;
+        }
+        return a.distance - b.distance;
+      });
+    },
+  };
+}
 
 const cameraControlsProps = {
   mouseButtons: {
@@ -258,7 +287,7 @@ export default function Design3dView({
   const [, forceUpdate] = useState(0);
 
   const handleDragStateChange = (dragging: boolean) => {
-    isDragging.current += dragging ? 1 : -1;
+    isDragging.current = Math.max(0, isDragging.current + (dragging ? 1 : -1));
     if (onDragStateChange) onDragStateChange(isDragging.current > 0);
     forceUpdate(n => n + 1);
   };
@@ -266,6 +295,7 @@ export default function Design3dView({
   return (
     <Canvas
       shadows
+      events={createLayeredEvents}
       style={{ background: COLORS.sceneBg }}
       camera={{ position: [0, 3, 3] }}
       onPointerDown={(e: any) => {
