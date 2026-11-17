@@ -19,6 +19,7 @@ import {
 import { AppliedMaterial, DesignObject, GlobalMaterials, resolveGlobalMaterials } from './DesignObjects';
 import ObjectMeasurements3D from './ObjectMeasurements3D';
 import { Room3dProps } from './Room3d';
+import ViewportClampedScreenSizer from './ViewportClampedScreenSizer';
 import { computeDragMove, MoveContext } from './moveBehaviours';
 import { ObjectVariant, resolveActiveVariants, resolveVariantMeshes } from '../../../services/variants';
 
@@ -33,6 +34,20 @@ export function hashString(value: string): string {
 }
 
 const uiPixelScale = 10;
+const menuPanelWidthUnits = 2.2;
+const menuPanelHeightUnits = 2.6;
+const menuBasePxPerUnit = uiPixelScale * uiPixelScale;
+const menuBaseSizePx = {
+    width: menuPanelWidthUnits * menuBasePxPerUnit,
+    height: menuPanelHeightUnits * menuBasePxPerUnit,
+};
+const menuGapPx = 16;
+const menuButtonScale = 0.66 * uiPixelScale;
+const menuButtonPxPerUnit = menuButtonScale * menuButtonScale;
+const menuButtonSizePx = {
+    width: menuButtonPxPerUnit,
+    height: menuButtonPxPerUnit,
+};
 
 function createWhitePlaceholderMaterial(baseMaterial: THREE.Material): THREE.Material {
     const mat = baseMaterial.clone() as THREE.MeshStandardMaterial;
@@ -926,19 +941,6 @@ export function DesignObject3D({
         setDragPreview(nextMove);
     };
 
-    const handleCardPress = (e: any) => {
-        e.stopPropagation();
-        const local = e.object.worldToLocal(e.point.clone());
-        const rows: [number, (ev: any) => void][] = [
-            [-0.75, handleEditRowClick],
-            [-0.25, handleDuplicateRowClick],
-            [0.25, handleHideRowClick],
-            [0.75, handleDeleteRowClick],
-        ];
-        const hit = rows.find(([y]) => Math.abs(local.y - y) <= 0.24);
-        if (hit) hit[1](e);
-    };
-
     const handleEditRowClick = (e: any) => {
         e.stopPropagation();
         setOptionsOpen(false);
@@ -976,6 +978,20 @@ export function DesignObject3D({
                 }},
             ]);
         }
+    };
+
+    const menuRows = [
+        { y: -0.75, label: 'Edit', color: '#111827', icon: editIconTexture, onPress: handleEditRowClick },
+        { y: -0.25, label: 'Duplicate', color: '#111827', icon: duplicateIconTexture, onPress: handleDuplicateRowClick },
+        { y: 0.25, label: obj.hidden ? 'Show' : 'Hide', color: '#111827', icon: eyeIconTexture, onPress: handleHideRowClick },
+        { y: 0.75, label: 'Delete', color: '#dc2626', icon: deleteIconTexture, onPress: handleDeleteRowClick },
+    ];
+
+    const handleCardPress = (e: any) => {
+        e.stopPropagation();
+        const local = e.object.worldToLocal(e.point.clone());
+        const hit = menuRows.find((row) => Math.abs(local.y - row.y) <= 0.24);
+        if (hit) hit.onPress(e);
     };
 
     const hideObject = !!obj.hidden || !!forcedHidden;
@@ -1141,9 +1157,10 @@ export function DesignObject3D({
                              </sprite>
                          </ScreenSizer>
                          {!optionsOpen && (
-                            <ScreenSizer
-                                position={[dimensions[0] / 2, dimensions[1] + 0.2, 0]}
-                                scale={0.66 * uiPixelScale}
+                            <ViewportClampedScreenSizer
+                                localAnchor={[dimensions[0] / 2, dimensions[1] + 0.15, dimensions[2] / 2]}
+                                baseSizePx={menuButtonSizePx}
+                                basePxPerUnit={menuButtonPxPerUnit}
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     setOptionsOpen(true);
@@ -1158,39 +1175,49 @@ export function DesignObject3D({
                                     setOptionsOpen(true);
                                 }}
                             >
-                                <sprite scale={[1, 1, 1]} renderOrder={995}>
+                                <sprite scale={[1, 1, 1]} renderOrder={1005}>
                                     <spriteMaterial
                                         map={menuIconTexture}
                                         color="#111827"
                                         depthTest={false}
+                                        depthWrite={false}
+                                        fog={false}
                                         transparent={true}
                                     />
                                 </sprite>
-                            </ScreenSizer>
+                            </ViewportClampedScreenSizer>
                         )}
                         {optionsOpen && (
-                            <ScreenSizer
-                                position={[dimensions[0] / 2, dimensions[1] + 1.2, 0]}
-                                scale={uiPixelScale}
+                            <ViewportClampedScreenSizer
+                                localAnchor={[dimensions[0] / 2, dimensions[1], dimensions[2] / 2]}
+                                baseSizePx={menuBaseSizePx}
+                                basePxPerUnit={menuBasePxPerUnit}
+                                gapPx={menuGapPx}
+                                preferAbove
                             >
                                 <Billboard>
                                     <sprite
                                         position={[0, 0, 0]}
-                                        scale={[2.2, 2.6, 1]}
-                                        renderOrder={996}
+                                        scale={[menuPanelWidthUnits, menuPanelHeightUnits, 1]}
+                                        renderOrder={1010}
                                     >
                                         <spriteMaterial
                                             map={menuPanelTexture}
                                             depthTest={false}
+                                            depthWrite={false}
+                                            fog={false}
                                             transparent={true}
                                             opacity={1}
                                         />
                                     </sprite>
                                     <mesh
                                         position={[0, 0, 0.05]}
-                                        renderOrder={997}
+                                        renderOrder={1011}
                                         onClick={handleCardPress}
                                         onPointerDown={(e) => {
+                                            e.stopPropagation();
+                                        }}
+                                        onPointerUp={(e) => {
                                             e.stopPropagation();
                                         }}
                                         onContextMenu={(e: any) => {
@@ -1199,111 +1226,49 @@ export function DesignObject3D({
                                             e.stopPropagation();
                                         }}
                                     >
-                                        <planeGeometry args={[2.2, 2.6]} />
-                                        <meshBasicMaterial transparent opacity={0} depthTest={false} side={2} />
+                                        <planeGeometry args={[menuPanelWidthUnits, menuPanelHeightUnits]} />
+                                        <meshBasicMaterial
+                                            transparent
+                                            opacity={0}
+                                            depthTest={false}
+                                            depthWrite={false}
+                                            fog={false}
+                                            side={THREE.DoubleSide}
+                                        />
                                     </mesh>
-                                    <group position={[-0.55, -0.75, 0]}>
-                                        <sprite
-                                            scale={[0.28, 0.28, 0.28]}
-                                            renderOrder={997}
-                                        >
-                                            <spriteMaterial
-                                                map={editIconTexture}
-                                                color="#111827"
-                                                depthTest={false}
-                                                transparent={true}
-                                            />
-                                        </sprite>
-                                        <Text
-                                            position={[0.32, 0, 0]}
-                                            fontSize={0.2}
-                                            color="#111827"
-                                            anchorX="left"
-                                            anchorY="middle"
-                                            renderOrder={998}
-                                            material-depthTest={false}
-                                            material-transparent={true}
-                                        >
-                                            Edit
-                                        </Text>
-                                    </group>
-                                    <group position={[-0.55, -0.25, 0]}>
-                                        <sprite
-                                            scale={[0.28, 0.28, 0.28]}
-                                            renderOrder={997}
-                                        >
-                                            <spriteMaterial
-                                                map={duplicateIconTexture}
-                                                color="#111827"
-                                                depthTest={false}
-                                                transparent={true}
-                                            />
-                                        </sprite>
-                                        <Text
-                                            position={[0.32, 0, 0]}
-                                            fontSize={0.2}
-                                            color="#111827"
-                                            anchorX="left"
-                                            anchorY="middle"
-                                            renderOrder={998}
-                                            material-depthTest={false}
-                                            material-transparent={true}
-                                        >
-                                            Duplicate
-                                        </Text>
-                                    </group>
-                                    <group position={[-0.55, 0.25, 0]}>
-                                        <sprite
-                                            scale={[0.28, 0.28, 0.28]}
-                                            renderOrder={997}
-                                        >
-                                            <spriteMaterial
-                                                map={eyeIconTexture}
-                                                color="#111827"
-                                                depthTest={false}
-                                                transparent={true}
-                                            />
-                                        </sprite>
-                                        <Text
-                                            position={[0.32, 0, 0]}
-                                            fontSize={0.2}
-                                            color="#111827"
-                                            anchorX="left"
-                                            anchorY="middle"
-                                            renderOrder={998}
-                                            material-depthTest={false}
-                                            material-transparent={true}
-                                        >
-                                            {obj.hidden ? 'Show' : 'Hide'}
-                                        </Text>
-                                    </group>
-                                    <group position={[-0.55, 0.75, 0]}>
-                                        <sprite
-                                            scale={[0.28, 0.28, 0.28]}
-                                            renderOrder={997}
-                                        >
-                                            <spriteMaterial
-                                                map={deleteIconTexture}
-                                                color="#dc2626"
-                                                depthTest={false}
-                                                transparent={true}
-                                            />
-                                        </sprite>
-                                        <Text
-                                            position={[0.32, 0, 0]}
-                                            fontSize={0.2}
-                                            color="#dc2626"
-                                            anchorX="left"
-                                            anchorY="middle"
-                                            renderOrder={998}
-                                            material-depthTest={false}
-                                            material-transparent={true}
-                                        >
-                                            Delete
-                                        </Text>
-                                    </group>
+                                    {menuRows.map((row) => (
+                                        <group key={row.label} position={[-0.55, row.y, 0]}>
+                                            <sprite
+                                                scale={[0.28, 0.28, 0.28]}
+                                                renderOrder={1012}
+                                            >
+                                                <spriteMaterial
+                                                    map={row.icon}
+                                                    color={row.color}
+                                                    depthTest={false}
+                                                    depthWrite={false}
+                                                    fog={false}
+                                                    transparent={true}
+                                                />
+                                            </sprite>
+                                            <Text
+                                                position={[0.32, 0, 0]}
+                                                fontSize={0.2}
+                                                color={row.color}
+                                                anchorX="left"
+                                                anchorY="middle"
+                                                renderOrder={1013}
+                                                material-depthTest={false}
+                                                material-depthWrite={false}
+                                                material-fog={false}
+                                                material-transparent={true}
+                                            >
+                                                {row.label}
+                                            </Text>
+                                        </group>
+                                    ))}
                                 </Billboard>
-                            </ScreenSizer>
+                            </ViewportClampedScreenSizer>
                         )}
                         
                         {/* Measurements - show when object is selected */}
