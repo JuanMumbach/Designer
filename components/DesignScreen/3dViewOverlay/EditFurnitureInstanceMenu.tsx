@@ -1,6 +1,5 @@
-import Button from "@/components/Button";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Switch, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Text, TextInput, View, ViewStyle } from "react-native";
+import { Alert, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Switch, Text, TextInput, useWindowDimensions, View, ViewStyle } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { DesignObject, GlobalMaterials, MaterialOverrides, resolveGlobalMaterials } from "../3dView/DesignObjects";
 import { MaterialCategory, MaterialMeta, MaterialData, ObjectMaterialType } from "../../../services/api";
@@ -63,6 +62,9 @@ export default function EditFurnitureInstanceMenu({
   defaultHandleType?: string | null;
   containerStyle?: StyleProp<ViewStyle>;
 }) {
+  const { width: windowWidth } = useWindowDimensions();
+  const [footerWidth, setFooterWidth] = useState(0);
+  const isCompactFooter = footerWidth > 0 ? footerWidth < 500 : windowWidth < 540;
   const [name, onChangeName] = useState(object.name);
   const [positionX, setPositionX] = useState(object.position?.[0]?.toFixed(2) ?? "0.00");
   const [positionY, setPositionY] = useState(object.position?.[1]?.toFixed(2) ?? "0.00");
@@ -336,7 +338,11 @@ export default function EditFurnitureInstanceMenu({
             Assign {slotList.find(s => s.slot === editingSlot)?.displayName || `Slot ${editingSlot}`}
           </Text>
         </View>
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
           <Text style={styles.sectionTitle}>Design materials</Text>
           {designSlots.map(slot => {
             const isActive = dirtyOverrides[editingSlot] === `ref:${slot.key}`;
@@ -407,7 +413,11 @@ export default function EditFurnitureInstanceMenu({
         )}
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
         {activeTab === 'transform' ? (
           <>
             <Text style={styles.label}>Name</Text>
@@ -767,27 +777,98 @@ export default function EditFurnitureInstanceMenu({
       </ScrollView>
 
       {/* Fixed bottom action buttons */}
-      <View style={styles.footer}>
-        <View style={styles.actionRow}>
-          <Button label="Save Changes" onPress={handleSave} />
-        </View>
+      <View
+        style={[styles.footer, isCompactFooter && styles.footerCompact]}
+        onLayout={(e) => setFooterWidth(e.nativeEvent.layout.width)}
+      >
+        <Pressable
+          style={({ pressed }) => [
+            styles.footerButton,
+            styles.deleteButton,
+            isCompactFooter && styles.footerButtonCompact,
+            pressed && styles.deleteButtonPressed,
+          ]}
+          onPress={handleDelete}
+          accessibilityRole="button"
+          accessibilityLabel="Delete Object"
+        >
+          <Ionicons
+            name="trash-outline"
+            size={isCompactFooter ? 14 : 16}
+            color={COLORS.dangerStrong}
+          />
+          <Text
+            style={[
+              styles.footerButtonLabel,
+              styles.deleteButtonLabel,
+              isCompactFooter && styles.footerButtonLabelCompact,
+            ]}
+            numberOfLines={1}
+          >
+            {isCompactFooter ? "Delete" : "Delete Object"}
+          </Text>
+        </Pressable>
+
+        {!isCompactFooter && <View style={styles.footerSpacer} />}
 
         {onDuplicate && (
           <Pressable
-            style={({ pressed }) => [styles.duplicateButton, pressed && styles.duplicateButtonPressed]}
+            style={({ pressed }) => [
+              styles.footerButton,
+              styles.duplicateButton,
+              isCompactFooter && styles.footerButtonCompact,
+              pressed && styles.duplicateButtonPressed,
+            ]}
             onPress={handleDuplicate}
+            accessibilityRole="button"
+            accessibilityLabel="Duplicate Object"
           >
-            <Ionicons name="copy-outline" size={16} color={COLORS.primary} />
-            <Text style={styles.duplicateButtonLabel}>Duplicate Object</Text>
+            <Ionicons
+              name="copy-outline"
+              size={isCompactFooter ? 14 : 16}
+              color={COLORS.primary}
+            />
+            <Text
+              style={[
+                styles.footerButtonLabel,
+                styles.duplicateButtonLabel,
+                isCompactFooter && styles.footerButtonLabelCompact,
+              ]}
+              numberOfLines={1}
+            >
+              {isCompactFooter ? "Duplicate" : "Duplicate Object"}
+            </Text>
           </Pressable>
         )}
 
         <Pressable
-          style={({ pressed }) => [styles.deleteButton, pressed && styles.deleteButtonPressed]}
-          onPress={handleDelete}
+          style={({ pressed }) => [
+            styles.footerButton,
+            styles.saveButton,
+            isCompactFooter && styles.footerButtonCompact,
+            !isSizeValid && styles.saveButtonDisabled,
+            pressed && isSizeValid && styles.saveButtonPressed,
+          ]}
+          onPress={handleSave}
+          disabled={!isSizeValid}
+          accessibilityRole="button"
+          accessibilityLabel="Save Changes"
         >
-          <Ionicons name="trash-outline" size={16} color={COLORS.dangerStrong} />
-          <Text style={styles.deleteButtonLabel}>Delete Object</Text>
+          <Ionicons
+            name="checkmark"
+            size={isCompactFooter ? 14 : 16}
+            color={COLORS.white}
+          />
+          <Text
+            style={[
+              styles.footerButtonLabel,
+              styles.saveButtonLabel,
+              isCompactFooter && styles.footerButtonLabelCompact,
+            ]}
+            numberOfLines={1}
+          >
+            {isCompactFooter ? "Save" : "Save Changes"}
+          </Text>
         </Pressable>
       </View>
     </GlassSurface>
@@ -862,11 +943,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    gap: 12,
     paddingHorizontal: 18,
-    paddingVertical: 14,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: GLASS.border,
     backgroundColor: GLASS.bgStrong,
+    flexShrink: 0,
   },
   menuHeaderInfo: {
     flex: 1,
@@ -894,10 +977,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: GLASS.border,
     backgroundColor: GLASS.bg,
+    flexShrink: 0,
   },
   tabBtn: {
     flex: 1,
-    paddingVertical: 10,
+    paddingVertical: 9,
     alignItems: "center",
     justifyContent: "center",
     borderBottomWidth: 2,
@@ -916,18 +1000,30 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   footer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
     paddingHorizontal: 18,
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderTopWidth: 1,
     borderTopColor: GLASS.border,
     backgroundColor: GLASS.bgStrong,
+    flexShrink: 0,
+  },
+  footerCompact: {
+    paddingHorizontal: 12,
+  },
+  footerSpacer: {
+    flex: 1,
   },
   scroll: {
-    flex: 1,
-    paddingHorizontal: 18,
-    paddingVertical: 14,
+    flexGrow: 1,
+    flexShrink: 1,
+    minHeight: 0,
   },
   scrollContent: {
+    paddingHorizontal: 18,
+    paddingTop: 14,
     paddingBottom: 20,
   },
   label: {
@@ -1098,21 +1194,46 @@ const styles = StyleSheet.create({
     fontSize: 13,
     textAlign: "center",
   },
-  actionRow: {
-    marginTop: 10,
-    alignItems: "center",
-  },
-  duplicateButton: {
+  footerButton: {
     flexDirection: "row",
     gap: 6,
     borderRadius: RADII.md,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingVertical: 9,
+    paddingHorizontal: 14,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 10,
-    backgroundColor: "rgba(37, 99, 235, 0.08)",
     borderWidth: 1,
+  },
+  footerButtonCompact: {
+    flex: 1,
+    minWidth: 0,
+    paddingHorizontal: 8,
+    gap: 4,
+  },
+  footerButtonLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  footerButtonLabelCompact: {
+    fontSize: 12,
+  },
+  saveButton: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  saveButtonPressed: {
+    backgroundColor: COLORS.primaryPressed,
+    borderColor: COLORS.primaryPressed,
+  },
+  saveButtonDisabled: {
+    opacity: 0.5,
+  },
+  saveButtonLabel: {
+    color: COLORS.white,
+    fontWeight: "700",
+  },
+  duplicateButton: {
+    backgroundColor: "rgba(37, 99, 235, 0.08)",
     borderColor: "rgba(37, 99, 235, 0.25)",
   },
   duplicateButtonPressed: {
@@ -1120,20 +1241,9 @@ const styles = StyleSheet.create({
   },
   duplicateButtonLabel: {
     color: COLORS.primary,
-    fontSize: 13,
-    fontWeight: "600",
   },
   deleteButton: {
-    flexDirection: "row",
-    gap: 6,
-    borderRadius: RADII.md,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 10,
     backgroundColor: "rgba(220, 38, 38, 0.08)",
-    borderWidth: 1,
     borderColor: "rgba(220, 38, 38, 0.25)",
   },
   deleteButtonPressed: {
@@ -1141,8 +1251,6 @@ const styles = StyleSheet.create({
   },
   deleteButtonLabel: {
     color: COLORS.dangerStrong,
-    fontSize: 13,
-    fontWeight: "600",
   },
   chooseHeader: {
     flexDirection: "row",
@@ -1153,6 +1261,7 @@ const styles = StyleSheet.create({
     borderBottomColor: GLASS.border,
     backgroundColor: GLASS.bgStrong,
     gap: 8,
+    flexShrink: 0,
   },
   backButton: {
     flexDirection: "row",

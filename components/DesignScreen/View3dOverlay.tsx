@@ -571,7 +571,7 @@ export default function View3dOverlay({
   };
 
   const sheetMaxHeight = Math.round(height * 0.75);
-  const desktopPanelMaxHeight = Math.max(300, Math.round(height * 0.55));
+  const desktopPanelMaxHeight = Math.max(260, Math.min(720, Math.round(height * 0.78), height - 168));
   const widePanelStyle = [styles.widePanel, { maxHeight: desktopPanelMaxHeight }];
   const sheetPanelStyle = [styles.sheetPanel, { maxHeight: sheetMaxHeight - 56 }];
 
