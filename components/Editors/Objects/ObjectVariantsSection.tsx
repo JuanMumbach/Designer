@@ -15,6 +15,7 @@ import {
   updateObjectVersion,
 } from '../../../services/api';
 import {
+  compareVariantGroups,
   getVariantHandleTypeKey,
   ObjectVariant,
   parseDefaultVariantsSegment,
@@ -122,7 +123,7 @@ export default function ObjectVariantsSection({
       }
       entry.variants.push(v);
     }
-    return Array.from(map.values());
+    return Array.from(map.values()).sort((a, b) => compareVariantGroups(a.group, b.group));
   }, [variants]);
 
   const handleSetDefaultVariant = async (groupName: string, variantId: string | null) => {

@@ -9,6 +9,7 @@ import MaterialPicker from "./MaterialPicker";
 import { COLORS, GLASS, RADII } from "@/constants/theme";
 import GlassSurface from "./GlassSurface";
 import {
+  compareVariantGroups,
   isHandleVariant,
   isHandleVariantGroup,
   parseVariantProperties,
@@ -93,7 +94,7 @@ export default function EditFurnitureInstanceMenu({
       }
       entry.variants.push(v);
     }
-    return Array.from(map.values());
+    return Array.from(map.values()).sort((a, b) => compareVariantGroups(a.group, b.group));
   }, [object.variants]);
   const [dirtyOverrides, setDirtyOverrides] = useState<Record<number, string>>(object.materialOverrides || {});
   const [editingSlot, setEditingSlot] = useState<number | null>(null);

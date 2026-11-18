@@ -13,12 +13,15 @@ import { ModelBudgetEntry } from '../../../services/budget';
 import { MaterialPart } from '../../../services/materialParts';
 import {
   BudgetEntriesDelta,
+  defaultHandleGroupLabel,
   isHandleVariantGroup,
   MaterialPartsDelta,
   normalizeHandleKey,
+  normalizeHandlePosition,
   ObjectVariant,
   parseVariantProperties,
   serializeVariantProperties,
+  stripHandlePositionSuffix,
 } from '../../../services/variants';
 
 type VariantTab = 'general' | 'model' | 'parts' | 'costs';
@@ -49,7 +52,8 @@ export default function ObjectVariantEditor({
   const [tab, setTab] = useState<VariantTab>('general');
   const [name, setName] = useState(variant?.name ?? '');
   const [mode, setMode] = useState<'additive' | 'replace'>(variant?.mode ?? 'additive');
-  const [group, setGroup] = useState(parsed?.group || 'handles');
+  const [group, setGroup] = useState(parsed?.baseGroup || parsed?.group || 'handles');
+  const [handlePosition, setHandlePosition] = useState(parsed?.handlePosition || '');
   const [label, setLabel] = useState(parsed?.label || 'Tiradores');
   const [handleType, setHandleType] = useState(parsed?.handleType || '');
   const [allowNone, setAllowNone] = useState(parsed?.allowNone ?? true);
@@ -64,6 +68,26 @@ export default function ObjectVariantEditor({
   const [addedParts, setAddedParts] = useState(() => materialPartDrafts(variant?.materialPartsDelta?.add ?? []));
   const [addedEntries, setAddedEntries] = useState(() => budgetEntryDrafts(variant?.budgetEntriesDelta?.add ?? []));
   const [saving, setSaving] = useState(false);
+
+  const normalizedPos = isHandleVariantGroup(group)
+    ? normalizeHandlePosition(handlePosition)
+    : undefined;
+  const autoNameForKey = normalizedPos ? stripHandlePositionSuffix(name) : name;
+
+  const handleSelectHandlePosition = (nextPos: string) => {
+    const prevAutoLabel = defaultHandleGroupLabel(normalizeHandlePosition(handlePosition));
+    setHandlePosition(nextPos);
+    const trimmedLabel = label.trim();
+    if (
+      !trimmedLabel ||
+      trimmedLabel === 'Tiradores' ||
+      trimmedLabel === 'Tiradores Superiores' ||
+      trimmedLabel === 'Tiradores Inferiores' ||
+      trimmedLabel === prevAutoLabel
+    ) {
+      setLabel(defaultHandleGroupLabel(normalizeHandlePosition(nextPos)));
+    }
+  };
 
   const toggleIn = (setter: React.Dispatch<React.SetStateAction<Set<string>>>, id: string) =>
     setter((prev) => {
@@ -115,13 +139,14 @@ export default function ObjectVariantEditor({
       const effectiveHandleType = handleType.trim()
         ? normalizeHandleKey(handleType)
         : isHandleVariantGroup(group)
-          ? normalizeHandleKey(name)
+          ? normalizeHandleKey(autoNameForKey)
           : undefined;
       const variantProperties = serializeVariantProperties({
         group: group.trim().toLowerCase(),
         label: label.trim(),
         allowNone,
         handleType: effectiveHandleType,
+        handlePosition: normalizedPos,
         raw: parsed?.raw,
       });
       const payload = {
@@ -196,6 +221,36 @@ export default function ObjectVariantEditor({
           <TextInput style={formStyles.input} value={label} onChangeText={setLabel} placeholder="ej. Tiradores, Patas" editable={!saving} />
         </View>
       </View>
+      {isHandleVariantGroup(group) && (
+        <View style={formStyles.field}>
+          <Text style={formStyles.label}>Ubicación del tirador (para muebles con múltiples tiradores)</Text>
+          <View style={formStyles.chipRow}>
+            {renderChip(
+              normalizedPos === undefined,
+              'General (único)',
+              () => handleSelectHandlePosition('')
+            )}
+            {renderChip(
+              normalizedPos === 'top',
+              'Superior (top)',
+              () => handleSelectHandlePosition('top')
+            )}
+            {renderChip(
+              normalizedPos === 'bottom',
+              'Inferior (bottom)',
+              () => handleSelectHandlePosition('bottom')
+            )}
+          </View>
+          <TextInput
+            style={[formStyles.input, styles.handlePositionInput]}
+            value={handlePosition}
+            onChangeText={handleSelectHandlePosition}
+            placeholder="Opcional: top, bottom, central..."
+            autoCapitalize="none"
+            editable={!saving}
+          />
+        </View>
+      )}
       {(isHandleVariantGroup(group) || Boolean(handleType.trim())) && (
         <View style={formStyles.field}>
           <Text style={formStyles.label}>Identificador global de tirador</Text>
@@ -203,7 +258,11 @@ export default function ObjectVariantEditor({
             style={formStyles.input}
             value={handleType}
             onChangeText={setHandleType}
-            placeholder={name.trim() ? `ej. ${normalizeHandleKey(name)} (auto desde nombre)` : 'ej. recto-negro'}
+            placeholder={
+              autoNameForKey.trim()
+                ? `ej. ${normalizeHandleKey(autoNameForKey)} (auto desde nombre)`
+                : 'ej. recto-negro'
+            }
             autoCapitalize="none"
             editable={!saving}
           />
@@ -309,6 +368,9 @@ export default function ObjectVariantEditor({
 }
 
 const styles = StyleSheet.create({
+  handlePositionInput: {
+    marginTop: 8,
+  },
   sectionHint: {
     marginBottom: 10,
   },

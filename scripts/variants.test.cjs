@@ -422,4 +422,211 @@ const replaceWithNone = variants.resolveVariantSelectionForHandleKey(moduleAVari
 assert.equal(replaceWithNone.matched, true);
 assert.equal(replaceWithNone.variantId, null);
 
+console.log('Testing Dual / Multi-Zone Handle Variants...');
+const serializedTopHandle = variants.serializeVariantProperties({
+  group: 'handles',
+  label: 'Tiradores',
+  allowNone: true,
+  handlePosition: 'top',
+});
+assert.ok(serializedTopHandle.includes('group:handles'));
+assert.ok(serializedTopHandle.includes('handle-position:top'));
+
+const parsedTopHandle = variants.parseVariantProperties(serializedTopHandle);
+assert.equal(parsedTopHandle.group, 'handles-top');
+assert.equal(parsedTopHandle.baseGroup, 'handles');
+assert.equal(parsedTopHandle.handlePosition, 'top');
+assert.equal(parsedTopHandle.label, 'Tiradores Superiores');
+
+const serializedBottomHandle = variants.serializeVariantProperties({
+  group: 'handles',
+  allowNone: true,
+  handlePosition: 'Inferior',
+});
+assert.ok(serializedBottomHandle.includes('group:handles'));
+assert.ok(serializedBottomHandle.includes('handle-position:bottom'));
+
+const parsedBottomHandle = variants.parseVariantProperties(serializedBottomHandle);
+assert.equal(parsedBottomHandle.group, 'handles-bottom');
+assert.equal(parsedBottomHandle.baseGroup, 'handles');
+assert.equal(parsedBottomHandle.handlePosition, 'bottom');
+assert.equal(parsedBottomHandle.label, 'Tiradores Inferiores');
+
+assert.ok(variants.compareVariantGroups('handles-top', 'handles-bottom') < 0);
+
+const tallTopRectoNegro = {
+  id: 'tall-top-recto',
+  objectId: 'tall-1',
+  version: 1,
+  name: 'Tirador Recto Negro Superior',
+  mode: 'additive',
+  fileURL: 'https://storage/tall-top-recto.glb',
+  variantProperties: 'group:handles;label:Tiradores;allow-none:true;handle-position:top',
+};
+assert.equal(variants.getVariantHandleTypeKey(tallTopRectoNegro), 'tirador-recto-negro');
+assert.equal(variants.getVariantHandleTypeLabel(tallTopRectoNegro), 'Tirador Recto Negro');
+
+const tallFurnitureVariants = [
+  {
+    id: 'tall-top-j',
+    objectId: 'tall-1',
+    version: 1,
+    name: 'Perfil J Superior',
+    mode: 'additive',
+    fileURL: 'https://storage/tall-top-j.glb',
+    variantProperties: 'group:handles;label:Tiradores;allow-none:true;handle-type:perfil-j;handle-position:top',
+    materialPartsDelta: {
+      add: [
+        {
+          id: 'part-top-handle',
+          name: 'Tirador Superior Perfil J',
+          materialSlot: 0,
+          widthMm: 600,
+          heightMm: 35,
+          quantity: 1,
+        },
+      ],
+    },
+    budgetEntriesDelta: {
+      add: [
+        {
+          id: 'cost-top-handle',
+          name: 'Mano de obra Perfil J Superior',
+          basePrice: 25,
+          materialSlot: null,
+        },
+      ],
+    },
+  },
+  {
+    id: 'tall-top-black',
+    objectId: 'tall-1',
+    version: 1,
+    name: 'Recto Negro Superior',
+    mode: 'additive',
+    fileURL: 'https://storage/tall-top-black.glb',
+    variantProperties: 'group:handles;label:Tiradores;allow-none:true;handle-type:recto-negro;handle-position:top',
+  },
+  {
+    id: 'tall-top-gold',
+    objectId: 'tall-1',
+    version: 1,
+    name: 'Tirador Dorado Superior',
+    mode: 'additive',
+    fileURL: 'https://storage/tall-top-gold.glb',
+    variantProperties: 'group:handles;label:Tiradores;allow-none:true;handle-type:tirador-dorado;handle-position:top',
+  },
+  {
+    id: 'tall-bot-j',
+    objectId: 'tall-1',
+    version: 1,
+    name: 'Perfil J Inferior',
+    mode: 'additive',
+    fileURL: 'https://storage/tall-bot-j.glb',
+    variantProperties: 'group:handles;label:Tiradores;allow-none:true;handle-type:perfil-j;handle-position:bottom',
+  },
+  {
+    id: 'tall-bot-black',
+    objectId: 'tall-1',
+    version: 1,
+    name: 'Recto Negro Inferior',
+    mode: 'additive',
+    fileURL: 'https://storage/tall-bot-black.glb',
+    variantProperties: 'group:handles;label:Tiradores;allow-none:true;handle-type:recto-negro;handle-position:bottom',
+    materialPartsDelta: {
+      add: [
+        {
+          id: 'part-bot-handle',
+          name: 'Tirador Inferior Recto Negro',
+          materialSlot: 0,
+          widthMm: 200,
+          heightMm: 25,
+          quantity: 2,
+        },
+      ],
+    },
+    budgetEntriesDelta: {
+      add: [
+        {
+          id: 'cost-bot-handle',
+          name: 'Herrajes Recto Negro Inferior',
+          basePrice: 40,
+          materialSlot: null,
+        },
+      ],
+    },
+  },
+];
+
+const tallDefaults = {
+  'handles-top': 'tall-top-black',
+  'handles-bottom': 'tall-bot-black',
+};
+const tallSelected = {
+  'handles-top': 'tall-top-j',
+  'handles-bottom': 'tall-bot-black',
+};
+const tallActive = variants.resolveActiveVariants(
+  tallFurnitureVariants,
+  tallDefaults,
+  tallSelected,
+  'recto-negro'
+);
+assert.equal(tallActive.length, 2);
+assert.equal(tallActive[0].id, 'tall-top-j');
+assert.equal(tallActive[1].id, 'tall-bot-black');
+
+const tallMeshes = variants.resolveVariantMeshes('https://storage/tall-base.glb', tallActive);
+assert.equal(tallMeshes.primaryModelUrl, 'https://storage/tall-base.glb');
+assert.equal(tallMeshes.additiveMeshes.length, 2);
+assert.equal(tallMeshes.additiveMeshes[0].fileURL, 'https://storage/tall-top-j.glb');
+assert.equal(tallMeshes.additiveMeshes[1].fileURL, 'https://storage/tall-bot-black.glb');
+
+const tallParts = variants.applyMaterialPartsDeltas(baseParts, tallActive);
+assert.ok(tallParts.some((p) => p.id === 'part-top-handle'));
+assert.ok(tallParts.some((p) => p.id === 'part-bot-handle'));
+
+const tallBudget = variants.applyBudgetEntriesDeltas(baseBudgetEntries, tallActive);
+const topHandleCost = tallBudget.find((e) => e.id === 'cost-top-handle');
+const botHandleCost = tallBudget.find((e) => e.id === 'cost-bot-handle');
+assert.equal(topHandleCost?.basePrice, 25);
+assert.equal(botHandleCost?.basePrice, 40);
+
+const tallAvailableHandles = variants.collectAvailableHandleTypes([tallFurnitureVariants]);
+const tallUsages = variants.collectActiveHandleUsages(
+  [
+    {
+      variants: tallFurnitureVariants,
+      objectProperties: { defaultVariants: tallDefaults },
+      selectedVariants: tallSelected,
+    },
+  ],
+  null,
+  tallAvailableHandles
+);
+assert.equal(tallUsages.length, 2);
+assert.ok(tallUsages.some((u) => u.key === 'perfil-j' && u.count === 1));
+assert.ok(tallUsages.some((u) => u.key === 'recto-negro' && u.count === 1));
+
+const tallGroupMap = variants.getHandleGroupVariantMap(tallFurnitureVariants);
+assert.deepEqual(Array.from(tallGroupMap.keys()), ['handles-top', 'handles-bottom']);
+
+const nextTallSelected = { ...tallSelected };
+for (const [grp, grpVariants] of tallGroupMap.entries()) {
+  const currentResolved = variants.resolveHandleKeyForVariantGroup(
+    grp,
+    grpVariants,
+    tallDefaults,
+    tallSelected,
+    null
+  );
+  if (currentResolved.key !== 'perfil-j') continue;
+  const targetSelection = variants.resolveVariantSelectionForHandleKey(grpVariants, 'tirador-dorado');
+  if (targetSelection.matched) {
+    nextTallSelected[grp] = targetSelection.variantId;
+  }
+}
+assert.equal(nextTallSelected['handles-top'], 'tall-top-gold');
+assert.equal(nextTallSelected['handles-bottom'], 'tall-bot-black');
+
 console.log('All Object Variant & Accessory System tests passed successfully!');

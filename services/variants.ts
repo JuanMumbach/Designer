@@ -18,6 +18,8 @@ export const HANDLE_NONE_KEY = '__none__';
 
 export interface VariantProperties {
   group: string;
+  baseGroup?: string;
+  handlePosition?: string;
   label?: string;
   allowNone?: boolean;
   handleType?: string;
@@ -61,6 +63,52 @@ const HANDLE_VARIANT_SUBSTRINGS = [
   'gola',
 ];
 
+export function normalizeHandlePosition(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const key = normalizeHandleKey(value);
+  if (!key) return undefined;
+  if (key === 'top' || key === 'superior' || key === 'superiores' || key === 'upper' || key === 'arriba') {
+    return 'top';
+  }
+  if (key === 'bottom' || key === 'inferior' || key === 'inferiores' || key === 'lower' || key === 'abajo') {
+    return 'bottom';
+  }
+  return key;
+}
+
+export function defaultHandleGroupLabel(handlePosition: string | undefined): string {
+  if (handlePosition === 'top') return 'Tiradores Superiores';
+  if (handlePosition === 'bottom') return 'Tiradores Inferiores';
+  if (handlePosition) return `Tiradores (${handlePosition})`;
+  return 'Tiradores';
+}
+
+export function stripHandlePositionSuffix(value: string): string {
+  const trimmed = value.trim();
+  const stripped = trimmed
+    .replace(
+      /\s*(?:[-–—/·]\s*|\(\s*)?(?:superior(?:es)?|inferior(?:es)?|top|bottom|upper|lower|arriba|abajo)\s*\)?$/i,
+      ''
+    )
+    .trim();
+  return stripped || trimmed;
+}
+
+function variantGroupRank(group: string): number {
+  const normalized = group.trim().toLowerCase();
+  if (!isHandleVariantGroup(normalized)) return 4;
+  if (normalized === 'handles') return 0;
+  if (normalized.endsWith('-top')) return 1;
+  if (normalized.endsWith('-bottom')) return 2;
+  return 3;
+}
+
+export function compareVariantGroups(a: string, b: string): number {
+  const rankDiff = variantGroupRank(a) - variantGroupRank(b);
+  if (rankDiff !== 0) return rankDiff;
+  return a.localeCompare(b);
+}
+
 export function isHandleVariantGroup(group: string | undefined): boolean {
   if (!group) return false;
   const trimmed = group.trim().toLowerCase();
@@ -88,7 +136,10 @@ export function getVariantHandleTypeKey(variant: ObjectVariant): string | null {
     if (k) return k;
   }
   if (!isHandleVariant(variant)) return null;
-  const k = normalizeHandleKey(variant.name || variant.id);
+  const rawName = parsed.handlePosition
+    ? stripHandlePositionSuffix(variant.name || variant.id)
+    : variant.name || variant.id;
+  const k = normalizeHandleKey(rawName);
   return k || null;
 }
 
@@ -97,6 +148,9 @@ export function getVariantHandleTypeLabel(variant: ObjectVariant): string | null
   if (!isHandleVariant(variant)) return null;
   if (parsed.raw?.['handle-label']?.trim()) {
     return parsed.raw['handle-label'].trim();
+  }
+  if (parsed.handlePosition && variant.name?.trim()) {
+    return stripHandlePositionSuffix(variant.name.trim());
   }
   return variant.name?.trim() || parsed.handleType?.trim() || variant.id;
 }
@@ -177,7 +231,9 @@ export function getHandleGroupVariantMap(
     grpList.push(v);
   }
 
-  for (const [grp, grpVariants] of byGroup.entries()) {
+  const sortedGroups = Array.from(byGroup.keys()).sort(compareVariantGroups);
+  for (const grp of sortedGroups) {
+    const grpVariants = byGroup.get(grp)!;
     const isHandleGroup =
       isHandleVariantGroup(grp) || grpVariants.some((v) => isHandleVariant(v));
     if (isHandleGroup) {
@@ -196,8 +252,8 @@ export function resolveHandleKeyForVariantGroup(
 ): { key: string; label: string; variant: ObjectVariant | null } {
   const active = resolveActiveVariants(
     groupVariants,
-    defaultVariants ? { [group]: defaultVariants[group] } : undefined,
-    selectedVariants && group in selectedVariants ? { [group]: selectedVariants[group] } : undefined,
+    defaultVariants,
+    selectedVariants,
     defaultHandleType
   );
   const chosen = active[0] ?? null;
@@ -339,8 +395,56 @@ export interface ObjectVariant {
   lastUpdate?: string;
 }
 
+function finalizeParsedVariantProperties(input: {
+  group: string;
+  label?: string;
+  allowNone?: boolean;
+  handleType?: string;
+  handlePosition?: string;
+  raw?: Record<string, string>;
+}): VariantProperties {
+  let group = input.group || 'general';
+  let label = input.label;
+  let handlePosition = normalizeHandlePosition(input.handlePosition);
+  let baseGroup = group;
+
+  if (!handlePosition && isHandleVariantGroup(group)) {
+    const suffixMatch = group.match(/^(.*)-(top|superiores?|bottom|inferiores?)$/);
+    if (suffixMatch) {
+      const inferred = normalizeHandlePosition(suffixMatch[2]);
+      if (inferred) {
+        handlePosition = inferred;
+        baseGroup = suffixMatch[1] || 'handles';
+      }
+    }
+  }
+
+  if (handlePosition) {
+    const escapedPos = handlePosition.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const strippedBase = group
+      .replace(new RegExp(`-${escapedPos}$`), '')
+      .replace(/-(?:top|superiores?|bottom|inferiores?)$/, '');
+    baseGroup = strippedBase || 'handles';
+    group = `${baseGroup}-${handlePosition}`;
+    const lowerLabel = label?.trim().toLowerCase();
+    if (!lowerLabel || lowerLabel === 'tiradores' || lowerLabel === 'handles') {
+      label = defaultHandleGroupLabel(handlePosition);
+    }
+  }
+
+  return {
+    group,
+    baseGroup,
+    ...(handlePosition ? { handlePosition } : {}),
+    label,
+    allowNone: input.allowNone,
+    handleType: input.handleType,
+    raw: input.raw,
+  };
+}
+
 export function parseVariantProperties(raw: unknown): VariantProperties {
-  if (!raw) return { group: 'general' };
+  if (!raw) return { group: 'general', baseGroup: 'general' };
 
   if (typeof raw === 'object' && raw !== null && !Array.isArray(raw)) {
     const obj = raw as Record<string, unknown>;
@@ -349,10 +453,19 @@ export function parseVariantProperties(raw: unknown): VariantProperties {
     const allowNone = typeof obj.allowNone === 'boolean' ? obj.allowNone : undefined;
     const rawHandle = obj.handleType ?? obj['handle-type'] ?? obj['handle_type'];
     const handleType = typeof rawHandle === 'string' && rawHandle.trim() ? rawHandle.trim() : undefined;
-    return { group, label, allowNone, handleType };
+    const rawPos =
+      obj.handlePosition ??
+      obj['handle-position'] ??
+      obj['handle_position'] ??
+      obj.position ??
+      obj['sub-group'] ??
+      obj.subgroup ??
+      obj.zone;
+    const handlePosition = typeof rawPos === 'string' && rawPos.trim() ? rawPos.trim() : undefined;
+    return finalizeParsedVariantProperties({ group, label, allowNone, handleType, handlePosition });
   }
 
-  if (typeof raw !== 'string') return { group: 'general' };
+  if (typeof raw !== 'string') return { group: 'general', baseGroup: 'general' };
 
   const trimmedRaw = raw.trim();
   if (trimmedRaw.startsWith('{') && trimmedRaw.endsWith('}')) {
@@ -368,6 +481,7 @@ export function parseVariantProperties(raw: unknown): VariantProperties {
   let label: string | undefined;
   let allowNone: boolean | undefined;
   let handleType: string | undefined;
+  let handlePosition: string | undefined;
   const otherProps: Record<string, string> = {};
 
   const segments = trimmedRaw.split(';');
@@ -387,22 +501,45 @@ export function parseVariantProperties(raw: unknown): VariantProperties {
       allowNone = value.toLowerCase() === 'true';
     } else if (key === 'handle-type' || key === 'handletype' || key === 'handle_type') {
       if (value) handleType = value;
+    } else if (
+      key === 'handle-position' ||
+      key === 'handleposition' ||
+      key === 'handle_position' ||
+      key === 'position' ||
+      key === 'sub-group' ||
+      key === 'subgroup' ||
+      key === 'zone'
+    ) {
+      if (value) handlePosition = value;
     } else {
       otherProps[key] = value;
     }
   }
 
-  return {
+  return finalizeParsedVariantProperties({
     group,
     label,
     allowNone,
     handleType,
+    handlePosition,
     raw: Object.keys(otherProps).length > 0 ? otherProps : undefined,
-  };
+  });
 }
 
 export function serializeVariantProperties(props: VariantProperties): string {
-  const segments: string[] = [`group:${props.group.trim().toLowerCase()}`];
+  const normalizedPos = normalizeHandlePosition(props.handlePosition);
+  const rawGroup = props.baseGroup?.trim()
+    ? props.baseGroup.trim().toLowerCase()
+    : props.group.trim().toLowerCase();
+  const escapedPos = normalizedPos
+    ? normalizedPos.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    : '';
+  const baseGroup = normalizedPos
+    ? rawGroup
+        .replace(new RegExp(`-${escapedPos}$`), '')
+        .replace(/-(?:top|superiores?|bottom|inferiores?)$/, '') || 'handles'
+    : rawGroup;
+  const segments: string[] = [`group:${baseGroup}`];
   if (props.label?.trim()) {
     segments.push(`label:${props.label.trim()}`);
   }
@@ -411,6 +548,9 @@ export function serializeVariantProperties(props: VariantProperties): string {
   }
   if (props.handleType?.trim()) {
     segments.push(`handle-type:${normalizeHandleKey(props.handleType)}`);
+  }
+  if (normalizedPos) {
+    segments.push(`handle-position:${normalizedPos}`);
   }
   if (props.raw) {
     for (const [k, v] of Object.entries(props.raw)) {
@@ -421,6 +561,13 @@ export function serializeVariantProperties(props: VariantProperties): string {
         k !== 'handle-type' &&
         k !== 'handletype' &&
         k !== 'handle_type' &&
+        k !== 'handle-position' &&
+        k !== 'handleposition' &&
+        k !== 'handle_position' &&
+        k !== 'position' &&
+        k !== 'sub-group' &&
+        k !== 'subgroup' &&
+        k !== 'zone' &&
         v
       ) {
         segments.push(`${k}:${v}`);
@@ -489,7 +636,7 @@ export function resolveActiveVariants(
   }
 
   const active: ObjectVariant[] = [];
-  const sortedGroups = Array.from(byGroup.keys()).sort();
+  const sortedGroups = Array.from(byGroup.keys()).sort(compareVariantGroups);
   const normalizedDefaultHandle =
     defaultHandleType && defaultHandleType !== HANDLE_NONE_KEY
       ? normalizeHandleKey(defaultHandleType)
@@ -499,14 +646,34 @@ export function resolveActiveVariants(
 
   for (const group of sortedGroups) {
     const groupVariants = byGroup.get(group)!;
+    const baseGroup = parseVariantProperties(groupVariants[0]?.variantProperties).baseGroup;
     const isHandleGroup =
       isHandleVariantGroup(group) || groupVariants.some((v) => isHandleVariant(v));
     let chosenId: string | null | undefined;
+    let hasInstanceSelection = false;
     let resolvedViaDesignDefault = false;
 
     if (selectedVariants && group in selectedVariants && selectedVariants[group] !== undefined) {
       chosenId = selectedVariants[group];
-    } else if (isHandleGroup && normalizedDefaultHandle) {
+      hasInstanceSelection = true;
+    } else if (
+      selectedVariants &&
+      baseGroup &&
+      baseGroup !== group &&
+      baseGroup in selectedVariants &&
+      selectedVariants[baseGroup] !== undefined
+    ) {
+      const baseVal = selectedVariants[baseGroup];
+      if (
+        baseVal === null ||
+        groupVariants.some((v) => v.id.toLowerCase() === baseVal.toLowerCase())
+      ) {
+        chosenId = baseVal;
+        hasInstanceSelection = true;
+      }
+    }
+
+    if (!hasInstanceSelection && isHandleGroup && normalizedDefaultHandle) {
       if (normalizedDefaultHandle === HANDLE_NONE_KEY) {
         const allowNone = groupVariants.every(
           (v) => (parseVariantProperties(v.variantProperties).allowNone ?? true) !== false
@@ -534,9 +701,25 @@ export function resolveActiveVariants(
       }
     }
 
-    if (!resolvedViaDesignDefault && !(selectedVariants && group in selectedVariants && selectedVariants[group] !== undefined)) {
+    if (!resolvedViaDesignDefault && !hasInstanceSelection) {
       if (defaultVariants && group in defaultVariants) {
         chosenId = defaultVariants[group];
+      } else if (
+        defaultVariants &&
+        baseGroup &&
+        baseGroup !== group &&
+        baseGroup in defaultVariants
+      ) {
+        const baseDef = defaultVariants[baseGroup];
+        if (
+          baseDef === null ||
+          (baseDef !== undefined &&
+            groupVariants.some((v) => v.id.toLowerCase() === baseDef.toLowerCase()))
+        ) {
+          chosenId = baseDef;
+        } else {
+          chosenId = groupVariants[0]?.id;
+        }
       } else {
         chosenId = groupVariants[0]?.id;
       }
