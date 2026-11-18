@@ -16,6 +16,7 @@ import {
   signInWithEmailAndPassword,
   GoogleAuthProvider,
   signInWithCredential,
+  signInWithPopup,
   linkWithCredential,
   AuthCredential,
 } from 'firebase/auth';
@@ -126,6 +127,42 @@ export default function LoginScreen() {
     setLinkEmail('');
     setLinkPassword('');
     setError('');
+  };
+
+  const handleGoogleAuth = async () => {
+    clearPendingLink();
+    if (Platform.OS === 'web') {
+      setIsSubmitting(true);
+      try {
+        const provider = new GoogleAuthProvider();
+        await signInWithPopup(auth, provider);
+      } catch (e: unknown) {
+        const code = (e as { code?: string }).code;
+        if (
+          code === 'auth/credential-already-in-use' ||
+          code === 'auth/account-exists-with-different-credential'
+        ) {
+          const existingEmail =
+            (e as { customData?: { email?: string } }).customData?.email ??
+            (e as { email?: string }).email ??
+            '';
+          const credential = GoogleAuthProvider.credentialFromError(e as never);
+          setTab('signin');
+          setLinkEmail(existingEmail);
+          setPendingGoogleCredential(credential);
+          setError('');
+        } else if (
+          code !== 'auth/popup-closed-by-user' &&
+          code !== 'auth/cancelled-popup-request'
+        ) {
+          setError(friendlyError(code));
+        }
+      } finally {
+        setIsSubmitting(false);
+      }
+    } else {
+      promptGoogleAsync();
+    }
   };
 
   const friendlyError = (code?: string): string => {
@@ -293,7 +330,7 @@ placeholder="••••••••"
 
               <Pressable
                 style={[styles.googleBtn, isSubmitting && styles.btnDisabled]}
-                onPress={() => { clearPendingLink(); promptGoogleAsync(); }}
+                onPress={handleGoogleAuth}
                 disabled={isSubmitting}
               >
                 <Ionicons name="logo-google" size={20} color={COLORS.textHeading} style={styles.googleIcon} />
