@@ -12,6 +12,8 @@ import { fitScaleFromSize, measureModelSizeInParent } from '@/services/modelFit'
 import { normalizeTypeName, resolveMaterialValue } from '@/services/designMaterialDefaults';
 import { ObjectMaterialType } from '@/services/api';
 import { resolveActiveVariants, resolveVariantMeshes } from '@/services/variants';
+import { exportSceneToCollada } from '@/services/colladaExporter';
+import { createZipArchive, sanitizeFilenamePart, uint8ArrayToBase64 } from '@/services/imageExport';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { Alert, Platform } from 'react-native';
@@ -160,6 +162,59 @@ async function addRoomToScene(
   scene.add(floor);
 }
 
+async function attachGlbTextureBytes(gltf: {
+  scene: THREE.Group;
+  parser?: {
+    associations?: Map<unknown, { textures?: number }>;
+    json?: {
+      textures?: { source?: number }[];
+      images?: { bufferView?: number; uri?: string }[];
+    };
+    getDependency?: (type: string, index: number) => Promise<ArrayBuffer>;
+  };
+}): Promise<void> {
+  const parser = gltf.parser;
+  if (!parser?.associations || !parser.json || typeof parser.getDependency !== 'function') return;
+
+  const seen = new Set<THREE.Texture>();
+  const tasks: Promise<void>[] = [];
+
+  gltf.scene.traverse((child) => {
+    if (!(child instanceof THREE.Mesh) || !child.material) return;
+    const materials = Array.isArray(child.material) ? child.material : [child.material];
+    for (const mat of materials) {
+      const map = (mat as { map?: unknown }).map;
+      if (!(map instanceof THREE.Texture) || seen.has(map)) continue;
+      seen.add(map);
+
+      const assoc = parser.associations?.get(map);
+      if (typeof assoc?.textures !== 'number') continue;
+      const texDef = parser.json?.textures?.[assoc.textures];
+      if (typeof texDef?.source !== 'number') continue;
+      const imgDef = parser.json?.images?.[texDef.source];
+      if (!imgDef) continue;
+
+      if (typeof imgDef.bufferView === 'number') {
+        const bufferViewIndex = imgDef.bufferView;
+        tasks.push(
+          parser
+            .getDependency!('bufferView', bufferViewIndex)
+            .then((buf) => {
+              if (buf instanceof ArrayBuffer && buf.byteLength > 0) {
+                map.userData = { ...map.userData, sourceBytes: new Uint8Array(buf) };
+              }
+            })
+            .catch(() => {})
+        );
+      } else if (typeof imgDef.uri === 'string') {
+        map.userData = { ...map.userData, sourceUrl: imgDef.uri };
+      }
+    }
+  });
+
+  await Promise.all(tasks);
+}
+
 function loadGLBFromUrl(url: string): Promise<{ group: THREE.Group; bytes: Uint8Array }> {
   return new Promise<{ group: THREE.Group; bytes: Uint8Array }>(async (resolve, reject) => {
     try {
@@ -170,7 +225,12 @@ function loadGLBFromUrl(url: string): Promise<{ group: THREE.Group; bytes: Uint8
       loader.parse(
         buffer,
         '',
-        (gltf) => resolve({ group: gltf.scene, bytes }),
+        async (gltf) => {
+          try {
+            await attachGlbTextureBytes(gltf as unknown as Parameters<typeof attachGlbTextureBytes>[0]);
+          } catch {}
+          resolve({ group: gltf.scene, bytes });
+        },
         (error) => reject(error)
       );
     } catch (err) {
@@ -182,7 +242,15 @@ function loadGLBFromUrl(url: string): Promise<{ group: THREE.Group; bytes: Uint8
 function loadTextureAsync(url: string): Promise<THREE.Texture> {
   return new Promise((resolve, reject) => {
     const loader = new THREE.TextureLoader();
-    loader.load(url, resolve, undefined, reject);
+    loader.load(
+      url,
+      (texture) => {
+        texture.userData = { ...texture.userData, sourceUrl: url };
+        resolve(texture);
+      },
+      undefined,
+      reject
+    );
   });
 }
 
@@ -354,26 +422,23 @@ async function addFurnitureToScene(
   }
 }
 
-function uint8ArrayToBase64(buffer: Uint8Array): string {
-  let binary = '';
-  const len = buffer.byteLength;
-  for (let i = 0; i < len; i++) {
-    binary += String.fromCharCode(buffer[i]);
-  }
-  return btoa(binary);
-}
-
-async function saveGLB(uint8Array: Uint8Array): Promise<void> {
-  const filename = `designer_scene_${Date.now()}.glb`;
-
+async function saveBinaryFile(
+  uint8Array: Uint8Array,
+  filename: string,
+  mimeType: string,
+  dialogTitle: string,
+  uti: string
+): Promise<void> {
   if (Platform.OS === 'web') {
-    const blob = new Blob([uint8Array], { type: 'model/gltf-binary' });
+    const blob = new Blob([uint8Array], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
     link.download = filename;
+    document.body.appendChild(link);
     link.click();
-    URL.revokeObjectURL(url);
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
     return;
   }
 
@@ -386,13 +451,18 @@ async function saveGLB(uint8Array: Uint8Array): Promise<void> {
   const isSharingAvailable = await Sharing.isAvailableAsync();
   if (isSharingAvailable) {
     await Sharing.shareAsync(fileUri, {
-      mimeType: 'model/gltf-binary',
-      dialogTitle: 'Export 3D Scene',
-      UTI: 'public.gltf-binary',
+      mimeType,
+      dialogTitle,
+      UTI: uti,
     });
   } else {
     Alert.alert('Sharing not available', 'Sharing is not supported on this device.');
   }
+}
+
+async function saveGLB(uint8Array: Uint8Array): Promise<void> {
+  const filename = `designer_scene_${Date.now()}.glb`;
+  await saveBinaryFile(uint8Array, filename, 'model/gltf-binary', 'Export 3D Scene', 'public.gltf-binary');
 }
 
 async function buildExportScene(
@@ -457,6 +527,53 @@ export async function exportSceneAsGLB(
       { binary: true, trs: false, onlyVisible: true }
     );
   });
+}
+
+export async function exportSceneAsDAE(
+  room3d: Room3dProps,
+  designObjects: DesignObject[],
+  materialDataById: Record<string, AppliedMaterial> = {},
+  globalMaterials: GlobalMaterials = {},
+  slotTypesByModel: Record<string, ObjectMaterialType[]> = {},
+  typeToDesignSlot: Record<string, string> = {},
+  projectName?: string,
+  onProgress?: (current: number, total: number) => void,
+  defaultHandleType?: string | null
+): Promise<void> {
+  const scene = await buildExportScene(
+    room3d,
+    designObjects,
+    materialDataById,
+    globalMaterials,
+    slotTypesByModel,
+    typeToDesignSlot,
+    onProgress,
+    defaultHandleType
+  );
+
+  const { dae, textures } = await exportSceneToCollada(scene, {
+    textureDirectory: 'textures',
+    authoringTool: 'Designer 3D Exporter',
+    upAxis: 'Z_UP',
+    unitMeter: 1,
+    unitName: 'meter',
+  });
+
+  const safeProjectName = sanitizeFilenamePart(projectName || 'Project', 'Project');
+  const daeBytes = new TextEncoder().encode(dae);
+  const archiveFiles: { filename: string; data: Uint8Array }[] = [
+    { filename: `${safeProjectName}.dae`, data: daeBytes },
+    ...textures.map((tex) => ({ filename: tex.path, data: tex.data })),
+  ];
+
+  const zipBytes = createZipArchive(archiveFiles);
+  await saveBinaryFile(
+    zipBytes,
+    `${safeProjectName}_dae.zip`,
+    'application/zip',
+    'Export 3D Scene (.dae)',
+    'public.zip-archive'
+  );
 }
 
 

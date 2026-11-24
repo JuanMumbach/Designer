@@ -64,7 +64,9 @@ interface View3dOverlayProps {
   onLoadProject: () => void;
   onSaveProjectCloud: () => void;
   onExport3d: () => void;
+  onExportDae: () => void;
   isExporting: boolean;
+  isExportingDae?: boolean;
   wallContextMenu?: { wallId: WallIdentifier; x: number; y: number } | null;
   onClearWallContextMenu?: () => void;
   editingWall?: WallIdentifier | null;
@@ -177,7 +179,9 @@ export default function View3dOverlay({
   onLoadProject,
   onSaveProjectCloud,
   onExport3d,
+  onExportDae,
   isExporting,
+  isExportingDae = false,
   wallContextMenu,
   onClearWallContextMenu,
   editingWall,
@@ -816,6 +820,7 @@ export default function View3dOverlay({
                   <DropdownItem label="Generate Images..." onPress={() => { closeOptionsMenu(); openGenerateImagesModal(); }} />
                   <DropdownItem label="Project file" onPress={() => { closeOptionsMenu(); onSaveProject(); }} />
                   <DropdownItem label="3D model (.glb)" busy={isExporting} onPress={() => { closeOptionsMenu(); onExport3d(); }} />
+                  <DropdownItem label="Export .DAE (SketchUp)" busy={isExportingDae} onPress={() => { closeOptionsMenu(); onExportDae(); }} />
                 </View>
               )}
             </View>
@@ -824,6 +829,7 @@ export default function View3dOverlay({
                 <DropdownItem submenu label="Generate Images..." onPress={() => { closeOptionsMenu(); openGenerateImagesModal(); }} />
                 <DropdownItem submenu label="Project file" onPress={() => { closeOptionsMenu(); onSaveProject(); }} />
                 <DropdownItem submenu label="3D model (.glb)" busy={isExporting} onPress={() => { closeOptionsMenu(); onExport3d(); }} />
+                <DropdownItem submenu label="Export .DAE (SketchUp)" busy={isExportingDae} onPress={() => { closeOptionsMenu(); onExportDae(); }} />
               </View>
             )}
           </GlassSurface>
@@ -1320,7 +1326,7 @@ const styles = StyleSheet.create({
     left: "100%",
     top: 0,
     marginLeft: 8,
-    minWidth: 200,
+    minWidth: 224,
     backgroundColor: GLASS.bg,
     borderRadius: RADII.lg,
     borderWidth: 1,

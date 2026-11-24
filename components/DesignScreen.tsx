@@ -5,7 +5,7 @@ import { COLORS } from "@/constants/theme";
 import { fetchAllMaterialTypes, fetchMaterialVersion, fetchModelMaterialTypes, fetchObjectVersion, fetchProject, fetchProjectVersion, MaterialType, ObjectMaterialType } from "@/services/api";
 import { useAuth } from "@/services/AuthContext";
 import { deserializeProjectState, loadProject, loadProjectFromCloud, ProjectStateDTO, saveProject, serializeProjectState } from "@/services/projectStorage";
-import { exportSceneAsGLB } from "@/services/sceneExport";
+import { exportSceneAsDAE, exportSceneAsGLB } from "@/services/sceneExport";
 import { useFocusEffect } from "@react-navigation/native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Platform, StyleSheet, Text, View } from "react-native";
@@ -137,6 +137,7 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
   }, []);
 
   const [isExporting, setIsExporting] = useState(false);
+  const [isExportingDae, setIsExportingDae] = useState(false);
   const [isProjectPickerVisible, setIsProjectPickerVisible] = useState(false);
   const [isProjectLoading, setIsProjectLoading] = useState(false);
   const [slotTypesByModel, setSlotTypesByModel] = useState<Record<string, ObjectMaterialType[]>>({});
@@ -185,6 +186,33 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
       console.error('Export failed:', err);
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  const handleExportDae = async () => {
+    setIsExportingDae(true);
+    try {
+      await exportSceneAsDAE(
+        room3d,
+        designObjects,
+        materialDataById,
+        globalMaterials,
+        slotTypesByModel,
+        typeToDesignSlot,
+        projectName || project?.name || 'Project',
+        undefined,
+        defaultHandleType
+      );
+    } catch (err) {
+      console.error('COLLADA export failed:', err);
+      const message = 'Could not export the 3D scene as COLLADA (.dae).';
+      if (Platform.OS === 'web') {
+        window.alert(message);
+      } else {
+        Alert.alert('Export failed', message);
+      }
+    } finally {
+      setIsExportingDae(false);
     }
   };
 
@@ -790,8 +818,10 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
         onSaveProject={handleSaveProject}
         onLoadProject={handleLoadProject}
         onExport3d={handleExport3d}
+        onExportDae={handleExportDae}
         onSaveProjectCloud={() => setIsProjectPickerVisible(true)}
         isExporting={isExporting}
+        isExportingDae={isExportingDae}
         wallContextMenu={wallContextMenu}
         onClearWallContextMenu={() => setWallContextMenu(null)}
         editingWall={editingWall}
