@@ -113,7 +113,7 @@ interface WallCulling {
   right: boolean;
 }
 
-function useWallCulling(room3d: Room3dProps): WallCulling {
+function useWallCulling(room3d: Room3dProps, override?: WallCulling | null): WallCulling {
   const { camera } = useThree();
   const [culling, setCulling] = useState<WallCulling>({ left: false, right: false });
 
@@ -126,7 +126,7 @@ function useWallCulling(room3d: Room3dProps): WallCulling {
     }
   });
 
-  return culling;
+  return override ?? culling;
 }
 
 function SceneContent({
@@ -154,6 +154,7 @@ function SceneContent({
   isFraming,
   controlsRef,
   defaultHandleType,
+  wallCullingOverride,
 }: {
   room3d: Room3dProps,
   designObjects: DesignObject[],
@@ -180,8 +181,9 @@ function SceneContent({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   controlsRef: React.RefObject<any>,
   defaultHandleType?: string | null,
+  wallCullingOverride?: WallCulling | null,
 }) {
-  const wallCulling = useWallCulling(room3d);
+  const wallCulling = useWallCulling(room3d, wallCullingOverride);
   let roomOrigin = RoomOrigin({ room3d });
 
   return (
@@ -284,6 +286,7 @@ export default function Design3dView({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const controlsRef = useRef<any>(null);
   const pointerDownPosRef = useRef<{ x: number; y: number } | null>(null);
+  const [wallCullingOverride, setWallCullingOverride] = useState<WallCulling | null>(null);
   const [, forceUpdate] = useState(0);
 
   const handleDragStateChange = (dragging: boolean) => {
@@ -343,6 +346,7 @@ export default function Design3dView({
         isFraming={isFraming}
         controlsRef={controlsRef}
         defaultHandleType={defaultHandleType}
+        wallCullingOverride={wallCullingOverride}
       />
       {captureApi && (
         <ThumbnailCaptureHost
@@ -350,6 +354,7 @@ export default function Design3dView({
           defaultTarget={[0, 1.5, room3d.depth / 2]}
           controlsRef={controlsRef}
           roomWidth={room3d.width}
+          onWallCullingOverride={setWallCullingOverride}
         />
       )}
       <fog attach="fog" args={[COLORS.sceneBg, 5, 20]} />

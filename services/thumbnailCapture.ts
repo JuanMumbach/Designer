@@ -179,6 +179,8 @@ export function ThumbnailCaptureHost({
   const pendingImageRef = useRef<{
     options: ImageCaptureRequest;
     resolve: (value: CapturedImageResult | null) => void;
+    cullingApplied?: boolean;
+    waitFrames?: number;
   } | null>(null);
   const pendingSinceRef = useRef(0);
   const folderRef = useRef<string>('thumbnails');
@@ -192,6 +194,29 @@ export function ThumbnailCaptureHost({
   useFrame(() => {
     const imageJob = pendingImageRef.current;
     if (imageJob) {
+      if (typeof roomWidth === 'number' && onWallCullingOverride) {
+        if (!imageJob.cullingApplied) {
+          const camPos = imageJob.options.cameraPosition ?? [
+            camera.position.x,
+            camera.position.y,
+            camera.position.z,
+          ];
+          onWallCullingOverride({
+            left: camPos[0] < -roomWidth / 2,
+            right: camPos[0] > roomWidth / 2,
+          });
+          imageJob.cullingApplied = true;
+          imageJob.waitFrames = 2;
+          gl.render(scene, camera);
+          return;
+        }
+        if ((imageJob.waitFrames ?? 0) > 0) {
+          imageJob.waitFrames = (imageJob.waitFrames ?? 0) - 1;
+          gl.render(scene, camera);
+          return;
+        }
+      }
+
       pendingImageRef.current = null;
       const { options, resolve } = imageJob;
       const targetWidth = Math.max(64, Math.min(8192, Math.round(options.width || 1920)));
@@ -214,13 +239,6 @@ export function ThumbnailCaptureHost({
 
       const camPos = options.cameraPosition ?? [prevPos.x, prevPos.y, prevPos.z];
       const camTarget = options.cameraTarget ?? defaultTargetRef.current;
-
-      if (typeof roomWidth === 'number' && onWallCullingOverride) {
-        onWallCullingOverride({
-          left: camPos[0] < -roomWidth / 2,
-          right: camPos[0] > roomWidth / 2,
-        });
-      }
 
       camera.position.set(camPos[0], camPos[1], camPos[2]);
       if (isPersp) {

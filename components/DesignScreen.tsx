@@ -1,10 +1,9 @@
-import ProjectPicker from "@/components/DesignScreen/3dViewOverlay/ProjectPicker";
 import Design3dView from "@/components/DesignScreen/Design3dViewer";
 import View3dOverlay from "@/components/DesignScreen/View3dOverlay";
 import { COLORS } from "@/constants/theme";
 import { fetchAllMaterialTypes, fetchMaterialVersion, fetchModelMaterialTypes, fetchObjectVersion, fetchProject, fetchProjectVersion, MaterialType, ObjectMaterialType } from "@/services/api";
 import { useAuth } from "@/services/AuthContext";
-import { deserializeProjectState, loadProject, loadProjectFromCloud, ProjectStateDTO, saveProject, serializeProjectState } from "@/services/projectStorage";
+import { createProjectInCloud, deserializeProjectState, loadProject, loadProjectFromCloud, ProjectStateDTO, saveProject, saveProjectToCloud, serializeProjectState } from "@/services/projectStorage";
 import { exportSceneAsDAE, exportSceneAsGLB } from "@/services/sceneExport";
 import { useFocusEffect } from "@react-navigation/native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -43,7 +42,7 @@ const initialRoom3d: Room3dProps = {
 
 export default function DesignScreen({ projectId }: { projectId?: string }) {
   const { backendUserId, selectedWorkspaceId } = useAuth();
-  const { project, projectName, setProject, setProjectName, setDesignSnapshot, defaultHandleType, setDefaultHandleType, savedViews, setSavedViews, budgetSettings, setBudgetSettings, registerBudgetEditor, registerPartsEditor } = useCurrentProject();
+  const { project, projectName, setProject, setProjectName, cloudSaveStatus, setCloudSaveStatus, setDesignSnapshot, defaultHandleType, setDefaultHandleType, savedViews, setSavedViews, budgetSettings, setBudgetSettings, registerBudgetEditor, registerPartsEditor } = useCurrentProject();
   const { objectTemplates, categories: objectCategories, isLoading: modelsLoading, error: modelsError, refresh: refreshObjectTemplates } = useObjectTemplates(selectedWorkspaceId ?? undefined);
   const { materials, categories: materialCategories, isLoading: materialsLoading } = useMaterials(selectedWorkspaceId ?? undefined);
   const [room3d, setRoom3d] = useState<Room3dProps>(initialRoom3d);
@@ -138,7 +137,6 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
 
   const [isExporting, setIsExporting] = useState(false);
   const [isExportingDae, setIsExportingDae] = useState(false);
-  const [isProjectPickerVisible, setIsProjectPickerVisible] = useState(false);
   const [isProjectLoading, setIsProjectLoading] = useState(false);
   const [slotTypesByModel, setSlotTypesByModel] = useState<Record<string, ObjectMaterialType[]>>({});
   const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([]);
@@ -146,6 +144,9 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
   const loadedProjectIdRef = useRef<string | null>(null);
   const defaultSceneInitializedRef = useRef(false);
   const projectLoadGenerationRef = useRef(0);
+  const lastSavedFingerprintRef = useRef<string | null>(null);
+  const pendingBaselineCaptureRef = useRef(false);
+  const isSavingCloudRef = useRef(false);
   useEffect(() => {
     registerBudgetEditor(isProjectLoading ? null : (id: string, entries: ModelBudgetEntry[] | undefined) => {
       setDesignObjects((objects) => objects.map((object) => object.id === id ? { ...object, budgetEntries: entries } : object));
@@ -167,11 +168,14 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
     setDefaultHandleType(null);
     setDesignObjects([]);
     setProject(null);
+    lastSavedFingerprintRef.current = null;
+    pendingBaselineCaptureRef.current = false;
+    setCloudSaveStatus('not_saved', false);
     projectLoadGenerationRef.current += 1;
     setIsProjectLoading(false);
     projectLoadedRef.current = false;
     defaultSceneInitializedRef.current = false;
-  }, [projectId, setBudgetSettings, setSavedViews, setProject, setProjectName, setDefaultHandleType]);
+  }, [projectId, setBudgetSettings, setSavedViews, setProject, setProjectName, setDefaultHandleType, setCloudSaveStatus]);
 
   const captureApi = useMemo<ThumbnailCaptureApi>(
     () => createThumbnailCaptureApi(),
@@ -550,7 +554,9 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
       if (generation !== projectLoadGenerationRef.current) return;
       if (!project.lastVersion) {
         loadedProjectIdRef.current = id;
+        pendingBaselineCaptureRef.current = true;
         setProject(project);
+        setCloudSaveStatus('saved', false);
         Alert.alert('Info', 'This project has no saved versions.');
         return;
       }
@@ -561,7 +567,9 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
         await applyProjectData(projectState, generation);
         if (generation !== projectLoadGenerationRef.current) return;
         loadedProjectIdRef.current = id;
+        pendingBaselineCaptureRef.current = true;
         setProject(project);
+        setCloudSaveStatus('saved', false);
       }
     } catch (err) {
       console.error('Cloud load failed:', err);
@@ -569,7 +577,84 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
     } finally {
       if (generation === projectLoadGenerationRef.current) setIsProjectLoading(false);
     }
-  }, [applyProjectData, setProject, setBudgetSettings, setSavedViews, setDefaultHandleType]);
+  }, [applyProjectData, setProject, setBudgetSettings, setSavedViews, setDefaultHandleType, setCloudSaveStatus]);
+
+  const getStateFingerprint = useCallback((state: ProjectStateDTO) => {
+    const { metadata: _metadata, ...rest } = state;
+    return JSON.stringify(rest);
+  }, []);
+
+  useEffect(() => {
+    if (!project) {
+      lastSavedFingerprintRef.current = null;
+      if (cloudSaveStatus !== 'not_saved' && cloudSaveStatus !== 'saving') {
+        setCloudSaveStatus('not_saved', false);
+      }
+      return;
+    }
+    if (isProjectLoading || cloudSaveStatus === 'saving') return;
+
+    const currentState = serializeProjectState(room3d, designObjects, globalMaterials, budgetSettings, savedViews, defaultHandleType);
+    const fingerprint = getStateFingerprint(currentState);
+
+    if (pendingBaselineCaptureRef.current || lastSavedFingerprintRef.current === null) {
+      lastSavedFingerprintRef.current = fingerprint;
+      pendingBaselineCaptureRef.current = false;
+      if (cloudSaveStatus !== 'saved') {
+        setCloudSaveStatus('saved', false);
+      }
+      return;
+    }
+
+    if (fingerprint !== lastSavedFingerprintRef.current && cloudSaveStatus !== 'unsaved_changes') {
+      setCloudSaveStatus('unsaved_changes', true);
+    }
+  }, [project, isProjectLoading, room3d, designObjects, globalMaterials, budgetSettings, savedViews, defaultHandleType, cloudSaveStatus, setCloudSaveStatus, getStateFingerprint]);
+
+  const handleSaveProjectCloud = useCallback(async () => {
+    if (isSavingCloudRef.current) return;
+    if (!backendUserId) {
+      Alert.alert('Validation', 'You must be logged in to save projects.');
+      return;
+    }
+    isSavingCloudRef.current = true;
+    setCloudSaveStatus('saving', false);
+    try {
+      const projectState = serializeProjectState(room3d, designObjects, globalMaterials, budgetSettings, savedViews, defaultHandleType);
+      const fingerprint = getStateFingerprint(projectState);
+      const thumbnailURL = (await captureApi.requestCapture('thumbnails/projects')) || undefined;
+      if (!project) {
+        const result = await createProjectInCloud(projectState, {
+          name: (projectName || '').trim() || 'Untitled',
+          workspaceId: selectedWorkspaceId ?? undefined,
+          creatorId: backendUserId,
+          thumbnailURL,
+        });
+        lastSavedFingerprintRef.current = fingerprint;
+        pendingBaselineCaptureRef.current = false;
+        setProject(result.project);
+        setCloudSaveStatus('saved', true);
+      } else {
+        await saveProjectToCloud(
+          projectState,
+          project.id,
+          backendUserId,
+          undefined,
+          undefined,
+          thumbnailURL
+        );
+        lastSavedFingerprintRef.current = fingerprint;
+        pendingBaselineCaptureRef.current = false;
+        setCloudSaveStatus('saved', true);
+      }
+    } catch (err) {
+      console.error('Cloud save failed:', err);
+      Alert.alert('Error', 'Failed to save project to cloud.');
+      setCloudSaveStatus(project ? 'unsaved_changes' : 'not_saved', false);
+    } finally {
+      isSavingCloudRef.current = false;
+    }
+  }, [backendUserId, room3d, designObjects, globalMaterials, budgetSettings, savedViews, defaultHandleType, getStateFingerprint, captureApi, project, projectName, selectedWorkspaceId, setProject, setCloudSaveStatus]);
 
   useEffect(() => {
     if (!projectId) return;
@@ -819,7 +904,7 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
         onLoadProject={handleLoadProject}
         onExport3d={handleExport3d}
         onExportDae={handleExportDae}
-        onSaveProjectCloud={() => setIsProjectPickerVisible(true)}
+        onSaveProjectCloud={handleSaveProjectCloud}
         isExporting={isExporting}
         isExportingDae={isExportingDae}
         wallContextMenu={wallContextMenu}
@@ -833,21 +918,6 @@ export default function DesignScreen({ projectId }: { projectId?: string }) {
         projectName={projectName || project?.name || 'Project'}
         onFramingModeChange={setIsFraming}
       />
-
-      {isProjectPickerVisible && (
-        <View style={styles.pickerOverlay}>
-          <ProjectPicker
-            projectState={serializeProjectState(room3d, designObjects, globalMaterials, budgetSettings, savedViews, defaultHandleType)}
-            creatorId={backendUserId}
-            initialProjectName={projectName || project?.name || ''}
-            initialProjectId={project?.id ?? null}
-            initialWorkspaceId={project?.workspaceId ?? null}
-            onSaved={(project) => setProject(project)}
-            onClose={() => setIsProjectPickerVisible(false)}
-            captureApi={captureApi}
-          />
-        </View>
-      )}
 
       {isProjectLoading && (
         <View style={styles.pickerOverlay}>
